@@ -1,3 +1,13 @@
+/* 
+TODO: Criar função para precomputar direções para cada casa
+TODO: Criar função para calcular casas possíveis para peças deslizantes (torre, bispo e rainha)
+TODO: Implementar lances pseudo-legais para: torre, bispo e rainha
+
+*/
+
+
+
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -25,12 +35,12 @@ typedef enum {
 static const char PIECE_CHAR[16] = ".pnbrqk..PNBRQK.";
 
 typedef uint8_t Piece;
-typedef int Square;
 
 #define SQ_NONE (-1)
 
 typedef struct {
-    Square from, to;
+    int start_square;
+    int target_square;
     u8 flags; // indicar captura
 } Move;
 
@@ -38,7 +48,7 @@ typedef struct {
     Piece board[64];
     Color side_to_move;
 
-    Square king_sq[2]; // cache da posição do rei
+    int king_square[2]; // cache da posição do rei
 } Board;
 
 /* 
@@ -54,6 +64,29 @@ typedef struct {
 #define MAKE_PIECE(c, t) ((Piece)(((c) << 3) | (t)))
 #define TYPE_OF(p) ((PieceType)(p & PIECE_TYPE_MASK))
 #define COLOR_OF(p) ((Color)(((p) >> 3) & COLOR_MASK)) // 00001XXX (white) >> 3 00000001
+
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+
+
+// BOARD DIRECTIONS
+
+
+typedef enum {
+    NORTH = -8,
+    SOUTH = 8,
+    EAST = 1,
+    WEST = -1,
+    NORTH_EAST = -7,
+    SOUTH_WEST = 7,
+    SOUTH_EAST = 9,
+    NORTH_WEST = -9
+} DirectionsOffset;
+
+static const int direction_offsets = {-8, 8, 1, -1, -7, 7, 9, -9};
+int squares_to_edge[BOARD_SIZE][8]; // guarda para o numero de casas até o fim do tabuleiro para cada direção -- para CADA casa
+
+void precompute_move_data(int *squares_to_edge);
 
 
 int decode_piece(char ch) {

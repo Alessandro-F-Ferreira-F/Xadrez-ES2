@@ -5,64 +5,61 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-#define MAX_FEN_STRING 256 
-#define IS_UPPERCASE(c) ((c >= 'A') && (c <= 'Z')) 
-#define IS_LOWERCASE(c) ((c >= 'a') && (c <= 'z'))
-#define BOARD_SIZE 64
-
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
-typedef struct String {
-    char *buffer;
-    u64 length;
-} String;
 
-String* create_string(char *buffer) {
-    u64 len = strlen(buffer);
-    String *str = (String*)malloc(sizeof(String));
-    str->buffer = buffer;
-    str->length;
-    return str;
-}
+#define MAX_FEN_STRING 256 
+#define BOARD_SIZE 64
 
-void print_string(String *str) {
-    printf("%s", str->buffer);
-}
 
-typedef enum Color {
-    WHITE = 1,
-    BLACK = 2
-} Color;
+typedef enum {WHITE = 1, BLACK = 0} Color;
 
-typedef enum Piece {
-    EMPTY = 0,
-    PAWN = 1,
-    KNIGHT = 2,
-    BISHOP = 3,  // 011
-    ROOK = 4, 
-    QUEEN = 5, 
-    KING = 6
-} Piece;
+typedef enum {
+    EMPTY = 0, PAWN = 1, KNIGHT = 2,
+    BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6
+} PieceType;
 
-// typedef struct Piece {
-//     int type;
-//     int color;
-// }
+static const char PIECE_CHAR[16] = ".pnbrqk..PNBRQK.";
 
-// 64 bits 2 inteiros de 32 bits
+typedef uint8_t Piece;
+typedef int Square;
 
-u8 encode_piece(Piece piece, Color color) {
-    uint8_t piece_encoded = ((color << 6) | piece);
-    return piece_encoded;
-}
+#define SQ_NONE (-1)
 
-int decode_fen(char ch) {
-    int piece_type;
-    int color;
-    int piece;
+typedef struct {
+    Square from, to;
+    u8 flags; // indicar captura
+} Move;
+
+typedef struct {
+    Piece board[64];
+    Color side_to_move;
+
+    Square king_sq[2]; // cache da posição do rei
+} Board;
+
+/* 
+   unused    color  type
+    [0 0 0 0] [X] [Y Y Y]
+    
+    0 0 0 0 0 1 1 1
+*/
+
+#define PIECE_TYPE_MASK 0x7
+#define COLOR_MASK 0x1
+
+#define MAKE_PIECE(c, t) ((Piece)(((c) << 3) | (t)))
+#define TYPE_OF(p) ((PieceType)(p & PIECE_TYPE_MASK))
+#define COLOR_OF(p) ((Color)(((p) >> 3) & COLOR_MASK)) // 00001XXX (white) >> 3 00000001
+
+
+int decode_piece(char ch) {
+    PieceType piece_type;
+    Color color;
+    Piece piece;
 
     switch (toupper(ch))
     {
@@ -89,121 +86,141 @@ int decode_fen(char ch) {
             break;
     }
 
-    if (IS_UPPERCASE(ch)) {
+    if (isupper(ch)) {
         color = WHITE;
     } else color = BLACK;
 
-    piece = (int) encode_piece(piece_type, color);
-
+    piece = MAKE_PIECE(color, piece_type);
     return piece;
 }
 
-void fill_blanck(u8 *board, int *index, int n) {
+void fill_blanck(Piece *board, int *index, int n) {
     for (int i = *index; i < (*index + n); i++) {
         board[i] = EMPTY;
     }
     *index += n;
 }
 
-/* 
-"PP2nk2"
-[P, P, 0, 0, n, k, 0, 0]
-*/
 
-u8* fen_to_board(char fen_string[MAX_FEN_STRING]) {
+void parse_fen(Piece *board, char fen_string[MAX_FEN_STRING]) {
     char *ptr = fen_string;
     char ch;
-    int piece;
     int index = 0;
+    Piece piece;
 
-    u8 *board = (u8*)malloc(sizeof(u8) * BOARD_SIZE);
     
     while(*ptr != '\0') {
+        if (index >= 64) {
+            fprintf(stderr, "board indexing out of bounds");
+            break;
+        }
         ch = *ptr;
         
         if (isalpha(ch)) {
-            piece = decode_fen(ch);
+            piece = decode_piece(ch);
             board[index++] = piece;
-            // if (piece == -1) printf("<ERROR>");
-            // printf("Piece: %c\n", ch);
-            // printf("Index: %d\n", index);
-
         } else if (isdigit(ch)) {
-            // printf("Piece: %c\n", ch);
-            int n = atoi(&ch);
-            // printf("N: %d\n", n);
-            // printf("Index (before fill): %d\n", index);
+            int n = ch - '0';
             fill_blanck(board, &index, n);
-            // printf("Index (after fill): %d\n", index);
         }
         ptr++;
     }
-
-    return board;
 }
 
-void print_board(u8 *board) {
+char* board_to_fen(Piece *board) { // CLAUDE? Aqui não seria uma boa ideia usar a struct String? Para saber o tamanho da string retornada...
+    char *fen = (char *)malloc(MAX_FEN_STRING);
+    int pos = 0;
+    int sq;
+    for (int rank = 0; rank < 8; rank++) {
+        int empty = 0;
+        for (int file = 0; file < 8; file++) {
+            sq = (rank * 8) + file;
+            Piece piece = board[sq];
+
+            if (piece == EMPTY) {
+                empty++;
+                continue;
+            }
+
+            if (empty > 0) {
+                fen[pos++] = '0' + empty;
+                empty = 0;
+            }
+
+            fen[pos++] = PIECE_CHAR[piece];
+
+        }
+
+        if (empty > 0) {
+            fen[pos++] = '0' + empty;
+        }
+
+        if (rank < 7) {
+            fen[pos++] = '/';
+        }
+    }
+
+    fen[pos] = '\0';
+    return fen;
+}
+
+
+
+void print_board(Piece *board) {
     for (int i = 0; i < BOARD_SIZE; i++) {
-        printf("%u ", board[i]);
+        printf("%-2u ", board[i]);
         if (((i + 1) % 8 == 0) && (i != 0)) printf("\n");
     }
     printf("\n");
 }
 
-char* board_to_fen(uint8_t *board);
+
+void print_piece_chart() {
+    printf("\nTABELA DE PEÇAS\n");
+    printf("====== ** ======\n");
+    printf("Black pawn: %u\n", MAKE_PIECE(BLACK, PAWN));
+    printf("Black knight: %u\n", MAKE_PIECE(BLACK, KNIGHT));
+    printf("Black bishop: %u\n", MAKE_PIECE(BLACK, BISHOP));
+    printf("Black rook: %u\n", MAKE_PIECE(BLACK, ROOK));
+    printf("Black queen: %u\n", MAKE_PIECE(BLACK, QUEEN));
+    printf("Black king: %u\n", MAKE_PIECE(BLACK, KING));
+    printf("----------\n");
+    printf("White pawn: %u\n", MAKE_PIECE(WHITE, PAWN));
+    printf("White knight: %u\n", MAKE_PIECE(WHITE, KNIGHT));
+    printf("White bishop: %u\n", MAKE_PIECE(WHITE, BISHOP));
+    printf("White rook: %u\n", MAKE_PIECE(WHITE, ROOK));
+    printf("White queen: %u\n", MAKE_PIECE(WHITE, QUEEN));
+    printf("White king: %u\n", MAKE_PIECE(WHITE,KING));
+}
 
 int main() {
-    // u8 board[64];
-    /* 
-    [r, n, b, q, k, b, n, r],
-    [p, p, p, p, p, p, p, p]
-    ]
-    */
+    //tabuleiro FEN: rnbqk1nr/pppp1ppp/8/2b5/3pP3/5N2/PPP2PPP/RNBQKB1R
+    Piece board[BOARD_SIZE] = {
+    // Rank 8
+     4,  2,  3,  5,  6,  0,  2,  4,
+    // Rank 7
+     1,  1,  1,  1,  0,  1,  1,  1,
+    // Rank 6
+     0,  0,  0,  0,  0,  0,  0,  0,
+    // Rank 5
+     0,  0,  3,  0,  0,  0,  0,  0,
+    // Rank 4
+     0,  0,  0,  1,  9,  0,  0,  0,
+    // Rank 3
+     0,  0,  0,  0,  0, 10,  0,  0,
+    // Rank 2
+     9,  9,  9,  0,  0,  9,  9,  9,
+    // Rank 1
+    12, 10, 11, 13, 14, 11,  0, 12
+    };
+
     
-    // String *my_str = create_string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-    // print_string(my_str);
+    print_board(board);
+    printf("\n");
 
-    char fen_string[MAX_FEN_STRING] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-
-    u8 *board = fen_to_board(fen_string);
+    char *output_fen = board_to_fen(board);
+    printf("Output FEN: %s\n", output_fen);
 
     printf("\n");
-    print_board(board);
-
-    u8 r = encode_piece(ROOK, BLACK);
-    u8 R = encode_piece(ROOK, WHITE);
-    u8 b = encode_piece(BISHOP, BLACK);
-    u8 B = encode_piece(BISHOP, WHITE);
-    u8 p = encode_piece(PAWN, BLACK);
-    u8 P = encode_piece(PAWN, WHITE);
-    u8 n = encode_piece(KNIGHT, BLACK);
-    u8 N = encode_piece(KNIGHT, WHITE);
-    u8 k = encode_piece(KING, BLACK);
-    u8 K = encode_piece(KING, WHITE);
-    u8 q = encode_piece(QUEEN, BLACK);
-    u8 Q = encode_piece(QUEEN, WHITE);
-
-    printf("\nTABELA DE PEÇAS\n");
-
-    printf("Black rook: %u\n", r);
-    printf("White rook: %u\n", R);
-    printf("Black bishop: %u\n", b);
-    printf("White bishop: %u\n", B);
-    printf("Black pawn: %u\n", p);
-    printf("White pawn: %u\n", P);
-    printf("Black knight: %u\n", n);
-    printf("White knight: %u\n", N);
-    printf("Black king: %u\n", k);
-    printf("White king: %u\n", K);
-    printf("Black queen: %u\n", q);
-    printf("White queen: %u\n", Q);
-
-    // char c;
-
-    // printf("Type a char: ");
-    // scanf("%c", &c);
-
-    // if (IS_UPPERCASE(c) == false) printf("false\n");
-    // else printf("true\n");
-
+    // print_piece_chart();
 }

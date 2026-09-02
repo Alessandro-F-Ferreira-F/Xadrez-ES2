@@ -1,7 +1,16 @@
 /* 
-TODO: Criar função para precomputar direções para cada casa
+// TODO: Criar função para precomputar direções para cada casa
 TODO: Criar função para calcular casas possíveis para peças deslizantes (torre, bispo e rainha)
 TODO: Implementar lances pseudo-legais para: torre, bispo e rainha
+
+Ordem de implementação:
+
+1. Corrigir os três bugs acima ([8] no array, bound no fill_blanck, parar no espaço).
+2. Separar Direction (índice) de DIR_OFFSET (offset), e escrever precompute_move_data.
+3. Definir Move/flags e a assinatura de generate_moves antes de gerar qualquer lance.
+4. Deslizantes com a função única parametrizada por intervalo de direção.
+5. Cavalo e rei por tabela pré-computada; peão por último (é o mais cheio de casos).
+6. is_square_attacked → make/unmake → filtro de legalidade → perft.
 
 */
 
@@ -21,6 +30,7 @@ typedef uint16_t u16;
 typedef uint8_t u8;
 
 
+#define INPUT_STR_SIZE 128
 #define MAX_FEN_STRING 256 
 #define BOARD_SIZE 64
 
@@ -68,25 +78,44 @@ typedef struct {
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
+#define BOARD_WIDTH 8;
+
+#define RANK_OF(sq) ((sq) / 8)
+#define FILE_OF(sq) ((sq) % 8)
+
+#define SQ_FROM_RF(rank, file) ((rank) * 8 + (file))
 
 // BOARD DIRECTIONS
 
+typedef enum Direction {DIR_N, DIR_S, DIR_E, DIR_W, DIR_NE, DIR_SW, DIR_SE, DIR_NW, DIR_COUNT} Direction;
+const char dir_charmap[8][32] = {"NORTE", "SUL", "LESTE", "OESTE", "NORDESTE", "SUDOESTE", "SUDESTE", "NOROESTE"};
+// -> NORTE, SUL, LESTE, OESTE, NORDESTE, SUDOESTE, SUDESTE, NOROESTE
 
-typedef enum {
-    NORTH = -8,
-    SOUTH = 8,
-    EAST = 1,
-    WEST = -1,
-    NORTH_EAST = -7,
-    SOUTH_WEST = 7,
-    SOUTH_EAST = 9,
-    NORTH_WEST = -9
-} DirectionsOffset;
+static const int DIR_OFFSET[DIR_COUNT] = {-8, 8, 1, -1, -7, 7, 9, -9};
 
-static const int direction_offsets = {-8, 8, 1, -1, -7, 7, 9, -9};
-int squares_to_edge[BOARD_SIZE][8]; // guarda para o numero de casas até o fim do tabuleiro para cada direção -- para CADA casa
+static int squares_to_edge[BOARD_SIZE][8]; // guarda para o numero de casas até o fim do tabuleiro para cada direção -- para CADA casa
 
-void precompute_move_data(int *squares_to_edge);
+void precompute_move_data() {
+    for (int file = 0; file < 8; file++) {
+        for (int rank = 0; rank < 8; rank++) {
+            int num_north = rank;
+            int num_south = 7 - rank;
+            int num_west = file;
+            int num_east = 7 - file;
+
+            int square_index = rank * 8 + file;
+
+            squares_to_edge[square_index][DIR_N] = num_north;
+            squares_to_edge[square_index][DIR_S] = num_south;
+            squares_to_edge[square_index][DIR_E] = num_east;
+            squares_to_edge[square_index][DIR_W] = num_west;
+            squares_to_edge[square_index][DIR_NE] = MIN(num_north, num_east);
+            squares_to_edge[square_index][DIR_SW] = MIN(num_south, num_west);
+            squares_to_edge[square_index][DIR_SE] = MIN(num_south, num_east);
+            squares_to_edge[square_index][DIR_NW] = MIN(num_north, num_west);
+        }
+    }
+}
 
 
 int decode_piece(char ch) {
@@ -154,6 +183,10 @@ void parse_fen(Piece *board, char fen_string[MAX_FEN_STRING]) {
             board[index++] = piece;
         } else if (isdigit(ch)) {
             int n = ch - '0';
+            if ((index + n) >= 64) {
+                fprintf(stderr, "error: invalid empty spaces in board");
+                break;
+            }     
             fill_blanck(board, &index, n);
         }
         ptr++;
@@ -199,14 +232,57 @@ char* board_to_fen(Piece *board) { // CLAUDE? Aqui não seria uma boa ideia usar
 
 
 
-void print_board(Piece *board) {
-    for (int i = 0; i < BOARD_SIZE; i++) {
-        printf("%-2u ", board[i]);
-        if (((i + 1) % 8 == 0) && (i != 0)) printf("\n");
+void print_board(const Piece *board)
+{
+    printf("\n");
+
+    for (int rank = 0; rank < 8; rank++) {
+        printf("%d  ", 8 - rank);
+
+        for (int file = 0; file < 8; file++) {
+            int sq = rank * 8 + file;
+            printf("[%c]", PIECE_CHAR[board[sq]]);
+        }
+        printf("\n");
+    }
+    printf("\n   ");   
+
+    for (char file = 'a'; file <= 'h'; file++) {
+        printf(" %c ", file);
     }
     printf("\n");
 }
 
+int get_fen(char fen[MAX_FEN_STRING]) {
+    printf("Insert FEN: ");
+    return(fgets(fen, MAX_FEN_STRING, stdin));
+}
+
+int get_int(char msg[INPUT_STR_SIZE]) {
+    if (msg == NULL) printf("Type int: ");
+    else printf("%s", msg);
+
+    char buffer[16];
+    fgets(buffer, 16, stdin);
+
+    int input_int = strtol(buffer, NULL, 10);
+    return input_int;
+}
+
+void print_square_directions(int rank, int file) {
+    if ((rank < 0 || rank > 7) || (file < 0 || file > 7)) {
+        printf("invalid rank or file\n");
+        return;
+    }
+
+    int sq_check = SQ_FROM_RF(rank, file);
+    int *sq_data = squares_to_edge[sq_check];
+
+    printf("Directions for square (%d, %d)\n", RANK_OF(sq_check), FILE_OF(sq_check));
+    for (int i = 0; i < 8; i++) {
+        printf("%s: %d\n", dir_charmap[i], sq_data[i]);
+    }
+}
 
 void print_piece_chart() {
     printf("\nTABELA DE PEÇAS\n");
@@ -227,33 +303,52 @@ void print_piece_chart() {
 }
 
 int main() {
-    //tabuleiro FEN: rnbqk1nr/pppp1ppp/8/2b5/3pP3/5N2/PPP2PPP/RNBQKB1R
-    Piece board[BOARD_SIZE] = {
-    // Rank 8
-     4,  2,  3,  5,  6,  0,  2,  4,
-    // Rank 7
-     1,  1,  1,  1,  0,  1,  1,  1,
-    // Rank 6
-     0,  0,  0,  0,  0,  0,  0,  0,
-    // Rank 5
-     0,  0,  3,  0,  0,  0,  0,  0,
-    // Rank 4
-     0,  0,  0,  1,  9,  0,  0,  0,
-    // Rank 3
-     0,  0,  0,  0,  0, 10,  0,  0,
-    // Rank 2
-     9,  9,  9,  0,  0,  9,  9,  9,
-    // Rank 1
-    12, 10, 11, 13, 14, 11,  0, 12
-    };
+    char fen[MAX_FEN_STRING] = {0};
+    Piece board[BOARD_SIZE] = {0};
 
-    
+    precompute_move_data();
+
+    char ch;
+
+    do {
+        printf("\n==== Menu ====\n");
+        printf("1 - Insert FEN\n");
+        printf("2 - Get piece direction\n");
+        printf("3 - Print piece chart\n");
+
+
+        int opt = get_int("Select option:");
+        if (opt < 1 || opt > 3) {
+            printf("Invalid option\n");
+            continue;
+        }
+
+        if (opt == 1) {
+            get_fen(fen);
+            parse_fen(board, fen);
+            print_board(board);
+        }
+
+        if (opt == 2) {
+            int rank, file, sq;
+            rank = get_int("RANK: ");
+            file = get_int("FILE: ");
+            print_square_directions(rank, file);
+        }
+
+        if (opt == 3) {
+            print_piece_chart();
+        }
+
+        printf("\n");
+        printf("Type q for quit, y for continue\n");
+        ch = fgetc(stdin);
+    } while(ch != 'q' && ch != 'Q');
+
     print_board(board);
     printf("\n");
 
     char *output_fen = board_to_fen(board);
     printf("Output FEN: %s\n", output_fen);
-
     printf("\n");
-    // print_piece_chart();
 }

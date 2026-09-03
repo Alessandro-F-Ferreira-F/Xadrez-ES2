@@ -1,4 +1,4 @@
-/* 
+/*
 // TODO: Criar função para precomputar direções para cada casa
 TODO: Criar função para calcular casas possíveis para peças deslizantes (torre, bispo e rainha)
 TODO: Implementar lances pseudo-legais para: torre, bispo e rainha
@@ -11,89 +11,29 @@ Ordem de implementação:
 4. Deslizantes com a função única parametrizada por intervalo de direção.
 5. Cavalo e rei por tabela pré-computada; peão por último (é o mais cheio de casos).
 6. is_square_attacked → make/unmake → filtro de legalidade → perft.
-
 */
 
-
-
-
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <ctype.h>
-
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
-
-
-#define INPUT_STR_SIZE 128
-#define MAX_FEN_STRING 256 
-#define BOARD_SIZE 64
-
-
-typedef enum {WHITE = 1, BLACK = 0} Color;
-
-typedef enum {
-    EMPTY = 0, PAWN = 1, KNIGHT = 2,
-    BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6
-} PieceType;
-
-static const char PIECE_CHAR[16] = ".pnbrqk..PNBRQK.";
-
-typedef uint8_t Piece;
-
-#define SQ_NONE (-1)
-
-typedef struct {
-    int start_square;
-    int target_square;
-    u8 flags; // indicar captura
-} Move;
-
-typedef struct {
-    Piece board[64];
-    Color side_to_move;
-
-    int king_square[2]; // cache da posição do rei
-} Board;
+#include "types.h"
+#include "fen_parser.h"
 
 /* 
-   unused    color  type
-    [0 0 0 0] [X] [Y Y Y]
-    
-    0 0 0 0 0 1 1 1
+VARIÁVEIS GLOBAIS
 */
 
-#define PIECE_TYPE_MASK 0x7
-#define COLOR_MASK 0x1
 
-#define MAKE_PIECE(c, t) ((Piece)(((c) << 3) | (t)))
-#define TYPE_OF(p) ((PieceType)(p & PIECE_TYPE_MASK))
-#define COLOR_OF(p) ((Color)(((p) >> 3) & COLOR_MASK)) // 00001XXX (white) >> 3 00000001
 
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+const char dir_charmap[8][16] = {"NORTE", "SUL", "LESTE", "OESTE", "NORDESTE", "SUDOESTE", "SUDESTE", "NOROESTE"};
 
-#define BOARD_WIDTH 8;
-
-#define RANK_OF(sq) ((sq) / 8)
-#define FILE_OF(sq) ((sq) % 8)
-
-#define SQ_FROM_RF(rank, file) ((rank) * 8 + (file))
-
-// BOARD DIRECTIONS
-
-typedef enum Direction {DIR_N, DIR_S, DIR_E, DIR_W, DIR_NE, DIR_SW, DIR_SE, DIR_NW, DIR_COUNT} Direction;
-const char dir_charmap[8][32] = {"NORTE", "SUL", "LESTE", "OESTE", "NORDESTE", "SUDOESTE", "SUDESTE", "NOROESTE"};
-// -> NORTE, SUL, LESTE, OESTE, NORDESTE, SUDOESTE, SUDESTE, NOROESTE
-
-static const int DIR_OFFSET[DIR_COUNT] = {-8, 8, 1, -1, -7, 7, 9, -9};
+static const int DIR_OFFSET[DIR_COUNT] = {-8, 8, 1, -1, -7, 7, 9, -9}; // TODO: inverter offsets
 
 static int squares_to_edge[BOARD_SIZE][8]; // guarda para o numero de casas até o fim do tabuleiro para cada direção -- para CADA casa
+
+static MoveList gen_moves;                   
+
+
+
+
+
 
 void precompute_move_data() {
     for (int file = 0; file < 8; file++) {
@@ -117,120 +57,37 @@ void precompute_move_data() {
     }
 }
 
-
-int decode_piece(char ch) {
-    PieceType piece_type;
-    Color color;
-    Piece piece;
-
-    switch (toupper(ch))
-    {
-        case 'P':
-            piece_type = PAWN;
-            break;
-        case 'R':
-            piece_type = ROOK;
-            break;
-        case 'N':
-            piece_type = KNIGHT;
-            break;
-        case 'B':
-            piece_type = BISHOP;  
-            break;
-        case 'Q':
-            piece_type = QUEEN;
-            break;
-        case 'K':
-            piece_type = KING;
-            break;
-        default:
-            return -1;
-            break;
-    }
-
-    if (isupper(ch)) {
-        color = WHITE;
-    } else color = BLACK;
-
-    piece = MAKE_PIECE(color, piece_type);
-    return piece;
+void init_move_list() {
+    MemoryZeroStruct(&gen_moves, MoveList);
 }
 
-void fill_blanck(Piece *board, int *index, int n) {
-    for (int i = *index; i < (*index + n); i++) {
-        board[i] = EMPTY;
-    }
-    *index += n;
+void gen_reset();
+
+void gen_push(Move move) {
+    int i = gen_moves.index;
+    Move *m = &gen_moves.moves[i];
+
+    m->origin = move.origin;
+    m->target = move.target;
+    m->promo = move.promo;
+    m->flags = move.flags;
+
+    (gen_moves.index)++;
+}
+
+void generate_sliding_moves() {
+
 }
 
 
-void parse_fen(Piece *board, char fen_string[MAX_FEN_STRING]) {
-    char *ptr = fen_string;
-    char ch;
-    int index = 0;
-    Piece piece;
-
-    
-    while(*ptr != '\0') {
-        if (index >= 64) {
-            fprintf(stderr, "board indexing out of bounds");
-            break;
-        }
-        ch = *ptr;
-        
-        if (isalpha(ch)) {
-            piece = decode_piece(ch);
-            board[index++] = piece;
-        } else if (isdigit(ch)) {
-            int n = ch - '0';
-            if ((index + n) >= 64) {
-                fprintf(stderr, "error: invalid empty spaces in board");
-                break;
-            }     
-            fill_blanck(board, &index, n);
-        }
-        ptr++;
-    }
-}
-
-char* board_to_fen(Piece *board) { // CLAUDE? Aqui não seria uma boa ideia usar a struct String? Para saber o tamanho da string retornada...
-    char *fen = (char *)malloc(MAX_FEN_STRING);
-    int pos = 0;
-    int sq;
-    for (int rank = 0; rank < 8; rank++) {
-        int empty = 0;
-        for (int file = 0; file < 8; file++) {
-            sq = (rank * 8) + file;
-            Piece piece = board[sq];
-
-            if (piece == EMPTY) {
-                empty++;
-                continue;
-            }
-
-            if (empty > 0) {
-                fen[pos++] = '0' + empty;
-                empty = 0;
-            }
-
-            fen[pos++] = PIECE_CHAR[piece];
-
-        }
-
-        if (empty > 0) {
-            fen[pos++] = '0' + empty;
-        }
-
-        if (rank < 7) {
-            fen[pos++] = '/';
-        }
-    }
-
-    fen[pos] = '\0';
-    return fen;
-}
+void generate_moves(Board *board);
 
 
+
+
+/* 
+AUXILIARES
+*/
 
 void print_board(const Piece *board)
 {
@@ -269,6 +126,7 @@ int get_int(char msg[INPUT_STR_SIZE]) {
     return input_int;
 }
 
+
 void print_square_directions(int rank, int file) {
     if ((rank < 0 || rank > 7) || (file < 0 || file > 7)) {
         printf("invalid rank or file\n");
@@ -283,6 +141,7 @@ void print_square_directions(int rank, int file) {
         printf("%s: %d\n", dir_charmap[i], sq_data[i]);
     }
 }
+
 
 void print_piece_chart() {
     printf("\nTABELA DE PEÇAS\n");
@@ -302,53 +161,3 @@ void print_piece_chart() {
     printf("White king: %u\n", MAKE_PIECE(WHITE,KING));
 }
 
-int main() {
-    char fen[MAX_FEN_STRING] = {0};
-    Piece board[BOARD_SIZE] = {0};
-
-    precompute_move_data();
-
-    char ch;
-
-    do {
-        printf("\n==== Menu ====\n");
-        printf("1 - Insert FEN\n");
-        printf("2 - Get piece direction\n");
-        printf("3 - Print piece chart\n");
-
-
-        int opt = get_int("Select option:");
-        if (opt < 1 || opt > 3) {
-            printf("Invalid option\n");
-            continue;
-        }
-
-        if (opt == 1) {
-            get_fen(fen);
-            parse_fen(board, fen);
-            print_board(board);
-        }
-
-        if (opt == 2) {
-            int rank, file, sq;
-            rank = get_int("RANK: ");
-            file = get_int("FILE: ");
-            print_square_directions(rank, file);
-        }
-
-        if (opt == 3) {
-            print_piece_chart();
-        }
-
-        printf("\n");
-        printf("Type q for quit, y for continue\n");
-        ch = fgetc(stdin);
-    } while(ch != 'q' && ch != 'Q');
-
-    print_board(board);
-    printf("\n");
-
-    char *output_fen = board_to_fen(board);
-    printf("Output FEN: %s\n", output_fen);
-    printf("\n");
-}

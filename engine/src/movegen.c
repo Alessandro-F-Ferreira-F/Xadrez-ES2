@@ -114,6 +114,51 @@ void generate_pawn_moves(Board *board, MoveList *list) {
     }
 }
 
+
+
+void genenare_moves_from_direction(Board *board, MoveList *list, int sq, int dir) {
+    int dist_to_edge = SQ_TO_EDGE[sq][dir];
+    
+    int target_sq = sq;
+
+    for (;dist_to_edge > 0; dist_to_edge--) {
+        target_sq = target_sq + DIR_OFFSET[dir];
+
+        if (board->array[target_sq] == EMPTY) {
+            u32 move = encode_move(sq, target_sq, 0, 0);
+            add_move(move, list);
+        } else {
+            break;
+        }
+    }
+}
+
+void generate_sliding_moves(Board *board, MoveList *list) {
+    Piece piece;
+    int target_sq;
+    u32 move;
+
+
+    for (int sq = 0; sq < BOARD_SIZE; sq++) {
+        piece = board->array[sq];
+
+        if (TYPE_OF(piece) == ROOK) {
+            char out[3];
+            coord_from_sq(sq, out);
+            printf("-- Rook on %s [%d] --\n", out, sq);
+
+            for (int dir = 0; dir < 4; dir++) {
+                genenare_moves_from_direction(board, list, sq, dir);
+            }
+        }
+    }
+}
+
+
+void generate_all_moves(Board *board, MoveList *list);
+
+
+
 /*
 Procura um lance na lista gerada a partir de origem, destino e promoção.
 Devolve por 'out' o lance COMO O GERADOR O PRODUZIU -- com as flags corretas
@@ -125,6 +170,7 @@ bool find_move(Board *board, int origin_sq, int target_sq, int promo, u32 *out) 
 
     /* TODO: trocar por generate_all_moves quando as outras peças existirem */
     generate_pawn_moves(board, &temp);
+    generate_sliding_moves(board, &temp);
 
     for (int i = 0; i < temp.count; i++) {
         MoveDescription cand = decode_move(temp.moves[i].move);
@@ -141,12 +187,6 @@ bool find_move(Board *board, int origin_sq, int target_sq, int promo, u32 *out) 
 
 
 
-void generate_sliding_moves(Board *board, MoveList *list) {
-
-}
-
-
-void generate_all_moves(Board *board, MoveList *list);
 
 
 void make_move(Board *b, u32 move) {
@@ -186,22 +226,17 @@ void print_moves(MoveList *list) {
 }
 
 
-
-/* 
-* AUXILIARES
-*/
-
-
-void print_square_directions(char sq_str[3]) {
-    int sq = sq_from_coord(sq_str);
+void print_square_directions(int sq) {
     if ((sq < 0) || (sq >= 64)) {
         LOG_ERROR("invalid square coordinate");
         return;
     }
 
+    char out[3];
     int *sq_data = SQ_TO_EDGE[sq];
 
-    printf("Directions for square %s\n", sq_str);
+    coord_from_sq(sq, out);
+    printf("Directions for square %s\n", out);
     for (int i = 0; i < 8; i++) {
         printf("%s: %d\n", DIR_CHARMAP[i], sq_data[i]);
     }

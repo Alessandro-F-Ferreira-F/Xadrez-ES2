@@ -1,6 +1,9 @@
 #include "utils.h"
 
-
+/* 
+strslc() realiza a operação de fatiar uma string:
+    começando no índice src[start] até src[end]
+*/
 void strslc(const char *src, char *dest, int start, int end) {
     int length = end - start;
     strncpy(dest, src + start, length);

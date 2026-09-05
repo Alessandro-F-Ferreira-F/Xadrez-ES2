@@ -2,6 +2,13 @@
 
 Xadrez desenvolvido como trabalho da disciplina de Engenharia de Software 2 — 2026.2.
 
+# AVISO!!
+O arquivo [`estado-do-projeto`](engine/docs/onboarding-motor.md) contém o estado atual do projeto.<br>
+Leiam para entender o que já foi feito até o momento.
+
+Juntamente a este arquivo, há o documento [`roadmap`](engine/docs/roadmap-motor.md) que explica quais são os próximos passos.<br>
+*(Tem uma explicação mais detalhada do código)*
+
 ## O projeto
 
 O sistema é dividido em duas partes que conversam por um protocolo de texto:

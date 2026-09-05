@@ -1,28 +1,44 @@
-#include "fen_parser.h"
+/*
+// TODO: Criar função para precomputar direções para cada casa
+TODO: Criar função para calcular casas possíveis para peças deslizantes (torre, bispo e rainha)
+TODO: Implementar lances pseudo-legais para: torre, bispo e rainha
+
+Ordem de implementação:
+
+1. Corrigir os três bugs acima ([8] no array, bound no fill_blanck, parar no espaço).
+2. Separar Direction (índice) de DIR_OFFSET (offset), e escrever precompute_move_data.
+3. Definir Move/flags e a assinatura de generate_moves antes de gerar qualquer lance.
+4. Deslizantes com a função única parametrizada por intervalo de direção.
+5. Cavalo e rei por tabela pré-computada; peão por último (é o mais cheio de casos).
+6. is_square_attacked → make/unmake → filtro de legalidade → perft.
+*/
+
+#include "board.h"
+
+               
+
 
 #define FEN_PARSE_FIELDS 6
+
 
 const char PIECE_CHAR[17] = ".pnbrqk..PNBRQK.";
 
 /*
 * DEFINIÇÕES DE FUNÇÕES  
 */ 
-static int square_from_coord(const char *coord);
 static int piece_from_char(char ch);
 static bool is_fen_piece(char ch);
 static bool valid_board_placement(const char *fen, Board *board);
 
 
-
-char* board_to_fen(Piece *board) {
-    char *fen = (char *)malloc(MAX_FEN_STRING);
+void board_to_fen(Board *board, char fen_out[MAX_FEN_STRING]) {
     int pos = 0;
     int sq;
-    for (int rank = 0; rank < 8; rank++) {
+    for (int rank = 7; rank >= 0; rank--) {
         int empty = 0;
         for (int file = 0; file < 8; file++) {
             sq = (rank * 8) + file;
-            Piece piece = board[sq];
+            Piece piece = board->array[sq];
 
             if (piece == EMPTY) {
                 empty++;
@@ -30,25 +46,24 @@ char* board_to_fen(Piece *board) {
             }
 
             if (empty > 0) {
-                fen[pos++] = '0' + empty;
+                fen_out[pos++] = '0' + empty;
                 empty = 0;
             }
 
-            fen[pos++] = PIECE_CHAR[piece];
+            fen_out[pos++] = PIECE_CHAR[piece];
 
         }
 
         if (empty > 0) {
-            fen[pos++] = '0' + empty;
+            fen_out[pos++] = '0' + empty;
         }
 
-        if (rank < 7) {
-            fen[pos++] = '/';
+        if (rank > 0) {
+            fen_out[pos++] = '/';
         }
     }
 
-    fen[pos] = '\0';
-    return fen;
+    fen_out[pos] = '\0';
 }
 
 static int piece_from_char(char ch) {
@@ -88,30 +103,6 @@ static int piece_from_char(char ch) {
     piece = MAKE_PIECE(color, piece_type);
     return piece;
 }
-
-
-/* validate_fen() verifica se a string FEN possui algum destes invariantes:
-Tabuleiro:
- - exatamente 8 ranks;
- - cada rank contém exatamente 8 casas;
- - apenas peças válidas pnbrqkPNBRQK;
- - números apenas de 1 a 8;
- - exatamente um rei branco e um preto;
- - no máximo 8 peões de cada cor;
- - nenhum peão na primeira ou oitava rank.
-Campos da FEN
- - side to move = w ou b;
- - castling = - ou combinação válida de KQkq, sem repetição;
- - en passant = - ou casa válida;
- - halfmove clock = inteiro >= 0;
- - fullmove number = inteiro >= 1.
-Consistência básica
- - se existe K, deve existir rei branco em e1 e torre branca em h1;
- - Q → rei branco em e1 e torre em a1;
- - k → rei preto em e8 e torre em h8;
- - q → rei preto em e8 e torre em a8;
- - os dois reis não podem estar adjacentes.
-*/
 
 
 bool parse_fen(const char *fen_string, Board *out) {
@@ -180,33 +171,24 @@ bool parse_fen(const char *fen_string, Board *out) {
 
 /* FUNÇÕES AUXILIARES */
 
-static int square_from_coord(const char *coord) {
-    char file_str = coord[0];
-    char rank_str = coord[1];
 
-    if ((file_str < 'a') || (file_str > 'h')) return -1;
-    if ((rank_str < '1') || (rank_str > '8')) return -1;
-
-    int file = file_str - 'a';
-    int rank = rank_str - '1';
-    int square = rank * 8 + file;
-
-    return square;
-}
 
 static bool is_fen_piece(char ch) {
     return (ch != '\0') && (strchr("pnbrqkPNBRQK", ch) != NULL); 
 }
 
+/*
+Faz a validação da representação FEN do tabuleiro.
+Ao mesmo tempo, gera o tabuleiro a partir da FEN. 
+ */
 static bool valid_board_placement(const char *fen, Board *board) {
     /* indexados por Color: BLACK == 0, WHITE == 1 */
     int kings[2]  = {0};
     int pawns[2]  = {0};
     int pieces[2] = {0};
 
-    int rank = 0;
+    int rank = 7;
     int file = 0;
-    int sq = 0;
 
     for (const char *p = fen; *p != '\0'; p++) {
         char ch = *p;
@@ -216,10 +198,10 @@ static bool valid_board_placement(const char *fen, Board *board) {
                 LOG_ERROR("rank does not add up to 8 files");
                 return false;
             }
-            rank++;
+            rank--;
             file = 0;
-            if (rank >= 8) {
-                LOG_ERROR("too many ranks in board placement");
+            if ((rank >= 8) || (rank < 0)) {  // claude, é necessário essa verificação?
+                LOG_ERROR("invalid number of ranks on board placement");
                 return false;
             }
             continue;
@@ -232,18 +214,17 @@ static bool valid_board_placement(const char *fen, Board *board) {
             }
 
             int n = ch - '0';
-            if ((file + n > 8) || (sq + n > BOARD_SIZE)) {
+            if ((file + n > 8)) {
                 LOG_ERROR("empty run overflows the rank");
                 return false;
             }
 
-            sq += n;
             file += n;
             continue;
         }
 
         if (is_fen_piece(ch)) {
-            if ((file >= 8) || (sq >= BOARD_SIZE)) {
+            if ((file >= 8)) {
                 LOG_ERROR("too many squares in rank");
                 return false;
             }
@@ -258,12 +239,15 @@ static bool valid_board_placement(const char *fen, Board *board) {
             PieceType type = TYPE_OF(piece);
             Color color = COLOR_OF(piece);
 
-            board->board[sq++] = piece;
+            int sq = (rank * 8) + file;
+
+            board->array[sq] = piece;
             file++;
             pieces[color]++;
 
             if (type == KING) {
                 kings[color]++;
+                board->king_square[color] = sq;
             }
 
             if (type == PAWN) {
@@ -281,7 +265,7 @@ static bool valid_board_placement(const char *fen, Board *board) {
         return false;
     }
 
-    if ((rank != 7) || (file != 8)) {
+    if ((rank != 0) || (file != 8)) {
         LOG_ERROR("board placement does not cover 64 squares");
         return false;
     }
@@ -302,4 +286,39 @@ static bool valid_board_placement(const char *fen, Board *board) {
     }
 
     return true;
+}
+
+
+
+
+/* 
+AUXILIARES
+*/
+
+
+
+
+int sq_from_coord(const char *coord) {
+    char file_str = coord[0];
+    char rank_str = coord[1];
+
+    if ((file_str < 'a') || (file_str > 'h')) return -1;
+    if ((rank_str < '1') || (rank_str > '8')) return -1;
+
+    int file = file_str - 'a';
+    int rank = rank_str - '1';
+    int square = rank * 8 + file;
+
+    return square;
+}
+
+void coord_from_sq(int sq, char out[3]) {
+    if ((sq < 0) || (sq > BOARD_SIZE)) {
+        out[0] = 'X';
+        out[1] = 'X';
+        out[3] = '\0';
+    }
+    out[0] = 'a' + FILE_OF(sq);
+    out[1] = '1' + RANK_OF(sq);
+    out[2] = '\0';
 }

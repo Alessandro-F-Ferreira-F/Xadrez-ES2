@@ -1,5 +1,5 @@
-#ifndef CHESS_ENGINE_TYPES_H
-#define CHESS_ENGINE_TYPES_H
+#ifndef TYPES_H
+#define TYPES_H
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -18,6 +18,8 @@ typedef uint8_t u8;
 #define BOARD_WIDTH 8
 #define GEN_MOVES_MAX 1024
 
+#define START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
 #define MemoryZero(addr, size) memset((addr), 0x0, (size))
 #define MemoryZeroStruct(addr, st) MemoryZero((addr), sizeof(st))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -28,6 +30,10 @@ typedef uint8_t u8;
 #define FILE_OF(sq) ((sq) % BOARD_WIDTH)
 #define FILE_DIST(dest, orig) (abs(FILE_OF(dest) - FILE_OF(orig)))
 #define SQ_FROM_RF(rank, file) ((rank) * BOARD_WIDTH + (file))
+#define SQ_OFFBOARD(sq) (((sq < 0) || (sq >= 64)) ? 1 : 0)
+
+#define MOVE_MASK 0xFFUL
+#define MAX_FEN_STRING 256
 
 typedef enum {
     WHITE = 1,
@@ -54,7 +60,7 @@ typedef uint8_t Piece;
 #define COLOR_OF(piece) ((Color)(((piece) >> 3) & COLOR_MASK))
 
 typedef struct {
-    Piece board[BOARD_SIZE];
+    Piece array[BOARD_SIZE];
     Color side_to_move;
     int king_square[2];
 } Board;
@@ -72,16 +78,21 @@ typedef enum {
 } Direction;
 
 typedef struct {
-    u8 origin;
-    u8 target;
-    u8 promo;
+    u8 origin_sq;
+    u8 target_sq;
+    u8 promotion;
     u8 flags;
+} MoveDescription;
+
+typedef struct {
+    u32 move;
+    int score;
 } Move;
 
 typedef struct {
     Move moves[GEN_MOVES_MAX];
-    int index;
+    int count;
 } MoveList;
 
-#endif /* CHESS_ENGINE_TYPES_H */
+#endif
 

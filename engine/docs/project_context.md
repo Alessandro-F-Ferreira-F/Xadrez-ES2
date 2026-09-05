@@ -1,9 +1,8 @@
 # Contexto do Projeto — Chess Engine em C
 
-> Documento de contexto para retomar o projeto ou apresentá-lo a alguém (humano ou LLM)
+> Documento de contexto para retomar o projeto ou apresentá-lo a quem for trabalhar nele,
 > sem precisar ler a codebase inteira.
-> Estado em **5 de setembro de 2026**, commit `0c4a88a`.
-> Fonte de verdade das decisões: `CLAUDE.md`. Este arquivo interpreta e resume.
+> Estado em **5 de setembro de 2026**.
 
 ---
 
@@ -582,5 +581,4 @@ static void clear_screen() {
 ---
 
 *Este documento é escrito à mão — o apêndice de headers precisa ser atualizado manualmente
-quando as interfaces mudarem. `make context` junta `CLAUDE.md` + este arquivo em
-`build/context.md`, pronto para colar numa conversa.*
+quando as interfaces mudarem.*

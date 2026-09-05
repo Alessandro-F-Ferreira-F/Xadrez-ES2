@@ -2,9 +2,11 @@ DEBUG_FLAGS = -DDEBUG -Wall -Wextra -Wpedantic -g -fsanitize=address -Wframe-lar
 
 
 all:
+	@mkdir -p build
 	gcc -Wall -g src/main.c src/board.c src/movegen.c src/log.c src/utils.c -o build/main.out
 
 debug:
+	@mkdir -p build
 	gcc $(DEBUG_FLAGS) -Wall -g src/main.c src/board.c src/movegen.c src/log.c src/utils.c -o build/main.out
 
 run:
@@ -12,10 +14,3 @@ run:
 
 clean:
 	rm -f build/*.out
-
-# Monta o pacote de contexto para colar numa conversa (Claude web, etc).
-# docs/project_context.md e' escrito a mao -- este alvo so junta as pecas.
-context:
-	@mkdir -p build
-	@cat CLAUDE.md docs/project_context.md > build/context.md
-	@echo "build/context.md: $$(wc -l < build/context.md) linhas, $$(wc -c < build/context.md) bytes"

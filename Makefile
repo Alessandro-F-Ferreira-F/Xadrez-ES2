@@ -13,8 +13,9 @@ run:
 clean:
 	rm -f build/*.out
 
+# Monta o pacote de contexto para colar numa conversa (Claude web, etc).
+# docs/project_context.md e' escrito a mao -- este alvo so junta as pecas.
 context:
-	@cat CLAUDE.md > context.txt
-	@echo "\n\n===== INTERFACES =====\n" >> context.txt
-	@for h in src/*.h; do echo "--- $$h ---"; cat $$h; echo; done >> context.txt
-	@echo "context.txt: $$(wc -l < context.txt) linhas"
+	@mkdir -p build
+	@cat CLAUDE.md docs/project_context.md > build/context.md
+	@echo "build/context.md: $$(wc -l < build/context.md) linhas, $$(wc -c < build/context.md) bytes"

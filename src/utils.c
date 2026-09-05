@@ -1,6 +1,13 @@
 #include "utils.h"
 
 
+void strslc(const char *src, char *dest, int start, int end) {
+    int length = end - start;
+    strncpy(dest, src + start, length);
+    dest[length] = '\0';
+}
+
+
 void print_piece_chart() {
     printf("\nTABELA DE PEÇAS\n");
     printf("====== ** ======\n");

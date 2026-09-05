@@ -9,8 +9,11 @@ void print_piece_chart();
 void print_board(const Board *board);
 void get_fen(char fen[MAX_FEN_STRING]);
 int get_int(char msg[INPUT_STR_SIZE]);
-void print_square_directions(int rank, int file);
+void strslc(const char *src, char *dest, int start, int end);
 
-
+static void clear_screen() {
+    printf("\e[1;1H\e[2J");
+    fflush(stdout); 
+}
 
 #endif

@@ -7,6 +7,9 @@
 
 #define TEST_FEN "rnb1kb1r/2ppnppp/1p1Pp3/1p6/5P2/2N5/PPP1N2P/R1BK4 w kq - 0 11"
 
+
+
+
 int main(void) {
     const char *fen = TEST_FEN;
 
@@ -19,6 +22,10 @@ int main(void) {
         b = (Board){0};
     }
 
+    char fen_out[MAX_FEN_STRING];
+    board_to_fen(&b, fen_out);
+    printf("Out FEN: %s\n", fen_out);
+
     print_board(&b);
     
     char out_bksq[3];
@@ -28,21 +35,32 @@ int main(void) {
     coord_from_sq(b.king_square[BLACK], out_bksq);
 
 
-    char fen_out[MAX_FEN_STRING];
-    board_to_fen(&b, fen_out);
 
     printf("White King Square: %s\n", out_wksq);
     printf("Black King Square: %s\n", out_bksq);
-    printf("Out FEN: %s\n", fen_out);
 
     MoveList list = (MoveList){0};
-    // MoveList list[GEN_MOVES_MAX];
 
-    printf("list ptr: %p\n", list);
     
     generate_pawn_moves(&b, &list);
 
     print_moves(&list);
-    print_piece_chart();
+    
+
+    char move_out[5];
+    printf("Insert move (ex: e2e3): ");
+    fgets(move_out, 5, stdin);
+
+    u32 move = str_to_move(move_out);
+    MoveDescription movedesc = decode_move(move);
+    if (!find_move(&b, movedesc.origin_sq, movedesc.target_sq, movedesc.promotion, movedesc.flags)) {
+        printf("INVALID MOVE!");
+    } else {
+        make_move(&b, move);
+    }
+    
+
+    print_board(&b);
+
     return 0;
 }

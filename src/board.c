@@ -31,6 +31,8 @@ static bool is_fen_piece(char ch);
 static bool valid_board_placement(const char *fen, Board *board);
 
 
+
+
 void board_to_fen(Board *board, char fen_out[MAX_FEN_STRING]) {
     int pos = 0;
     int sq;
@@ -316,7 +318,7 @@ void coord_from_sq(int sq, char out[3]) {
     if ((sq < 0) || (sq > BOARD_SIZE)) {
         out[0] = 'X';
         out[1] = 'X';
-        out[3] = '\0';
+        out[2] = '\0';
     }
     out[0] = 'a' + FILE_OF(sq);
     out[1] = '1' + RANK_OF(sq);

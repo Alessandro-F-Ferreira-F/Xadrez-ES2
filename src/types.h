@@ -13,10 +13,12 @@ typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
+typedef int16_t i16;
+
 #define INPUT_STR_SIZE 128
 #define BOARD_SIZE 64
 #define BOARD_WIDTH 8
-#define GEN_MOVES_MAX 1024
+#define GEN_MOVES_MAX 256
 
 #define START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 

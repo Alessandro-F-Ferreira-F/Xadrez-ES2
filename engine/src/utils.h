@@ -5,6 +5,8 @@
 #include "log.h"
 #include "board.h"
 
+extern const char *COLOR_CHAR[2];
+
 void print_piece_chart();
 void print_board(const Board *board);
 void get_fen(char fen[MAX_FEN_STRING]);

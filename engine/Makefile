@@ -10,7 +10,7 @@ debug:
 	gcc $(DEBUG_FLAGS) -Wall -g src/main.c src/board.c src/movegen.c src/log.c src/utils.c -o build/main.out
 
 run:
-	./build/main.out
+	./build/main.out 
 
 clean:
 	rm -f build/*.out

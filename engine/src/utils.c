@@ -4,6 +4,9 @@
 strslc() realiza a operação de fatiar uma string:
     começando no índice src[start] até src[end]
 */
+
+const char *COLOR_CHAR[2] = {"BLACK", "WHITE"};
+
 void strslc(const char *src, char *dest, int start, int end) {
     int length = end - start;
     strncpy(dest, src + start, length);
@@ -47,7 +50,10 @@ void print_board(const Board *board) {
     for (char file = 'a'; file <= 'h'; file++) {
         printf(" %c ", file);
     }
-    printf("\n\n");
+    printf("\n");
+    char fen[MAX_FEN_STRING];
+    board_to_fen(board, fen);
+    printf("Board FEN representation: %s\n\n", fen);
 }
 
 void get_fen(char fen[MAX_FEN_STRING]) {
@@ -65,7 +71,4 @@ int get_int(char msg[INPUT_STR_SIZE]) {
     int input_int = strtol(buffer, NULL, 10);
     return input_int;
 }
-
-
-
 

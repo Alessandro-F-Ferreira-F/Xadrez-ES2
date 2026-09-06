@@ -1,4 +1,5 @@
 #include "movegen.h"
+#include "utils.h"
 
 
 
@@ -33,19 +34,18 @@ MoveDescription decode_move(u32 move) {
     return decoded;
 }
 
-u32 str_to_move(char move_in[5]) {
-    int origin_sq, target_sq;
-    char origin_str[3], target_str[3];
 
-    strslc(move_in, origin_str, 0, 2);
-    strslc(move_in, target_str, 2, 4);
+void add_move(u32 move, MoveList *list) {
+    if (list->count > GEN_MOVES_MAX) {
+        LOG_ERROR("move list overflow");
+        return;
+    }
 
-    origin_sq = sq_from_coord(origin_str);
-    target_sq = sq_from_coord(target_str);
-
-    u32 move_out = encode_move(origin_sq, target_sq, 0, 0);
-    return move_out;
+    list->moves[list->count].move = move;
+    list->moves[list->count].score = 0;
+    list->count++;
 }
+
 
 void precompute_move_data() {
     for (int file = 0; file < 8; file++) {
@@ -70,83 +70,95 @@ void precompute_move_data() {
 }
 
 
+/* 
+cor como argumento opcional para gerar argumentos de uma cor especifica de maneira manual.
+TODO: pensar em solução melhor depois
+*/
 
-void add_move(u32 move, MoveList *list) {
-    if (list->count > GEN_MOVES_MAX) {
-        LOG_ERROR("move list overflow");
-        return;
-    }
-
-    list->moves[list->count].move = move;
-    list->moves[list->count].score = 0;
-    list->count++;
-}
-
-
-void generate_pawn_moves(Board *board, MoveList *list) {
+void generate_pawn_moves(const Board *board, MoveList *list, Color side) {
     Piece piece;
     int target_sq;
     u32 move;
+
+    /*
+    filtra a direção de avanço e captura do peão;
+    push_dir é a direção do avanço
+    cap_dir são as direções de captura [2 posições]
+     */
+    int push_dir;
+    Direction cap_dir[2];
+
+    if (side == WHITE) {
+        push_dir = DIR_OFFSET[DIR_N];
+        cap_dir[0] = DIR_NE;
+        cap_dir[1] = DIR_NW;
+    } else {
+        push_dir = DIR_OFFSET[DIR_S];
+        cap_dir[0] = DIR_SE;
+        cap_dir[1] = DIR_SW;
+    }
 
     for (int sq = 0; sq < BOARD_SIZE; sq++) {
         piece = board->array[sq];
         if (TYPE_OF(piece) != PAWN) continue;
 
-        if (COLOR_OF(piece) == WHITE) {
-            target_sq = sq + DIR_OFFSET[DIR_N];
-            if ((SQ_OFFBOARD(target_sq) == 0) && (board->array[target_sq] == EMPTY)) {
-                move = encode_move(sq, target_sq, 0, 0);
-                add_move(move, list);
-            } else
-                continue;
-            // implementar caso de captura
-        }
+        if (COLOR_OF(piece) != side) continue;
 
-        if (COLOR_OF(piece) == BLACK) {
-            target_sq = sq + DIR_OFFSET[DIR_S];
-            if ((SQ_OFFBOARD(target_sq) == 0) && (board->array[target_sq] == EMPTY)) {
+
+        target_sq = sq + push_dir;
+
+        if ((SQ_OFFBOARD(target_sq) == 0) && (board->array[target_sq] == EMPTY)) {
+            move = encode_move(sq, target_sq, 0, 0);
+            add_move(move, list);
+        } 
+        
+        // CAPTURAS
+
+        for (int i = 0; i < 2; i++) {
+            if (SQ_TO_EDGE[sq][cap_dir[i]] == 0) continue; // verifica se a casa de captura está fora do array
+
+            target_sq = sq + DIR_OFFSET[cap_dir[i]];
+            piece = board->array[target_sq];
+
+            if ((board->array[target_sq] != EMPTY) && (COLOR_OF(piece) != side)) {
                 move = encode_move(sq, target_sq, 0, 0);
                 add_move(move, list);
-            } else
-                continue;
-            // implementar caso de captura
-        }
+            }
+        }             
     }
 }
 
 
-
-void genenare_moves_from_direction(Board *board, MoveList *list, int sq, int dir) {
+void genenare_moves_from_direction(const Board *board, MoveList *list, int sq, int dir) {
     int dist_to_edge = SQ_TO_EDGE[sq][dir];
-    
     int target_sq = sq;
+    u32 move;
 
     for (;dist_to_edge > 0; dist_to_edge--) {
         target_sq = target_sq + DIR_OFFSET[dir];
 
         if (board->array[target_sq] == EMPTY) {
-            u32 move = encode_move(sq, target_sq, 0, 0);
+            move = encode_move(sq, target_sq, 0, 0);
             add_move(move, list);
         } else {
+            Piece p = board->array[target_sq];
+            if (COLOR_OF(p) != board->side_to_move) {
+                move = encode_move(sq, target_sq, 0, 0);
+                add_move(move, list);
+            }
             break;
         }
     }
 }
 
-void generate_sliding_moves(Board *board, MoveList *list) {
-    Piece piece;
-    int target_sq;
-    u32 move;
 
+void generate_sliding_moves(const Board *board, MoveList *list) {
+    Piece piece;
 
     for (int sq = 0; sq < BOARD_SIZE; sq++) {
         piece = board->array[sq];
 
         if (TYPE_OF(piece) == ROOK) {
-            char out[3];
-            coord_from_sq(sq, out);
-            printf("-- Rook on %s [%d] --\n", out, sq);
-
             for (int dir = 0; dir < 4; dir++) {
                 genenare_moves_from_direction(board, list, sq, dir);
             }
@@ -158,18 +170,21 @@ void generate_sliding_moves(Board *board, MoveList *list) {
 void generate_all_moves(Board *board, MoveList *list);
 
 
-
 /*
 Procura um lance na lista gerada a partir de origem, destino e promoção.
 Devolve por 'out' o lance COMO O GERADOR O PRODUZIU -- com as flags corretas
 (captura, en passant, roque), que quem digitou "e5d6" não tem como saber.
 'out' pode ser NULL se o chamador só quer saber se o lance existe.
 */
-bool find_move(Board *board, int origin_sq, int target_sq, int promo, u32 *out) {
+bool find_move(const Board *board, int origin_sq, int target_sq, int promo, u32 *out) {
     MoveList temp = (MoveList){0};
-
+    Piece p = board->array[origin_sq];
+    if (COLOR_OF(p) != board->side_to_move) {
+        LOG_ERROR("error: wrong side tried to make move");
+    }
     /* TODO: trocar por generate_all_moves quando as outras peças existirem */
-    generate_pawn_moves(board, &temp);
+    generate_pawn_moves(board, &temp, WHITE);
+    generate_pawn_moves(board, &temp, BLACK);
     generate_sliding_moves(board, &temp);
 
     for (int i = 0; i < temp.count; i++) {
@@ -186,23 +201,40 @@ bool find_move(Board *board, int origin_sq, int target_sq, int promo, u32 *out) 
 }
 
 
-
-
-
 void make_move(Board *b, u32 move) {
     MoveDescription movedesc = decode_move(move);
     u8 origin_sq = movedesc.origin_sq;
     u8 target_sq = movedesc.target_sq;
 
+    if (!find_move(b, origin_sq, target_sq, 0, NULL)) {
+        return;
+    }
+
     Piece p = b->array[origin_sq];
 
     b->array[target_sq] = p;
     b->array[origin_sq] = EMPTY;
+    b->side_to_move = (b->side_to_move == WHITE) ? BLACK : WHITE;
 }
 
 /* 
 * AUXILIARES
 */
+
+u32 str_to_move(char move_in[6]) {
+    int origin_sq, target_sq;
+    char origin_str[3], target_str[3];
+
+    strslc(move_in, origin_str, 0, 2);
+    strslc(move_in, target_str, 2, 4);
+
+    origin_sq = sq_from_coord(origin_str);
+    target_sq = sq_from_coord(target_str);
+
+    u32 move_out = encode_move(origin_sq, target_sq, 0, 0);
+    return move_out;
+}
+
 
 void print_move(int origin_sq, int target_sq) {
     char out_origin[3];
@@ -212,6 +244,7 @@ void print_move(int origin_sq, int target_sq) {
 
     printf("Move: (%s, %s)\n", out_origin, out_target);
 }
+
 
 void print_moves(MoveList *list) {
     MoveDescription movedesc;

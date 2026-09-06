@@ -33,7 +33,7 @@ static bool valid_board_placement(const char *fen, Board *board);
 
 
 
-void board_to_fen(Board *board, char fen_out[MAX_FEN_STRING]) {
+void board_to_fen(const Board *board, char fen_out[MAX_FEN_STRING]) {
     int pos = 0;
     int sq;
     for (int rank = 7; rank >= 0; rank--) {

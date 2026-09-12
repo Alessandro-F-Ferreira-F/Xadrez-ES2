@@ -1,0 +1,11 @@
+# Pastas de build do CMake
+/build/
+
+# Arquivo gerado pelo CMake para editores de código (export_compile_commands)
+compile_commands.json
+
+# Arquivos temporários do sistema ou editores (opcional)
+.vscode/
+.cache/
+*.o
+*.out

@@ -1,0 +1,17 @@
+Trabalho
+
+O curso terá um trabalho feito em grupos de 6 a 7 participantes (8 grupos no total), que devem ser constituídos preferencialmente na primeira semana de aula e ter a mesma formação até o final do curso.
+
+Cada grupo deve se enxergar como uma pequena software house. O tema do trabalho consiste em fazer um jogo de Xadrez onde o usuário possa jogar contra o computador. É esperado que os grupos, durante o decorrer do curso, utilizem as técnicas aprendidas para gerenciar o projeto e desenvolver o produto. Será avaliado o produto final e como esse produto foi desenvolvido (processos e técnicas aplicados). O produto final deve ser disponibilizado publicamente, com licença aberta (sugiro licença MIT).
+
+Desde o início do trabalho, os grupos devem registrar as tarefas alocadas para cada membro do grupo, assim como as horas previstas para realização da tarefa e as horas efetivamente realizadas na tarefa. Essa informação será fundamental para viabilizar o Monitoramento e Controle do projeto. Além disso, apesar da matéria de testes ser dada somente no final do curso, escolham um framework de testes de unidade popular para a linguagem de programação adotada pelo grupo e iniciem a escrita dos testes desde já.
+
+Foram reservados 3 momentos para apresentações de 15 a 20 minutos por grupo. O grupo deve utilizar slides nas apresentações e publicar esses slides no mural do Google Classroom no dia das apresentações.
+
+A primeira apresentação deve conter o escopo do produto (requisitos) e do projeto (EAP), as estimativas de esforço (tanto via APF quanto via Planning Poker sobre os pacotes de trabalho da EAP), o custo, o orçamento e o cronograma de desenvolvimento (Gantt). Também deve apresentar a análise de riscos (listagem, probabilidade x impacto, priorização pela exposição e planos de contenção e contingência) e os dados de monitoramento e controle do projeto (Burndown dentro de cada iteração e Análise de Valor Agregado ao final de cada iteração). Por fim, deve ser apresentada a versão parcial do produto feita até então (demo).
+
+A segunda apresentação deve conter o controle de versões (e.g., Git) e controle de modificações (e.g., GitHub Issues) usados no projeto, a estratégia de ramificação adotada e o endereço do repositório. Também é esperado que o grupo use Pull Request com aprovações e integração contínua (e.g., GitHub Actions). Vale ressaltar que o repositório de controle de versões deve conter todos os artefatos produzidos durante o trabalho. Por fim, devem ser apresentados os dados de monitoramento e controle do projeto (conforme descrito anteriormente) e a versão parcial do produto feita até então (demo).
+
+A terceira apresentação deve conter como foram feitos os testes de unidade, integração, sistema e aceitação (alfa e beta) no projeto (casos e resultados dos testes), assim como reportar a cobertura dos testes. Por fim, devem ser apresentados os dados de monitoramento e controle do projeto (conforme descrito anteriormente) e a versão final do produto (demo). Caso o grupo deseje que o professor pondere a nota por membro do grupo, deve ser informada nesta apresentação a participação de cada membro do grupo no trabalho (PV e EV de cada membro).
+
+Essas apresentações serão avaliadas pela sua completude e corretude e capacidade de argumentação em relação às decisões tomadas. Essas decisões devem ser fundamentadas nos princípios estudados durante o curso. Essas apresentações e entregas devem ser feitas nas datas estipuladas na seção Cronograma.

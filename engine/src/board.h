@@ -2,22 +2,35 @@
 #define BOARD_H
 
 #include "types.h"
-#include "log.h"
+#include "piece.h"
+
+enum ClastleRights{
+    CASTLE_WK = 1,
+    CASTLE_WQ = 2,
+    CASTLE_BK = 4,
+    CASTLE_BQ = 8,
+    CASTLE_WHITE = CASTLE_WK | CASTLE_WQ,
+    CASTLE_BLACK = CASTLE_BK | CASTLE_BQ,
+    CASTLE_ALL = CASTLE_WHITE | CASTLE_BLACK
+};
 
 
+typedef struct {
+    Piece array[BOARD_SIZE];
+    Color side_to_move;
+    int king_square[2];
+    
+    u8 castling_rights;    /* bitmask CASTLE_* */
+    int ep_square;         /* en passant: SQ_NONE se não houver */
+    int halfmove_clock;   
+    int fullmove_number;
+} Board;
 
-bool parse_fen(const char *fen_string, Board *out);
-void board_to_fen(const Board *board, char fen_out[MAX_FEN_STRING]);
+int  board_find_king(const Board *b, Color c);
+bool board_check_invariants(const Board *b, const char **fail_msgs);
 
-int  sq_from_coord(const char *coord);
-void coord_from_sq(int sq, char out[3]);
-
-/* Declarada aqui, e nao em utils.h, porque e uma operacao sobre Board e e
-   definida em board.c. Manter declaracao e definicao no mesmo modulo e o que
-   transforma o header em contrato verificado pelo compilador. */
-void print_board(const Board *board);
-
-extern const char PIECE_CHAR[17];
+void board_clear(Board *b);
+void board_print(const Board *board);
 
 #endif
 

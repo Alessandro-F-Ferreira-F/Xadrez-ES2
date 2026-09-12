@@ -1,7 +1,11 @@
 #include "types.h"
 #include "board.h"
+#include "move.h"
 #include "movegen.h"
 #include "utils.h"
+#include "fen.h"
+#include "square.h"
+#include "makemove.h"
 
 
 #define TEST_FEN_01 "rnb1kb1r/2ppnppp/1p1Pp3/1p6/5P2/2N5/PPP1N2P/R1BK4 w kq - 0 11"
@@ -13,17 +17,18 @@
 void ui(Board *b) {
     char ch = 'y';
     int opt;
-    char move_out[6];
+    char move_str[6];
     u32 move;
     char fen_out[MAX_FEN_STRING];
     /* Precisa comecar zerada: add_move() usa list->count como indice de
        escrita, entao um count com lixo grava fora do vetor logo na primeira
        geracao. */
     MoveList l = {0};
+    Undo u;
     do
     {
         clear_screen();
-        print_board(b);
+        board_print(b);
         printf("1 - Insert FEN\n");
         printf("2 - Make move\n");
         printf("3 - Print moves\n");
@@ -37,30 +42,29 @@ void ui(Board *b) {
         {
         case 1:
             get_fen(fen_out);
-            /* parse_fen so escreve em '*b' se a FEN inteira validar, entao o
+            /* fen_parse so escreve em '*b' se a FEN inteira validar, entao o
                tabuleiro atual sobrevive a uma entrada invalida. A mensagem vai
                por printf e nao por LOG_ERROR porque LOG_ERROR some fora do
                build de debug, e "sua FEN esta errada" e coisa que o usuario
                precisa ver sempre. */
-            if (!parse_fen(fen_out, b)) {
+            if (!fen_parse(fen_out, b)) {
                 printf("FEN invalida -- tabuleiro nao alterado.\n");
                 fgetc(stdin);
             }
             break;
         case 2:
             printf("Insert move: ");
-            if (fgets(move_out, sizeof move_out, stdin) == NULL) {
+            if (fgets(move_str, sizeof move_str, stdin) == NULL) {
                 ch = 'n';
                 break;
             }
-            move = str_to_move(move_out);
-            MoveDescription movedesc = decode_move(move);
-            if (!find_move(b, movedesc.origin_sq, movedesc.target_sq, movedesc.promotion, NULL)) {
+
+            if (!movelist_find(&l, move_str)) {
                 LOG_ERROR("invalid move");
             } else {
-                make_move(b, move);
+                make_move(b, move, &u);
                 clear_screen();
-                print_board(b);
+                board_print(b);
             }
             break;
         case 3:
@@ -78,7 +82,7 @@ void ui(Board *b) {
             ch = 'n';
             break;
         case 6:
-            unmake_move(b);
+            unmake_move(b, 0, &u);
             ch = 'n';
         default:
             break;
@@ -89,20 +93,20 @@ void ui(Board *b) {
 }
 
 int main(void) {
-    precompute_move_data();
+    init_square_tables();
 
     Board b;
     const char *fen = TEST_FEN_05_PAWN_CAPTURE_OFFBOARD;
 
 
-    if (parse_fen(fen, &b)) {
+    if (fen_parse(fen, &b)) {
         printf("FEN is valid.\n");
     } else {
         printf("FEN is invalid\n");
         b = (Board){0};
     }
 
-    print_board(&b);
+    board_print(&b);
     printf("Side to move: %s\n", COLOR_CHAR[b.side_to_move]);
     
 

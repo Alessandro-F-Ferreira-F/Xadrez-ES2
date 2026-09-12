@@ -17,19 +17,19 @@ void strslc(const char *src, char *dest, int start, int end) {
 void print_piece_chart(void) {
     printf("\nTABELA DE PEÇAS\n");
     printf("====== ** ======\n");
-    printf("Black pawn: %u\n", MAKE_PIECE(BLACK, PAWN));
-    printf("Black knight: %u\n", MAKE_PIECE(BLACK, KNIGHT));
-    printf("Black bishop: %u\n", MAKE_PIECE(BLACK, BISHOP));
-    printf("Black rook: %u\n", MAKE_PIECE(BLACK, ROOK));
-    printf("Black queen: %u\n", MAKE_PIECE(BLACK, QUEEN));
-    printf("Black king: %u\n", MAKE_PIECE(BLACK, KING));
+    printf("Black pawn: %u\n", PIECE_MAKE(BLACK, PAWN));
+    printf("Black knight: %u\n", PIECE_MAKE(BLACK, KNIGHT));
+    printf("Black bishop: %u\n", PIECE_MAKE(BLACK, BISHOP));
+    printf("Black rook: %u\n", PIECE_MAKE(BLACK, ROOK));
+    printf("Black queen: %u\n", PIECE_MAKE(BLACK, QUEEN));
+    printf("Black king: %u\n", PIECE_MAKE(BLACK, KING));
     printf("----------\n");
-    printf("White pawn: %u\n", MAKE_PIECE(WHITE, PAWN));
-    printf("White knight: %u\n", MAKE_PIECE(WHITE, KNIGHT));
-    printf("White bishop: %u\n", MAKE_PIECE(WHITE, BISHOP));
-    printf("White rook: %u\n", MAKE_PIECE(WHITE, ROOK));
-    printf("White queen: %u\n", MAKE_PIECE(WHITE, QUEEN));
-    printf("White king: %u\n", MAKE_PIECE(WHITE,KING));
+    printf("White pawn: %u\n", PIECE_MAKE(WHITE, PAWN));
+    printf("White knight: %u\n", PIECE_MAKE(WHITE, KNIGHT));
+    printf("White bishop: %u\n", PIECE_MAKE(WHITE, BISHOP));
+    printf("White rook: %u\n", PIECE_MAKE(WHITE, ROOK));
+    printf("White queen: %u\n", PIECE_MAKE(WHITE, QUEEN));
+    printf("White king: %u\n", PIECE_MAKE(WHITE,KING));
 }
 
 

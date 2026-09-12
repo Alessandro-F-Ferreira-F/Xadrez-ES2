@@ -14,3 +14,8 @@ build/
 # Sistema operacional
 .DS_Store
 Thumbs.db
+
+claude-engine/
+documentation/
+
+.gitignore

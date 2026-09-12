@@ -8,7 +8,7 @@ Este documento contém o conteúdo estruturado e pronto para você copiar e cola
 **Título:** Projeto Xadrez Cliente/Servidor
 **Subtítulo:** Primeira Apresentação de Acompanhamento
 **Tópicos/Texto:** 
-- Nome dos integrantes do grupo (6 a 7 membros)
+- Nome dos integrantes do grupo: [NOME 1], [NOME 2], [NOME 3], [NOME 4], [NOME 5], [NOME 6], [NOME 7]
 - Data da apresentação
 - Professor/Disciplina
 
@@ -110,5 +110,7 @@ Este documento contém o conteúdo estruturado e pronto para você copiar e cola
 ## Slide 10: Demo Parcial
 **Título:** Protótipo / Demonstração
 **Tópicos/Texto:** 
-- *Aviso Verbal:* "Optamos por focar os esforços desta iteração 100% no planejamento sólido arquitetural, EAP, levantamento de requisitos robusto e definição rigorosa das validações de regras. A demonstração técnica de código funcional está agendada para o início da próxima iteração, priorizando a máquina de regras interna."
+- *Aviso Verbal:* "Apesar do foco inicial ter sido no planejamento arquitetural e nos requisitos, temos uma versão inicial do nosso protótipo."
+- Demonstração visual do tabuleiro gráfico sendo renderizado usando SFML no cliente C++.
+- Demonstração técnica da inicialização do tabuleiro e leitura de FEN (Notação de Forsyth-Edwards) funcionando no motor de regras desenvolvido em C.
 - *(Fim da Apresentação, espaço para perguntas e agradecimento).*

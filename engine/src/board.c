@@ -1,114 +1,120 @@
 /*
-// TODO: Criar função para precomputar direções para cada casa
-TODO: Criar função para calcular casas possíveis para peças deslizantes (torre, bispo e rainha)
-TODO: Implementar lances pseudo-legais para: torre, bispo e rainha
-
-Ordem de implementação:
-
-1. Corrigir os três bugs acima ([8] no array, bound no fill_blanck, parar no espaço).
-2. Separar Direction (índice) de DIR_OFFSET (offset), e escrever precompute_move_data.
-3. Definir Move/flags e a assinatura de generate_moves antes de gerar qualquer lance.
-4. Deslizantes com a função única parametrizada por intervalo de direção.
-5. Cavalo e rei por tabela pré-computada; peão por último (é o mais cheio de casos).
-6. is_square_attacked → make/unmake → filtro de legalidade → perft.
-*/
+ * board.c — representação do tabuleiro, leitura e escrita de FEN.
+ *
+ * Responsabilidades deste módulo:
+ *   - parse_fen()    : texto FEN  -> struct Board  (valida tudo antes de escrever)
+ *   - board_to_fen() : struct Board -> texto FEN   (os 6 campos)
+ *   - conversão de coordenada ("e4") <-> índice de casa (28)
+ *   - impressão do tabuleiro para depuração
+ *
+ * Invariante central de parse_fen: ou a FEN inteira é válida e '*out' é
+ * totalmente sobrescrito, ou '*out' não é tocado. Nunca existe um Board
+ * meio-preenchido. Por isso a montagem acontece num Board local e só é
+ * copiada para '*out' na última linha.
+ */
 
 #include "board.h"
 
-               
+#include <errno.h>
 
 
-#define FEN_PARSE_FIELDS 6
+/*
+ * Índice de PIECE_CHAR é o valor cru da Piece: (color << 3) | type.
+ * Peão preto  = (0 << 3) | 1 =  1 -> 'p'
+ * Peão branco = (1 << 3) | 1 =  9 -> 'P'
+ * As posições 7, 8 e 15 são buracos na codificação e nunca são indexadas.
+ */
 
 
 const char PIECE_CHAR[17] = ".pnbrqk..PNBRQK.";
 
+/* Posição de cada campo dentro do vetor devolvido por split_fen_fields(). */
+enum {
+    FEN_PLACEMENT = 0,
+    FEN_SIDE      = 1,
+    FEN_CASTLING  = 2,
+    FEN_EP        = 3,
+    FEN_HALFMOVE  = 4,
+    FEN_FULLMOVE  = 5
+};
+
 /*
-* DEFINIÇÕES DE FUNÇÕES  
-*/ 
-static int piece_from_char(char ch);
+ * DECLARAÇÕES INTERNAS
+ * Tudo que não aparece em board.h é 'static': o compilador passa a garantir
+ * que nenhum outro .c depende destas funções, e a fronteira do módulo deixa
+ * de ser convenção e vira regra verificada na compilação.
+ */
+static int  split_fen_fields(char *fen_mut, char *fields[], int max_fields);
+static int  piece_from_char(char ch);
 static bool is_fen_piece(char ch);
-static bool valid_board_placement(const char *fen, Board *board);
+
+static bool parse_placement(const char *field, Board *b);
+static bool parse_side_to_move(const char *field, Board *b);
+static bool parse_castling(const char *field, Board *b);
+static bool castling_matches_board(const Board *b);
+static bool parse_ep_square(const char *field, Board *b);
+static bool parse_uint_field(const char *field, int min, int max, int *out);
 
 
+/* ========================================================================
+ * FEN -> Board
+ * ======================================================================== */
 
+/*
+ * Quebra a FEN em campos separados por espaço em branco.
+ *
+ * 'fen_mut' é modificado no lugar (strtok escreve '\0' sobre os separadores),
+ * então tem que ser uma cópia mutável — nunca o literal do chamador.
+ * 'fields' é fornecido pelo chamador; a função não aloca nada, seguindo a
+ * convenção do projeto de preencher struct/vetor do chamador em vez de
+ * devolver ponteiro. Os ponteiros gravados em 'fields' apontam PARA DENTRO
+ * de 'fen_mut' e só são válidos enquanto ele existir.
+ *
+ * Devolve a quantidade de campos encontrados, ou -1 se houver campos demais.
+ *
+ * Nota: strtok guarda estado em variável estática interna — não é reentrante
+ * e não pode ser chamada de dois lugares intercalados. A engine é single
+ * thread e ninguém mais usa strtok, então está seguro; se isso mudar, trocar
+ * por strtok_r (POSIX) ou por uma varredura manual.
+ */
+static int split_fen_fields(char *fen_mut, char *fields[], int max_fields) {
+    int count = 0;
+    char *token = strtok(fen_mut, " \t\r\n");
 
-void board_to_fen(const Board *board, char fen_out[MAX_FEN_STRING]) {
-    int pos = 0;
-    int sq;
-    for (int rank = 7; rank >= 0; rank--) {
-        int empty = 0;
-        for (int file = 0; file < 8; file++) {
-            sq = (rank * 8) + file;
-            Piece piece = board->array[sq];
-
-            if (piece == EMPTY) {
-                empty++;
-                continue;
-            }
-
-            if (empty > 0) {
-                fen_out[pos++] = '0' + empty;
-                empty = 0;
-            }
-
-            fen_out[pos++] = PIECE_CHAR[piece];
-
-        }
-
-        if (empty > 0) {
-            fen_out[pos++] = '0' + empty;
-        }
-
-        if (rank > 0) {
-            fen_out[pos++] = '/';
-        }
+    while ((token != NULL) && (count < max_fields)) {
+        fields[count++] = token;
+        token = strtok(NULL, " \t\r\n");
     }
 
-    fen_out[pos] = '\0';
-}
-
-static int piece_from_char(char ch) {
-    PieceType piece_type;
-    Color color;
-    Piece piece;
-
-    switch (toupper((unsigned char)ch))
-    {
-        case 'P':
-            piece_type = PAWN;
-            break;
-        case 'R':
-            piece_type = ROOK;
-            break;
-        case 'N':
-            piece_type = KNIGHT;
-            break;
-        case 'B':
-            piece_type = BISHOP;  
-            break;
-        case 'Q':
-            piece_type = QUEEN;
-            break;
-        case 'K':
-            piece_type = KING;
-            break;
-        default:
-            return -1;
-            break;
+    /* Sobrou token depois de encher o vetor: a FEN tem campos demais. */
+    if (token != NULL) {
+        return -1;
     }
 
-    if (isupper((unsigned char)ch)) {
-        color = WHITE;
-    } else color = BLACK;
-
-    piece = MAKE_PIECE(color, piece_type);
-    return piece;
+    return count;
 }
 
-
+/*
+ * Lê uma FEN completa para '*out'.
+ *
+ * Aceita de 4 a 6 campos. Os campos 5 (halfmove clock) e 6 (fullmove number)
+ * são opcionais porque bancos de posições e strings EPD costumam omiti-los;
+ * quando faltam, assumem 0 e 1 respectivamente. Os quatro primeiros são
+ * obrigatórios: sem eles não dá para saber de quem é a vez nem se o roque
+ * ainda é possível.
+ *
+ * A ORDEM das etapas importa e não é arbitrária:
+ *   1. peças    — as validações de roque e en passant consultam o tabuleiro;
+ *   2. lado     — a fileira válida do en passant depende de quem joga;
+ *   3. roque    — precisa do tabuleiro montado (etapa 1);
+ *   4. en passant — precisa do tabuleiro (1) e do lado (2);
+ *   5/6. relógios — independentes, ficam por último.
+ *
+ * Devolve true se a FEN é válida. Em qualquer falha devolve false, registra
+ * o motivo por LOG_ERROR e deixa '*out' intacto.
+ */
 bool parse_fen(const char *fen_string, Board *out) {
-    if (fen_string == NULL || out == NULL) {
+    if ((fen_string == NULL) || (out == NULL)) {
         LOG_ERROR("null argument");
         return false;
     }
@@ -118,73 +124,71 @@ bool parse_fen(const char *fen_string, Board *out) {
         return false;
     }
 
-    Board b = {0};
-
+    /* Cópia mutável: split_fen_fields escreve '\0' sobre os espaços, e o
+       parâmetro de entrada é const. */
     char copy[MAX_FEN_STRING];
     strncpy(copy, fen_string, MAX_FEN_STRING - 1);
     copy[MAX_FEN_STRING - 1] = '\0';
 
-    char *fields[FEN_PARSE_FIELDS];
-    char *token = strtok(copy, " \t\r\n");
+    char *fields[FEN_MAX_FIELDS];
+    int  field_count = split_fen_fields(copy, fields, FEN_MAX_FIELDS);
 
-    for (int i = 0; i < FEN_PARSE_FIELDS; i++) {
-        if (token == NULL) {
-            LOG_ERROR("invalid number of fields in FEN string");
+    if (field_count < 0) {
+        LOG_ERROR("too many fields in FEN string");
+        return false;
+    }
+
+    if (field_count < FEN_MIN_FIELDS) {
+        LOG_ERROR("too few fields in FEN string");
+        return false;
+    }
+
+    /* Board local: só vira o resultado se TUDO validar. */
+    Board b = {0};
+    b.ep_square = SQ_NONE;
+
+    if (!parse_placement(fields[FEN_PLACEMENT], &b))   return false;
+    if (!parse_side_to_move(fields[FEN_SIDE], &b))     return false;
+    if (!parse_castling(fields[FEN_CASTLING], &b))     return false;
+    if (!castling_matches_board(&b))                   return false;
+    if (!parse_ep_square(fields[FEN_EP], &b))          return false;
+
+    b.halfmove_clock  = 0;
+    b.fullmove_number = 1;
+
+    if (field_count > FEN_HALFMOVE) {
+        if (!parse_uint_field(fields[FEN_HALFMOVE], 0, FEN_HALFMOVE_MAX,
+                              &b.halfmove_clock)) {
+            LOG_ERROR("invalid halfmove clock");
             return false;
         }
-
-        fields[i] = token;
-
-        token = strtok(NULL, " \t\r\n");
     }
 
-    //* Nao pode existir um setimo campo.
-
-    if (token != NULL) {
-        LOG_ERROR("invalid number of fields in FEN string");
-        return false;
+    if (field_count > FEN_FULLMOVE) {
+        if (!parse_uint_field(fields[FEN_FULLMOVE], 1, FEN_FULLMOVE_MAX,
+                              &b.fullmove_number)) {
+            LOG_ERROR("invalid fullmove number");
+            return false;
+        }
     }
-
-    if (!valid_board_placement(fields[0], &b)) {
-        LOG_ERROR("invalid board placement");
-        return false;
-    }
-
-    if (strcmp(fields[1], "w") != 0 && strcmp(fields[1], "b") != 0) {
-        LOG_ERROR("invalid side to move");
-        return false;
-    }
-
-    b.side_to_move = (fields[1][0] == 'w') ? WHITE : BLACK;
 
     *out = b;
-
     return true;
-    /*
-    * Falta implementar validacoes de:
-        - ROQUE
-        - EN PASSANT
-        - HALFMOVE CLOCK
-        - NUMERO TOTAL DE JOGADAS
-    */
-}
-
-
-
-/* FUNÇÕES AUXILIARES */
-
-
-
-static bool is_fen_piece(char ch) {
-    return (ch != '\0') && (strchr("pnbrqkPNBRQK", ch) != NULL); 
 }
 
 /*
-Faz a validação da representação FEN do tabuleiro.
-Ao mesmo tempo, gera o tabuleiro a partir da FEN. 
+ * Campo 1 — disposição das peças.
+ *
+ * A FEN descreve o tabuleiro da fileira 8 para a 1, e cada fileira da coluna
+ * a para a h. Com a indexação a1 = 0 do projeto, isso significa começar em
+ * rank = 7 e decrementar: a primeira linha da FEN preenche os índices 56..63.
+ *
+ * Valida enquanto monta. Escreve direto em '*b' mesmo nos caminhos de erro —
+ * é seguro porque parse_fen passa um Board local que é descartado se algo
+ * falhar.
  */
-static bool valid_board_placement(const char *fen, Board *board) {
-    /* indexados por Color: BLACK == 0, WHITE == 1 */
+static bool parse_placement(const char *field, Board *b) {
+    /* Contadores indexados por Color; funciona porque BLACK == 0, WHITE == 1. */
     int kings[2]  = {0};
     int pawns[2]  = {0};
     int pieces[2] = {0};
@@ -192,7 +196,7 @@ static bool valid_board_placement(const char *fen, Board *board) {
     int rank = 7;
     int file = 0;
 
-    for (const char *p = fen; *p != '\0'; p++) {
+    for (const char *p = field; *p != '\0'; p++) {
         char ch = *p;
 
         if (ch == '/') {
@@ -202,8 +206,14 @@ static bool valid_board_placement(const char *fen, Board *board) {
             }
             rank--;
             file = 0;
-            if ((rank >= 8) || (rank < 0)) {  // claude, é necessário essa verificação?
-                LOG_ERROR("invalid number of ranks on board placement");
+
+            /* NECESSÁRIO: com 9 ou mais fileiras ("8/8/8/8/8/8/8/8/8"), rank
+               chega a -1 e o cálculo sq = rank*8 + file fica negativo, o que
+               seria uma escrita fora dos limites de board->array. O teste tem
+               que vir ANTES de qualquer escrita.
+               (rank >= 8 é impossível: rank só decrementa. Removido.) */
+            if (rank < 0) {
+                LOG_ERROR("too many ranks in board placement");
                 return false;
             }
             continue;
@@ -216,7 +226,7 @@ static bool valid_board_placement(const char *fen, Board *board) {
             }
 
             int n = ch - '0';
-            if ((file + n > 8)) {
+            if (file + n > 8) {
                 LOG_ERROR("empty run overflows the rank");
                 return false;
             }
@@ -226,7 +236,7 @@ static bool valid_board_placement(const char *fen, Board *board) {
         }
 
         if (is_fen_piece(ch)) {
-            if ((file >= 8)) {
+            if (file >= 8) {
                 LOG_ERROR("too many squares in rank");
                 return false;
             }
@@ -237,25 +247,24 @@ static bool valid_board_placement(const char *fen, Board *board) {
                 return false;
             }
 
-            Piece piece = (Piece)decoded;
-            PieceType type = TYPE_OF(piece);
-            Color color = COLOR_OF(piece);
+            Piece     piece = (Piece)decoded;
+            PieceType type  = TYPE_OF(piece);
+            Color     color = COLOR_OF(piece);
 
-            int sq = (rank * 8) + file;
+            int sq = SQ_FROM_RF(rank, file);
 
-            board->array[sq] = piece;
+            b->array[sq] = piece;
             file++;
             pieces[color]++;
 
             if (type == KING) {
                 kings[color]++;
-                board->king_square[color] = sq;
+                b->king_square[color] = sq;
             }
 
             if (type == PAWN) {
                 pawns[color]++;
-
-                if (rank == 0 || rank == 7) {
+                if ((rank == 0) || (rank == 7)) {
                     LOG_ERROR("pawn on a back rank");
                     return false;
                 }
@@ -290,37 +299,423 @@ static bool valid_board_placement(const char *fen, Board *board) {
     return true;
 }
 
+/* Campo 2 — lado a jogar. Exatamente "w" ou "b". */
+static bool parse_side_to_move(const char *field, Board *b) {
+    if (strcmp(field, "w") == 0) {
+        b->side_to_move = WHITE;
+        return true;
+    }
+    if (strcmp(field, "b") == 0) {
+        b->side_to_move = BLACK;
+        return true;
+    }
 
-
-
-/* 
-AUXILIARES
-*/
-
-
-
-
-int sq_from_coord(const char *coord) {
-    char file_str = coord[0];
-    char rank_str = coord[1];
-
-    if ((file_str < 'a') || (file_str > 'h')) return -1;
-    if ((rank_str < '1') || (rank_str > '8')) return -1;
-
-    int file = file_str - 'a';
-    int rank = rank_str - '1';
-    int square = rank * 8 + file;
-
-    return square;
+    LOG_ERROR("invalid side to move");
+    return false;
 }
 
-void coord_from_sq(int sq, char out[3]) {
-    if ((sq < 0) || (sq > BOARD_SIZE)) {
-        out[0] = 'X';
-        out[1] = 'X';
-        out[2] = '\0';
+/*
+ * Campo 3 — direitos de roque, como bitmask.
+ *
+ * "-" significa nenhum. Caso contrário, um subconjunto de "KQkq", cada letra
+ * no máximo uma vez. Diferente da versão anterior, caractere desconhecido é
+ * ERRO e não é ignorado em silêncio: "KQxq" antes virava KQq sem aviso, e uma
+ * FEN corrompida passava despercebida até o perft acusar dezenas de lances a
+ * mais lá na frente.
+ */
+static bool parse_castling(const char *field, Board *b) {
+    b->castling_rights = 0;
+
+    if (strcmp(field, "-") == 0) {
+        return true;
     }
-    out[0] = 'a' + FILE_OF(sq);
-    out[1] = '1' + RANK_OF(sq);
+
+    if (strlen(field) > 4) {
+        LOG_ERROR("castling field too long");
+        return false;
+    }
+
+    for (const char *p = field; *p != '\0'; p++) {
+        u8 bit;
+
+        switch (*p) {
+            case 'K': bit = CASTLE_WK; break;
+            case 'Q': bit = CASTLE_WQ; break;
+            case 'k': bit = CASTLE_BK; break;
+            case 'q': bit = CASTLE_BQ; break;
+            default:
+                LOG_ERROR("invalid character in castling field");
+                return false;
+        }
+
+        if (b->castling_rights & bit) {
+            LOG_ERROR("duplicate castling right");
+            return false;
+        }
+
+        b->castling_rights |= bit;
+    }
+
+    return true;
+}
+
+/*
+ * Coerência entre o campo de roque e as peças no tabuleiro.
+ *
+ * Um direito de roque só faz sentido se o rei e a torre correspondentes ainda
+ * estiverem nas casas de origem. "KQkq" num tabuleiro sem torre em h1 é uma
+ * FEN inconsistente, e aceitá-la produz um lance de roque com uma torre que
+ * não existe.
+ *
+ * A escolha aqui é REJEITAR, não corrigir em silêncio (algumas engines apenas
+ * apagam o bit). O motivo é de depuração: quando board_to_fen() reescrever a
+ * posição, um make_move que esqueceu de limpar o direito ao mover a torre
+ * aparece na hora, em vez de virar uma divergência de perft na profundidade 5.
+ * Se algum dia for preciso engolir FENs de bancos externos mal formados,
+ * trocar os 'return false' por 'b->castling_rights &= ~need[i].bit'.
+ *
+ * Assume roque padrão (não Chess960): rei em e1/e8, torres em a1/h1/a8/h8.
+ */
+static bool castling_matches_board(const Board *b) {
+    static const struct {
+        u8  bit;
+        int king_sq;
+        int rook_sq;
+    } need[4] = {
+        { CASTLE_WK, SQ_E1, SQ_H1 },
+        { CASTLE_WQ, SQ_E1, SQ_A1 },
+        { CASTLE_BK, SQ_E8, SQ_H8 },
+        { CASTLE_BQ, SQ_E8, SQ_A8 }
+    };
+
+    for (int i = 0; i < 4; i++) {
+        if ((b->castling_rights & need[i].bit) == 0) {
+            continue;
+        }
+
+        Color us = (need[i].bit & (CASTLE_WK | CASTLE_WQ)) ? WHITE : BLACK;
+
+        if (b->array[need[i].king_sq] != MAKE_PIECE(us, KING)) {
+            LOG_ERROR("castling right without the king on its home square");
+            return false;
+        }
+        if (b->array[need[i].rook_sq] != MAKE_PIECE(us, ROOK)) {
+            LOG_ERROR("castling right without the rook on its home square");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/*
+ * Campo 4 — casa de en passant.
+ *
+ * "-" quando não há. Caso contrário é a casa ATRÁS do peão que acabou de dar
+ * o avanço duplo — a casa onde o capturador vai parar, não onde o peão está.
+ *
+ * Consequência: a fileira é determinada por quem joga.
+ *   brancas a jogar -> o último lance foi das pretas, de 7 para 5,
+ *                      logo a casa de en passant está na fileira 6 (índice 5);
+ *   pretas a jogar  -> lance branco de 2 para 4, casa na fileira 3 (índice 2).
+ *
+ * Validar também as três casas envolvidas custa quase nada e evita gerar uma
+ * captura en passant fantasma:
+ *   - a própria casa de en passant tem que estar vazia;
+ *   - a casa de onde o peão saiu tem que estar vazia;
+ *   - o peão que avançou tem que estar de fato lá, e ser do adversário.
+ *
+ * Repare na ordem do último teste: TYPE_OF() vem antes de COLOR_OF(), porque
+ * COLOR_OF(EMPTY) devolve BLACK — casa vazia se disfarçaria de peão preto.
+ * Como TYPE_OF(EMPTY) == EMPTY != PAWN, testar o tipo primeiro já barra.
+ */
+static bool parse_ep_square(const char *field, Board *b) {
+    b->ep_square = SQ_NONE;
+
+    if (strcmp(field, "-") == 0) {
+        return true;
+    }
+
+    if (strlen(field) != 2) {
+        LOG_ERROR("en passant field must be '-' or a two-character square");
+        return false;
+    }
+
+    int sq = sq_from_coord(field);
+    if (sq == SQ_NONE) {
+        LOG_ERROR("invalid en passant square");
+        return false;
+    }
+
+    int expected_rank = (b->side_to_move == WHITE) ? 5 : 2;
+    if (RANK_OF(sq) != expected_rank) {
+        LOG_ERROR("en passant square on the wrong rank for the side to move");
+        return false;
+    }
+
+    /* Fileira 5 ou 2 garante que ambos os deslocamentos caem no tabuleiro. */
+    int   pawn_sq   = (b->side_to_move == WHITE) ? (sq - 8) : (sq + 8);
+    int   origin_sq = (b->side_to_move == WHITE) ? (sq + 8) : (sq - 8);
+    Color pusher    = (b->side_to_move == WHITE) ? BLACK : WHITE;
+
+    if (b->array[sq] != EMPTY) {
+        LOG_ERROR("en passant square is occupied");
+        return false;
+    }
+    if (b->array[origin_sq] != EMPTY) {
+        LOG_ERROR("square behind the en passant target is occupied");
+        return false;
+    }
+    if ((TYPE_OF(b->array[pawn_sq]) != PAWN) ||
+        (COLOR_OF(b->array[pawn_sq]) != pusher)) {
+        LOG_ERROR("no enemy pawn to be captured en passant");
+        return false;
+    }
+
+    b->ep_square = sq;
+    return true;
+}
+
+/*
+ * Campos 5 e 6 — inteiros sem sinal, dentro de [min, max].
+ *
+ * A versão anterior usava strtol(field, NULL, 10) e aceitava qualquer coisa:
+ * "abc" virava 0 sem reclamar. Aqui o campo precisa ser não vazio e conter
+ * só dígitos, e o resultado precisa caber na faixa. ERANGE cobre o caso de
+ * um número absurdamente grande.
+ */
+static bool parse_uint_field(const char *field, int min, int max, int *out) {
+    if (*field == '\0') {
+        LOG_ERROR("empty numeric field");
+        return false;
+    }
+
+    for (const char *p = field; *p != '\0'; p++) {
+        if (!isdigit((unsigned char)*p)) {
+            LOG_ERROR("non-digit in numeric field");
+            return false;
+        }
+    }
+
+    errno = 0;
+    long value = strtol(field, NULL, 10);
+
+    if ((errno == ERANGE) || (value < min) || (value > max)) {
+        LOG_ERROR("numeric field out of range");
+        return false;
+    }
+
+    *out = (int)value;
+    return true;
+}
+
+
+/* ========================================================================
+ * Board -> FEN
+ * ======================================================================== */
+
+/*
+ * Escreve a posição como FEN completa, os 6 campos.
+ *
+ * A versão anterior emitia só o campo das peças e terminava com
+ *     fen_out[pos++] = '\0';  fen_out[pos] = ' ';
+ * ou seja, gravava um espaço DEPOIS do terminador, onde ninguém lê. O efeito
+ * prático era um round-trip mentiroso: parse_fen -> board_to_fen -> parse_fen
+ * perdia lado a jogar, roque, en passant e relógios, e a segunda leitura
+ * falhava por falta de campos. Como o servidor JS vai receber exatamente esta
+ * string, ela precisa carregar a posição inteira.
+ *
+ * 'fen_out' precisa ter MAX_FEN_STRING bytes. O pior caso real é ~90 bytes
+ * (71 de peças + 19 do resto), bem abaixo dos 256, mas os limites são
+ * checados mesmo assim: a função não pode estourar o buffer nem que a Board
+ * chegue com lixo.
+ */
+void board_to_fen(const Board *board, char fen_out[MAX_FEN_STRING]) {
+    int pos = 0;
+
+    /* Campo 1: peças, da fileira 8 para a 1. */
+    for (int rank = 7; rank >= 0; rank--) {
+        int empty = 0;
+
+        for (int file = 0; file < 8; file++) {
+            Piece piece = board->array[SQ_FROM_RF(rank, file)];
+
+            if (piece == EMPTY) {
+                empty++;
+                continue;
+            }
+
+            if (empty > 0) {
+                fen_out[pos++] = (char)('0' + empty);
+                empty = 0;
+            }
+
+            fen_out[pos++] = PIECE_CHAR[piece & 0x0F];
+        }
+
+        if (empty > 0) {
+            fen_out[pos++] = (char)('0' + empty);
+        }
+
+        if (rank > 0) {
+            fen_out[pos++] = '/';
+        }
+    }
+
+    /* Campo 2: lado a jogar. */
+    fen_out[pos++] = ' ';
+    fen_out[pos++] = (board->side_to_move == WHITE) ? 'w' : 'b';
+
+    /* Campo 3: roque. A ordem KQkq é obrigatória pela especificação da FEN —
+       "qkQK" descreve a mesma posição mas não é uma FEN válida. */
+    fen_out[pos++] = ' ';
+    if (board->castling_rights == 0) {
+        fen_out[pos++] = '-';
+    } else {
+        if (board->castling_rights & CASTLE_WK) fen_out[pos++] = 'K';
+        if (board->castling_rights & CASTLE_WQ) fen_out[pos++] = 'Q';
+        if (board->castling_rights & CASTLE_BK) fen_out[pos++] = 'k';
+        if (board->castling_rights & CASTLE_BQ) fen_out[pos++] = 'q';
+    }
+
+    /* Campo 4: casa de en passant. */
+    fen_out[pos++] = ' ';
+    if (SQ_OFFBOARD(board->ep_square)) {
+        fen_out[pos++] = '-';
+    } else {
+        char coord[3];
+        coord_from_sq(board->ep_square, coord);
+        fen_out[pos++] = coord[0];
+        fen_out[pos++] = coord[1];
+    }
+
+    /* Campos 5 e 6: relógios. snprintf devolve quantos bytes ESCREVERIA, que
+       pode passar do espaço disponível; por isso o resultado é limitado antes
+       de virar índice. */
+    int left    = MAX_FEN_STRING - pos;
+    int written = snprintf(fen_out + pos, (size_t)left, " %d %d",
+                           board->halfmove_clock, board->fullmove_number);
+
+    if ((written < 0) || (written >= left)) {
+        /* Truncou: termina onde der e sinaliza. Não deveria acontecer. */
+        fen_out[MAX_FEN_STRING - 1] = '\0';
+        LOG_ERROR("fen output truncated");
+        return;
+    }
+
+    fen_out[pos + written] = '\0';
+}
+
+
+/* ========================================================================
+ * AUXILIARES
+ * ======================================================================== */
+
+/* Só os caracteres de peça da FEN. '\0' é tratado à parte porque strchr()
+   encontraria o terminador da própria string de busca. */
+static bool is_fen_piece(char ch) {
+    return (ch != '\0') && (strchr("pnbrqkPNBRQK", ch) != NULL);
+}
+
+/* Devolve a Piece codificada, ou -1 se o caractere não for de peça.
+   O retorno é int (e não Piece) justamente para caber o -1. */
+static int piece_from_char(char ch) {
+    PieceType piece_type;
+    Color     color;
+
+    switch (toupper((unsigned char)ch)) {
+        case 'P': piece_type = PAWN;   break;
+        case 'N': piece_type = KNIGHT; break;
+        case 'B': piece_type = BISHOP; break;
+        case 'R': piece_type = ROOK;   break;
+        case 'Q': piece_type = QUEEN;  break;
+        case 'K': piece_type = KING;   break;
+        default:  return -1;
+    }
+
+    color = isupper((unsigned char)ch) ? WHITE : BLACK;
+    return (int)MAKE_PIECE(color, piece_type);
+}
+
+/* "e4" -> 28. Devolve SQ_NONE se a coordenada não for válida.
+   Ler coord[1] é seguro mesmo com string de 1 caractere: aí coord[1] é o
+   próprio '\0', que reprova no teste de fileira. */
+int sq_from_coord(const char *coord) {
+    if (coord == NULL) {
+        return SQ_NONE;
+    }
+
+    char file_ch = coord[0];
+    if ((file_ch < 'a') || (file_ch > 'h')) return SQ_NONE;
+
+    char rank_ch = coord[1];
+    if ((rank_ch < '1') || (rank_ch > '8')) return SQ_NONE;
+
+    return SQ_FROM_RF(rank_ch - '1', file_ch - 'a');
+}
+
+/*
+ * 28 -> "e4". 'out' precisa ter 3 bytes.
+ *
+ * Bug corrigido: o ramo de casa inválida escrevia "XX" e CAÍA DIRETO no
+ * código de baixo, que sobrescrevia tudo. Com sq == SQ_NONE (-1) isso dava
+ * FILE_OF(-1) == -1 (divisão em C trunca para zero), então out[0] virava
+ * 'a' - 1 == '`'. Era visível no print_board: a casa de en passant aparecia
+ * como "`1" em toda posição sem en passant. Faltava o 'return'.
+ */
+void coord_from_sq(int sq, char out[3]) {
+    if (SQ_OFFBOARD(sq)) {
+        out[0] = '-';
+        out[1] = '-';
+        out[2] = '\0';
+        return;
+    }
+
+    out[0] = (char)('a' + FILE_OF(sq));
+    out[1] = (char)('1' + RANK_OF(sq));
     out[2] = '\0';
+}
+
+/*
+ * Impressão de depuração.
+ *
+ * ATENÇÃO: escreve em stdout, que vai ser o canal do protocolo UCI. Quando o
+ * uci.c existir, isto tem que ir para stderr ou ficar atrás de um comando
+ * explícito de depuração — senão o cliente JS recebe o desenho do tabuleiro
+ * no meio das respostas do protocolo e não consegue fazer o parse.
+ */
+void print_board(const Board *board) {
+    printf("\n");
+
+    for (int rank = 7; rank >= 0; rank--) {
+        printf("%d  ", rank + 1);
+        for (int file = 0; file < 8; file++) {
+            Piece piece = board->array[SQ_FROM_RF(rank, file)];
+            printf("[%c]", PIECE_CHAR[piece & 0x0F]);
+        }
+        printf("\n");
+    }
+
+    printf("\n   ");
+    for (char file = 'a'; file <= 'h'; file++) {
+        printf(" %c ", file);
+    }
+    printf("\n");
+
+    char ep[3];
+    coord_from_sq(board->ep_square, ep);
+
+    printf("Side to move:      %s\n", (board->side_to_move == WHITE) ? "WHITE" : "BLACK");
+    printf("Castling rights:   %c%c%c%c\n",
+           (board->castling_rights & CASTLE_WK) ? 'K' : '-',
+           (board->castling_rights & CASTLE_WQ) ? 'Q' : '-',
+           (board->castling_rights & CASTLE_BK) ? 'k' : '-',
+           (board->castling_rights & CASTLE_BQ) ? 'q' : '-');
+    printf("En passant square: %s\n", ep);
+    printf("Halfmove clock:    %d\n", board->halfmove_clock);
+    printf("Fullmove number:   %d\n", board->fullmove_number);
+
+    char fen[MAX_FEN_STRING];
+    board_to_fen(board, fen);
+    printf("FEN: %s\n\n", fen);
 }

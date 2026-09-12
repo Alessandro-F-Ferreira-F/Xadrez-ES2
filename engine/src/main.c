@@ -16,15 +16,20 @@ void ui(Board *b) {
     char move_out[6];
     u32 move;
     char fen_out[MAX_FEN_STRING];
-    print_board(b);
-
+    /* Precisa comecar zerada: add_move() usa list->count como indice de
+       escrita, entao um count com lixo grava fora do vetor logo na primeira
+       geracao. */
+    MoveList l = {0};
     do
     {
+        clear_screen();
+        print_board(b);
         printf("1 - Insert FEN\n");
         printf("2 - Make move\n");
-        printf("3 - Print board\n");
+        printf("3 - Print moves\n");
         printf("4 - Clear screen\n");
         printf("5 - Quit\n");
+        printf("6 - Unmake Move\n");
 
         opt = get_int("Insert option: ");
 
@@ -32,11 +37,22 @@ void ui(Board *b) {
         {
         case 1:
             get_fen(fen_out);
-            parse_fen(fen_out, b);
+            /* parse_fen so escreve em '*b' se a FEN inteira validar, entao o
+               tabuleiro atual sobrevive a uma entrada invalida. A mensagem vai
+               por printf e nao por LOG_ERROR porque LOG_ERROR some fora do
+               build de debug, e "sua FEN esta errada" e coisa que o usuario
+               precisa ver sempre. */
+            if (!parse_fen(fen_out, b)) {
+                printf("FEN invalida -- tabuleiro nao alterado.\n");
+                fgetc(stdin);
+            }
             break;
         case 2:
             printf("Insert move: ");
-            fgets(move_out, 6, stdin);
+            if (fgets(move_out, sizeof move_out, stdin) == NULL) {
+                ch = 'n';
+                break;
+            }
             move = str_to_move(move_out);
             MoveDescription movedesc = decode_move(move);
             if (!find_move(b, movedesc.origin_sq, movedesc.target_sq, movedesc.promotion, NULL)) {
@@ -48,18 +64,27 @@ void ui(Board *b) {
             }
             break;
         case 3:
-            print_board(b);
+            generate_pawn_moves(b, &l, WHITE);
+            generate_pawn_moves(b, &l, BLACK);
+            generate_sliding_moves(b, &l);
+            print_moves(&l);
+            MemoryZeroStruct(&l, MoveList); //reset
+            fgetc(stdin);
             break;
         case 4:
             clear_screen();
             break;     
         case 5:
             ch = 'n';
-            break;      
+            break;
+        case 6:
+            unmake_move(b);
+            ch = 'n';
         default:
             break;
         }
 
+        // scanf("%c", &ch);
     } while ((ch != 'n'));
 }
 
@@ -80,6 +105,8 @@ int main(void) {
     print_board(&b);
     printf("Side to move: %s\n", COLOR_CHAR[b.side_to_move]);
     
+
+
     ui(&b);
 
     return 0;

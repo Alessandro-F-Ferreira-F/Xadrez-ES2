@@ -18,6 +18,10 @@ unsigned 32 bits  ->  [00000000][00000000][00000000][00000000]
 
 */
 
+static inline bool is_own(Piece p, Color c)   { return p != EMPTY && COLOR_OF(p) == c; }
+static inline bool is_enemy(Piece p, Color c) { return p != EMPTY && COLOR_OF(p) != c; }
+
+
 u32 encode_move(int origin_sq, int target_sq, int promo, int flags) {
     u32 encoded = ((u32)origin_sq << 24) | ((u32)target_sq << 16) | ((u32)promo << 8) | (u32)flags;
     return encoded;
@@ -47,7 +51,7 @@ void add_move(u32 move, MoveList *list) {
 }
 
 
-void precompute_move_data() {
+void precompute_move_data(void) {
     for (int file = 0; file < 8; file++) {
         for (int rank = 0; rank < 8; rank++) {
             int num_north = 7 - rank;
@@ -75,6 +79,11 @@ cor como argumento opcional para gerar argumentos de uma cor especifica de manei
 TODO: pensar em solução melhor depois
 */
 
+bool check_pawn_promotion(int sq) {
+    if ((RANK_OF(sq) == 0) || (RANK_OF(sq) == 7)) return true;
+    return false;
+}
+
 void generate_pawn_moves(const Board *board, MoveList *list, Color side) {
     Piece piece;
     int target_sq;
@@ -86,7 +95,7 @@ void generate_pawn_moves(const Board *board, MoveList *list, Color side) {
     cap_dir são as direções de captura [2 posições]
      */
     int push_dir;
-    Direction cap_dir[2];
+    Direction cap_dir[2]; // direção de captura
 
     if (side == WHITE) {
         push_dir = DIR_OFFSET[DIR_N];
@@ -105,15 +114,27 @@ void generate_pawn_moves(const Board *board, MoveList *list, Color side) {
         if (COLOR_OF(piece) != side) continue;
 
 
-        target_sq = sq + push_dir;
 
+        // double pawn push
+        if (((RANK_OF(sq) == 1) && side == WHITE) || ((RANK_OF(sq) == 6) && side == BLACK)) {
+            target_sq = sq + (2 * push_dir);
+            move = encode_move(sq, target_sq, 0, DOUBLE_PAWN_PUSH);
+            add_move(move, list);
+        }
+
+        // push padrão do peão
+        target_sq = sq + push_dir;
         if ((SQ_OFFBOARD(target_sq) == 0) && (board->array[target_sq] == EMPTY)) {
-            move = encode_move(sq, target_sq, 0, 0);
+            move = encode_move(sq, target_sq, 0, QUIET_MOVE);
+            if (check_pawn_promotion(target_sq)) {
+                // [CLAUDE?]: como guardar o resultado da promoção sem saber a escolha do user?
+                move = encode_move(sq, target_sq, QUEEN_PROMOTION, QUIET_MOVE); 
+            }
             add_move(move, list);
         } 
         
-        // CAPTURAS
 
+        // captura
         for (int i = 0; i < 2; i++) {
             if (SQ_TO_EDGE[sq][cap_dir[i]] == 0) continue; // verifica se a casa de captura está fora do array
 
@@ -121,10 +142,13 @@ void generate_pawn_moves(const Board *board, MoveList *list, Color side) {
             piece = board->array[target_sq];
 
             if ((board->array[target_sq] != EMPTY) && (COLOR_OF(piece) != side)) {
-                move = encode_move(sq, target_sq, 0, 0);
+                move = encode_move(sq, target_sq, 0, (CAPTURE));
+                if (check_pawn_promotion(target_sq)) {
+                    move = encode_move(sq, target_sq, QUEEN_PROMOTION, (CAPTURE));
+                }
                 add_move(move, list);
             }
-        }             
+        }
     }
 }
 
@@ -138,12 +162,12 @@ void genenare_moves_from_direction(const Board *board, MoveList *list, int sq, i
         target_sq = target_sq + DIR_OFFSET[dir];
 
         if (board->array[target_sq] == EMPTY) {
-            move = encode_move(sq, target_sq, 0, 0);
+            move = encode_move(sq, target_sq, 0, QUIET_MOVE);
             add_move(move, list);
         } else {
             Piece p = board->array[target_sq];
             if (COLOR_OF(p) != board->side_to_move) {
-                move = encode_move(sq, target_sq, 0, 0);
+                move = encode_move(sq, target_sq, 0, CAPTURE);
                 add_move(move, list);
             }
             break;
@@ -151,6 +175,8 @@ void genenare_moves_from_direction(const Board *board, MoveList *list, int sq, i
     }
 }
 
+// ATAQUES_CAVALO[64][8]
+// ATAQUES_CAVALO[21] = {4, 6, 11, 15, 27, 36, 31, 38}
 
 void generate_sliding_moves(const Board *board, MoveList *list) {
     Piece piece;
@@ -160,6 +186,16 @@ void generate_sliding_moves(const Board *board, MoveList *list) {
 
         if (TYPE_OF(piece) == ROOK) {
             for (int dir = 0; dir < 4; dir++) {
+                genenare_moves_from_direction(board, list, sq, dir);
+            }
+        }
+        else if (TYPE_OF(piece) == BISHOP) {
+            for (int dir = 4; dir < 8; dir++) {
+                genenare_moves_from_direction(board, list, sq, dir);
+            }
+        }
+        else if (TYPE_OF(piece) == QUEEN) {
+            for (int dir = 0; dir < 8; dir++) {
                 genenare_moves_from_direction(board, list, sq, dir);
             }
         }
@@ -201,21 +237,26 @@ bool find_move(const Board *board, int origin_sq, int target_sq, int promo, u32 
 }
 
 
-void make_move(Board *b, u32 move) {
+void make_move(Board *b, u32 move, Undo *u) {
     MoveDescription movedesc = decode_move(move);
     u8 origin_sq = movedesc.origin_sq;
     u8 target_sq = movedesc.target_sq;
 
-    if (!find_move(b, origin_sq, target_sq, 0, NULL)) {
+
+    u32 *out_move;
+    if (!find_move(b, origin_sq, target_sq, 0, out_move)) {
         return;
     }
 
     Piece p = b->array[origin_sq];
+    Piece prev_on_target = b->array[target_sq];
 
     b->array[target_sq] = p;
     b->array[origin_sq] = EMPTY;
     b->side_to_move = (b->side_to_move == WHITE) ? BLACK : WHITE;
 }
+
+void unmake_move(Board *b, u32 move, const Undo *u);
 
 /* 
 * AUXILIARES

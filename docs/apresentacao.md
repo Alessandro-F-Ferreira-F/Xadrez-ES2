@@ -12,13 +12,14 @@ backgroundColor: #1a1a2e
 # Projeto Xadrez
 ## Primeira Apresentação de Acompanhamento
 
-**Integrantes:** Felipe Cabral Liporage, Eduardo Rottschaefer Oliveira, Caio Veiga Pires, Alessandro, José, João Vitor, Alan Vignoli
+**Integrantes:** Felipe Cabral Liporage, Eduardo Rottschaefer Oliveira, Caio Veiga Pires, Alessandro Felipe Ferreira, José Enrique Viana, João Vitor Pereira Rodrigues, Allan Vignoli
 **Data:** 14 de Setembro de 2026
 **Disciplina:** Engenharia de Software 2
 
 ---
 
 <!-- José -->
+<!-- Abrir Requisito -->
 # Escopo do Produto
 
 - **Objetivo:** Aplicação de xadrez em arquitetura cliente-servidor (contra IA e Multiplayer Local).
@@ -31,7 +32,7 @@ backgroundColor: #1a1a2e
 ---
 
 # Estrutura Analítica do Projeto (EAP)
-
+<!-- Alan -->
 - **1.2 Gerenciamento:** Documentação, Riscos e Reuniões.
 <!-- Eduardo, Alan -->
 - **1.3 Clientes Desktop:** Interface visual, HUD e menus.
@@ -91,33 +92,32 @@ backgroundColor: #1a1a2e
 
 ---
 <!-- João -->
-# Monitoramento e Controle (Sprint 1)
-## Acompanhamento da 1ª Iteração (Burndown)
+# Monitoramento e Controle
 
-- **Planejado:** 40h de esforço total para os pacotes iniciais.
-- **Burndown:** Iniciamos com 40h e chegamos ao fim da semana com 5h pendentes.
-- **Motivo do desvio:** Esforço não previsto no mapeamento aprofundado dos riscos e validações da arquitetura.
-
-*(Tarefas individuais mapeadas em nossa ferramenta de gestão)*
+- O acompanhamento do projeto passou a ser feito ao longo de **3 iterações semanais**.
+- *Iteração 1 (Fundação C):* Início forte, time superou expectativas.
+- *Iteração 2 (Motor e Validação):* Maior complexidade técnica, causando leve atraso.
+- *Iteração 3 (SFML e Gerência):* Divisão de equipes ajudou a paralelizar entregas, mas curva de aprendizado do C++ exigiu foco.
 
 ---
+
 <!-- Caio -->
-# Desempenho do Projeto (EVM) - Iteração 1
+# Desempenho do Projeto (EVM) - Consolidado
 
-- **PV (Planejado):** R$ 2.000,00 *(40h)*
-- **EV (Agregado):** R$ 1.750,00 *(Trabalho entregue: 35h)*
-- **AC (Custo Real):** R$ 1.900,00 *(Trabalho gasto: 38h)*
-- **SPI (Desempenho de Prazos):** 0,875 *(Leve atraso)*
-- **CPI (Desempenho de Custos):** 0,92 *(Gastamos mais esforço que o esperado)*
+| Iteração | Planejado (PV) | Agregado (EV) | Custo Real (AC) | SPI (Prazo) | CPI (Custo) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **1ª Sem** | 20h (R$ 1k) | 20h (R$ 1k) | 18h (R$ 900) | **1.00** | **1.11** |
+| **2ª Sem** | 30h (R$ 1.5k) | 25h (R$ 1.25k)| 35h (R$ 1.75k)| **0.83** | **0.71** |
+| **3ª Sem** | 40h (R$ 2k) | 35h (R$ 1.75k)| 38h (R$ 1.9k) | **0.87** | **0.92** |
+| **Total**  | 90h (R$ 4.5k) | 80h (R$ 4k)   | 91h (R$ 4.55k)| **0.88** | **0.87** |
 
-*Plano de Ação:* Aumentar a coesão da equipe na próxima iteração (pair programming) para recuperar a velocidade.
+*Plano de Ação:* Pareamento de tarefas mais complexas no C++ (HUD e mouse drag) na próxima iteração.
 
 ---
 
 # Protótipo / Demonstração
 
-- Apesar do foco inicial ter sido no planejamento arquitetural e nos requisitos, temos uma versão inicial do nosso protótipo.
-- **Demonstração visual** do tabuleiro gráfico sendo renderizado (C++ / SFML).
-- **Demonstração técnica** da inicialização do tabuleiro e leitura de posições FEN no motor de regras (C).
+<!-- - **Demonstração visual** do tabuleiro gráfico sendo renderizado (C++ / SFML).
+- **Demonstração técnica** da inicialização do tabuleiro e leitura de posições FEN no motor de regras (C). -->
 
 ## Obrigado! Perguntas?

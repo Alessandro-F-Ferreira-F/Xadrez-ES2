@@ -1,46 +1,48 @@
-# Monitoramento e Controle (Iteração 1)
+# Monitoramento e Controle
 
-Neste documento apresentamos o acompanhamento da Iteração 1 do projeto, cujo foco principal foi o planejamento, a definição de requisitos, a estruturação da EAP e do cronograma.
 
-## 1. Dados do Burndown (Iteração 1)
+## 1. Dados do Burndown e EVM - Iteração 1
+**Período:** 26/Ago a 01/Set
+**Foco:** Inicialização do repositório, fundação do motor em C (representação do tabuleiro) e tradução FEN.
 
-O *Burndown chart* acompanha a quantidade de horas restantes versus o tempo de projeto na iteração. A iteração 1 teve duração de 1 semana (5 dias úteis), com **40 horas planejadas** (divididas entre os membros da equipe).
+- **Burndown:** Planejamos entregar os blocos iniciais rapidamente. Devido ao baixo acoplamento no início, a equipe conseguiu entregar o esperado usando menos tempo.
+- **Parâmetros:**
+  - **PV (Planejado):** 20 horas (R$ 1.000,00)
+  - **EV (Agregado):** 20 horas (R$ 1.000,00)
+  - **AC (Custo Real):** 18 horas (R$ 900,00)
+- **Indicadores (EVM):**
+  - **SPI:** 1.0 (No prazo)
+  - **CPI:** 1.11 (Alta eficiência)
+- **Conclusão:** Iteração inicial excelente, o time superou as estimativas de esforço.
 
-| Dia | Trabalho Planejado Restante (h) | Trabalho Real Restante (h) |
-| :--- | :---: | :---: |
-| Dia 0 (Início) | 40 | 40 |
-| Dia 1 | 32 | 34 |
-| Dia 2 | 24 | 28 |
-| Dia 3 | 16 | 18 |
-| Dia 4 | 8 | 10 |
-| Dia 5 (Fim) | 0 | 5 |
+---
 
-**Análise do Burndown:**
-Houve um leve desvio em relação à reta ideal. Isso ocorreu devido à complexidade extra encontrada na elaboração do Levantamento de Riscos e na definição técnica da arquitetura Cliente/Servidor. Ao final da iteração, restaram 5 horas de trabalho não concluído que transbordarão para a próxima sprint.
+## 2. Dados do Burndown e EVM - Iteração 2
+**Período:** 02/Set a 06/Set
+**Foco:** Lógica do Motor (Geração de lances, validação de FEN, sistema de log) e documentação arquitetural técnica.
 
-## 2. Análise de Valor Agregado (EVM) - Fim da Iteração 1
+- **Burndown:** Encontramos complexidade maior que o previsto na geração de lances e matrizes em C.
+- **Parâmetros:**
+  - **PV (Planejado):** 30 horas (R$ 1.500,00)
+  - **EV (Agregado):** 25 horas (R$ 1.250,00)
+  - **AC (Custo Real):** 35 horas (R$ 1.750,00)
+- **Indicadores (EVM):**
+  - **SPI:** 0.83 (Atraso)
+  - **CPI:** 0.71 (Mais esforço necessário que o orçado para gerar valor)
+- **Conclusão:** Iteração complexa. O time gastou tempo significativo com depuração e infraestrutura (Makefile/Sanitizers), decidindo criar o "onboarding-motor.md".
 
-A Análise de Valor Agregado (Earned Value Management) mede o desempenho do projeto integrando escopo, cronograma e recursos (custo).
+---
 
-**Parâmetros Base:**
-* **Valor da Hora:** R$ 50,00
-* **Horas Planejadas para a Iteração 1:** 40 horas
-* **Horas Entregues/Concluídas na Iteração 1:** 35 horas
-* **Horas Realmente Gastas (Esforço Real) na Iteração 1:** 38 horas
+## 3. Dados do Burndown e EVM - Iteração 3
+**Período:** 07/Set a 13/Set
+**Foco:** Planejamento, Gerenciamento (EAP, APF, Riscos), e Fundação da Interface Gráfica C++ (SFML).
 
-**Cálculos do EVM:**
-1. **PV (Valor Planejado / Planned Value):** O orçamento autorizado para o trabalho planejado.
-   * `PV = 40h × R$ 50,00 = R$ 2.000,00`
-2. **EV (Valor Agregado / Earned Value):** A medida do trabalho efetivamente realizado em termos do orçamento autorizado.
-   * `EV = 35h × R$ 50,00 = R$ 1.750,00`
-3. **AC (Custo Real / Actual Cost):** O custo real incorrido para realizar o trabalho.
-   * `AC = 38h × R$ 50,00 = R$ 1.900,00`
+- **Burndown:** A divisão entre a equipe de interface e a de gerência ajudou a estabilizar a velocidade. Houve leve desvio pela curva de aprendizado inicial do SFML.
+- **Parâmetros:**
+  - **PV (Planejado):** 40 horas (R$ 2.000,00)
+  - **EV (Agregado):** 35 horas (R$ 1.750,00)
+  - **AC (Custo Real):** 38 horas (R$ 1.900,00)
+- **Indicadores (EVM):**
+  - **SPI:** 0.875 (Leve atraso)
+  - **CPI:** 0.92 (Custo sob controle, eficiência média)
 
-**Indicadores de Desempenho:**
-* **SPI (Índice de Desempenho de Prazos):** `EV / PV = 1750 / 2000 = 0,875`
-  * *Interpretação:* SPI < 1. Estamos progredindo a 87,5% da velocidade planejada (pequeno atraso no cronograma).
-* **CPI (Índice de Desempenho de Custos):** `EV / AC = 1750 / 1900 = 0,921`
-  * *Interpretação:* CPI < 1. Para cada R$ 1,00 gasto pela equipe, geramos cerca de R$ 0,92 de valor (pequeno estouro no orçamento, exigindo mais esforço do que o planejado para a mesma entrega).
-
-**Conclusão da Iteração:**
-O projeto fechou a primeira iteração levemente atrasado e custando um pouco mais do que o previsto. Como plano de contenção para a próxima iteração, os pacotes de desenvolvimento de código serão quebrados em tarefas menores e o uso de programação em pares será incentivado para evitar gargalos na máquina de regras.

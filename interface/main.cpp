@@ -53,6 +53,7 @@ int main()
     float scaleY = squareSize / texture.getSize().y;
 
     sprite.setScale({scaleX, scaleY});
+    texture.setSmooth(true);
 
     
     // run the program as long as the window is open

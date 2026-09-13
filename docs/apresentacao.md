@@ -8,22 +8,24 @@ paginate: true
 backgroundColor: #1a1a2e
 ---
 
-# Projeto Xadrez Cliente/Servidor
+<!-- Eduardo -->
+# Projeto Xadrez
 ## Primeira Apresentação de Acompanhamento
 
-**Integrantes:** [NOME 1], [NOME 2], [NOME 3], [NOME 4], [NOME 5], [NOME 6], [NOME 7]
-**Data:** 12 de Setembro de 2026
+**Integrantes:** Felipe Cabral Liporage, Eduardo Rottschaefer Oliveira, Caio Veiga Pires, Alessandro, José, João Vitor, Alan Vignoli
+**Data:** 14 de Setembro de 2026
 **Disciplina:** Engenharia de Software 2
 
 ---
 
+<!-- José -->
 # Escopo do Produto
 
 - **Objetivo:** Aplicação de xadrez em arquitetura cliente-servidor (contra IA e Multiplayer Local).
 - **Módulos Principais:**
   1. *Cliente Desktop:* Interface gráfica (GUI), tabuleiro visual, validação de lances.
-  2. *Web Backend API:* Máquina de regras rigorosa, execução da IA (Minimax).
-  3. *Módulo Multiplayer:* Comunicação via WebSockets.
+  2. *Engine* Máquina de Regras e IA com comunicação via E/S
+  3. *Web Backend API:* Multiplayer Online com comunicação via WebSockets * 
 - **Destaque:** Sistema modular, multiplataforma (Win/Mac/Linux) e tolerante a falhas.
 
 ---
@@ -31,37 +33,41 @@ backgroundColor: #1a1a2e
 # Estrutura Analítica do Projeto (EAP)
 
 - **1.2 Gerenciamento:** Documentação, Riscos e Reuniões.
+<!-- Eduardo, Alan -->
 - **1.3 Clientes Desktop:** Interface visual, HUD e menus.
-- **1.4 Máquina de Regras:** "Fonte da verdade" do jogo, validações de movimentos.
-- **1.5 IA:** Algoritmo Minimax com Poda Alfa-Beta.
-- **1.7 e 1.8 Servidor e Cliente Web:** APIs, WebSockets e gestão de partidas.
+<!-- Caio -->
+- **1.4 Máquina de Regras:** Validações de movimentos.
+<!-- Alessandro -->
+- **1.5 IA:** Algoritmo Minimax.
+<!-- João -->
+- **1.7 e 1.8 Servidor e Cliente Web:** APIs, WebSockets e gestão de partidas. * 
 
 ---
 
+<!-- José -->
 # Cronograma de Desenvolvimento (Gantt)
 
 - O desenvolvimento seguirá uma abordagem iterativa e incremental.
-- Paralelismo planejado entre a equipe de Interface Gráfica e a equipe do Motor de Regras (Backend).
+- Paralelismo planejado entre a equipe de Interface Gráfica e a equipe do Motor de Regras.
 - Entregas divididas e alinhadas com as datas das próximas apresentações.
 
-*(Consulte o arquivo cronograma_gantt.pdf para a visão completa)*
 
 ---
 
 # Estimativas de Esforço
 
+  <!-- Cabral -->
 - **Análise de Pontos de Função (APF):**
   - Identificados 62 Pontos de Função Ajustados.
   - Estimativa de **496 horas** totais (assumindo 8h/PF).
-
+  <!-- Cabral -->
 - **Planning Poker (Estimativa da Equipe):**
   - Esforço focado nos pacotes da EAP.
   - Estimativa final consolidada: **424 horas**.
 
-*Conclusão:* A equipe estima ser levemente mais rápida devido ao conhecimento prévio em algoritmos de busca.
 
 ---
-
+<!-- Cabral -->
 # Orçamento do Projeto
 
 - **Valor base:** Adoção de **R$ 50,00 / hora** (perfil júnior).
@@ -73,7 +79,7 @@ backgroundColor: #1a1a2e
 *Conclusão:* O orçamento de execução deve ser fixado em **R$ 21.200,00**, com margem de segurança técnica até o teto da APF.
 
 ---
-
+<!-- Alan -->
 # Levantamento e Mitigação de Riscos
 
 - **Risco 1:** Erros na implementação das regras do xadrez. *(Prob: Alta / Imp: M. Alto)*
@@ -84,7 +90,7 @@ backgroundColor: #1a1a2e
   - *Mitigação:* Acompanhamento estrito semanal, tarefas < 8h e correção no EVM.
 
 ---
-
+<!-- João -->
 # Monitoramento e Controle (Sprint 1)
 ## Acompanhamento da 1ª Iteração (Burndown)
 
@@ -95,7 +101,7 @@ backgroundColor: #1a1a2e
 *(Tarefas individuais mapeadas em nossa ferramenta de gestão)*
 
 ---
-
+<!-- Caio -->
 # Desempenho do Projeto (EVM) - Iteração 1
 
 - **PV (Planejado):** R$ 2.000,00 *(40h)*

@@ -1,7 +1,5 @@
 # Estimativas de Esforço e Custo - APF (Análise de Pontos de Função)
 
-A técnica de Análise de Pontos de Função (APF) mede o tamanho funcional do software sob a perspectiva do usuário, baseando-se nos requisitos funcionais documentados em `requisitos.md`.
-
 ## 1. Contagem de Pontos de Função (Estimativa Simplificada)
 
 Considerando a complexidade média do projeto, identificamos os seguintes elementos funcionais principais:

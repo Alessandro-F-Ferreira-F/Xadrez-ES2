@@ -1,6 +1,5 @@
 # Estimativas de Esforço e Custo - Planning Poker
 
-O Planning Poker é uma técnica ágil baseada em consenso para estimar o esforço das tarefas. Utilizamos a sequência de Fibonacci (1, 2, 3, 5, 8, 13, 21, 34, 55, 89...) para atribuir pontos (que neste caso foram convertidos para estimativas diretas em horas) aos pacotes de trabalho detalhados na nossa Estrutura Analítica de Projeto (`EAP.md`).
 
 ## 1. Estimativa por Pacote da EAP
 
@@ -27,4 +26,4 @@ Com base na estimativa de esforço do Planning Poker e no custo da hora da equip
 > 424 horas × R$ 50,00 = **R$ 21.200,00**
 
 ---
-*Observação: As estimativas do Planning Poker consideram o conhecimento empírico da equipe sobre os desafios técnicos específicos de cada pacote, resultando num esforço e custo levemente otimizados em comparação à técnica padrão de APF.*
+

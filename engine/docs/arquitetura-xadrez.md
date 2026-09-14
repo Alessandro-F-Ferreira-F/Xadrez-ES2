@@ -1,93 +1,150 @@
 # Arquitetura do Sistema de Xadrez
 
-> Documento de design técnico — motor de regras, IA, backend e cliente.
-
-Este documento define como as partes do sistema (motor de regras, IA, backend e cliente) devem se integrar, levanta os requisitos do projeto, e propõe um roadmap de implementação em etapas testáveis.
+> Documento de design técnico — motor de regras, IA e cliente desktop (o **MVP**); backend
+> e cliente web entram só como **extensão de multiplayer online**, se sobrar tempo.
+>
+> Revisado em 13 de setembro de 2026, para corrigir uma premissa que não é mais válida: a
+> versão anterior deste documento assumia que o cliente nunca fala diretamente com o C, e
+> que existe sempre um backend Node/TS no meio, mesmo em modo local. **Isso não é o que foi
+> decidido.** Ver `project_context.md` para o estado e as decisões internas do motor —
+> este documento cobre a integração motor ↔ cliente ↔ (futuramente) servidor.
 
 ## Princípio arquitetural central
 
-A ideia que amarra toda a arquitetura: **o cliente nunca fala diretamente com o código em C.** Ele sempre fala com o backend (Node/TS) através de uma API HTTP + WebSocket — seja esse backend rodando em `localhost` (modo offline, contra a IA) ou em um servidor remoto (multiplayer, no futuro).
+**MVP: o cliente desktop (C++) fala diretamente com o motor (C), via subprocesso e
+stdin/stdout. Não há servidor no caminho.** O motor é um binário local, spawnado pelo
+cliente, que recebe uma posição e devolve lances — exatamente como um motor UCI real
+(Stockfish etc.) conversa com uma GUI local.
 
-Isso significa que "jogar offline" não é um modo especial com um caminho de código separado: é só o backend rodando localmente em vez de remotamente. O cliente é sempre um consumidor da mesma API — é isso que a torna "universal", e é isso que resolve o requisito de jogar sem internet sem precisar de nenhuma lógica extra no cliente.
+Isso resolve "jogar contra a IA offline" e "multiplayer local no mesmo dispositivo" **de
+graça, por construção** — não existe estado remoto, não existe rede, não existe nada de
+servidor no caminho crítico. Não é uma simplificação temporária: é a arquitetura de
+produto para o escopo que o grupo se comprometeu a entregar.
+
+**Extensão, somente se sobrar tempo: multiplayer online.** Se isso entrar, um servidor
+(Node/TypeScript) é **adicionado por cima**, não substitui o caminho direto. Ele passa a
+existir como uma segunda forma de falar com um motor (agora rodando no servidor, um
+subprocesso por partida online) para os casos que exigem autoridade de terceiro — dois
+jogadores em máquinas diferentes não podem cada um confiar no motor local do outro. Jogo
+local contra IA e multiplayer local continuam usando o caminho direto, mesmo depois de o
+servidor existir.
 
 ## 1. Visão geral da arquitetura
 
+### MVP (o que será entregue)
+
 ```
-Cliente Desktop          Cliente Web (futuro)
+Cliente Desktop (C++)
+        |
+        | spawna como subprocesso
+        | stdin / stdout
+        | (protocolo texto, estilo UCI)
+        v
+Motor de regras + IA (C)
+- Geração e validação de lances
+- Busca (minimax + alfa-beta)
+```
+
+Duas camadas, uma fronteira só:
+
+- **Motor + IA (C, este repositório, `engine/`)**: um binário que sabe jogar xadrez. Não
+  sabe nada sobre interface gráfica, processos remotos ou múltiplas partidas — recebe uma
+  posição por texto, devolve lances legais ou o melhor lance. Ver `project_context.md` para
+  o desenho interno (representação, geração, make/unmake) — não duplicado aqui.
+- **Cliente Desktop (C++)**: interface gráfica, captura de input, e o lado "gerente de
+  processo" da integração — sobe o motor, escreve comandos, lê respostas, trata o motor
+  travar ou crashar. Nenhuma lógica de regras: todo lance, mesmo em partida local
+  humano-vs-humano, é validado pelo motor antes de ser aceito na tela.
+
+### Extensão futura — multiplayer online (não é MVP)
+
+```
+Cliente Desktop        Cliente Web (futuro, se sobrar tempo)
       |                          |
       +------------+-------------+
                    |
         HTTP (REST) + WebSocket
                    |
                    v
-        Backend (Node / TypeScript)
+        Servidor (Node / TypeScript)
         - API REST + WebSocket
-        - Sessões de partida (estado em memória)
-        - Spawn e comunicação com o motor
+        - Sessões de partida online (estado em memória)
+        - Spawn e comunicação com uma instância do motor por partida
                    |
-                   | stdin / stdout
-                   | (protocolo texto, estilo UCI)
+                   | stdin / stdout — mesmo protocolo do MVP
                    v
         Motor de regras + IA (C)
-        - Geração e validação de lances
-        - Busca (minimax + alfa-beta)
 ```
 
-Três camadas, cada uma com uma responsabilidade clara:
+O ponto importante deste segundo diagrama: **o protocolo motor↔processo-pai não muda**.
+O servidor, quando existir, é só mais um processo que fala a mesma língua que o cliente
+desktop já fala hoje. É por isso que dá pra adiar essa camada inteira sem reescrever nada
+do motor nem do cliente.
 
-- **Motor + IA (C)**: um binário que sabe jogar xadrez. Não sabe nada sobre HTTP, sessões, ou múltiplas partidas — recebe uma posição, devolve lances legais ou o melhor lance.
-- **Backend (Node/TS)**: orquestra. Gerencia sessões de partida, expõe a API, decide quando chamar o motor, e notifica os clientes.
-- **Cliente(s)**: só sabe falar com a API. Não tem lógica de xadrez nenhuma além de UX otimista (destacar lances legais, etc.).
+## 2. Motor de regras + IA (C)
 
-## 2. Motor de regras (C)
+Já em desenvolvimento neste repositório (`engine/`). As decisões de representação,
+codificação de peça/lance, geração de lances, apply/undo e o roadmap de fases estão
+documentadas em detalhe em `project_context.md` e `roadmap-motor.md` — aqui só o resumo
+necessário para entender a integração:
 
-**Sim, deve ser em C.** A justificativa não é só "porque já decidimos usar C no backend" — é que geração de lances é chamada em volume altíssimo pela IA durante a busca (milhares de vezes por lance pensado), então é exatamente o tipo de código que se beneficia de performance bruta. Além disso, as regras do xadrez são um problema fechado e bem especificado — não vão mudar — então não existe o benefício de "iterar rápido" que outras linguagens ofereceriam aqui.
+- **Representação**: mailbox de 64 casas (`Piece array[64]`), não bitboards — decisão
+  fechada, com medição (varredura completa ~9,5 ns vs. ~12,3 ns de uma piece list).
+- **Indexação**: `a1 = 0` (Little-Endian Rank-File), `sq = rank * 8 + file`.
+- **Codificação de peça**: um `u8` (`Piece`), com `PIECE_MAKE`/`PIECE_TYPE`/`PIECE_COLOR`.
+- **Codificação de lance**: um `u16` — 6 bits de origem, 6 de destino, 4 de tipo — com o
+  tipo sendo uma enumeração de 16 valores **mutuamente exclusivos** (quieto, avanço duplo,
+  os dois roques, captura, captura en passant, 4 promoções, 4 promoções-com-captura), como
+  a Chess Programming Wiki recomenda:
 
-**Componentes:**
+  ```c
+  typedef u16 Move;   /* [tipo:4][destino:6][origem:6] */
 
-- **Representação de tabuleiro**: recomendo começar com array 8x8 (mailbox), não bitboards. Bitboards são mais rápidos, mas bem mais complexos de implementar e depurar corretamente. Pra um projeto com prazo, array 8x8 com alfa-beta bem implementado já alcança profundidade de busca boa o suficiente. Bitboards ficam como otimização de etapa avançada, se sobrar tempo.
-- **Geração de lances**: pseudo-legais primeiro (ignora se deixa o próprio rei em xeque), depois um filtro de legalidade separado. É mais simples de implementar corretamente do que gerar só lances totalmente legais direto.
-- **Casos especiais**: roque, en passant, promoção — são a parte que mais gera bugs sutis em motores caseiros.
-- **Aplicar/desfazer lance**: usem apply/undo com uma pilha (guardando peça capturada, direitos de roque, alvo de en passant antes do lance) em vez de copiar o tabuleiro inteiro a cada nó de busca. Isso importa de verdade pra performance da busca, e é uma decisão que dói para trocar depois — vale decidir certo desde o início.
-- **FEN**: parser e serializador. É o formato de posição que vai circular por todo o sistema (motor, backend, e possivelmente até o cliente).
-- **Detecção de fim de jogo**: xeque, xeque-mate, afogamento, empate por regra dos 50 lances / material insuficiente.
+  typedef struct {
+      Piece array[64];
+      Color side_to_move;
+      int   king_square[2];
+      u8    castling_rights;  /* bitmask KQkq */
+      int   ep_square;        /* -1 se não houver */
+      int   halfmove_clock;
+      int   fullmove_number;
+  } Board;
+  ```
 
-```c
-// Esboço ilustrativo da representação — não é a interface final
-typedef enum { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } PieceType;
+  (Ver `board.h`, `piece.h`, `move.h` para a definição exata — o acima é fiel a eles, só
+  sem os comentários e macros auxiliares.)
 
-typedef struct {
-    PieceType squares[64];       // representação mailbox (8x8 linear)
-    Color     colors[64];
-    Color     side_to_move;
-    int       castling_rights;   // bitmask: KQkq
-    int       en_passant_square; // -1 se não houver
-    int       halfmove_clock;
-    int       fullmove_number;
-} Board;
+- **Geração de lances**: pseudo-legal primeiro (ignora se deixa o próprio rei em xeque),
+  filtro de legalidade separado depois (por `is_square_attacked` com busca reversa a partir
+  do rei). Mesma justificativa da versão anterior deste documento: mais simples de acertar
+  do que gerar só lances legais direto.
+- **Apply/undo**: pilha da recursão, não histórico global — `make_move(Board*, Move,
+  Undo*)` / `unmake_move(Board*, Move, const Undo*)`, com `Undo` alocado pelo chamador. A
+  pilha de chamadas de C já *é* a pilha de undo.
+- **FEN**: parser e serializador — o formato de posição que circula entre motor e cliente
+  (e, na extensão futura, também entre motor e servidor).
+- **Motor stateless entre comandos, processo stateful**: cada comando `position` recebe o
+  FEN completo (mais um sufixo opcional `moves ...`, que o motor reaplica). Isso evita
+  qualquer ambiguidade de estado entre um comando e o próximo, ao custo de precisar do
+  histórico completo para detectar repetição tripla (limitação aceita, ver `project_context.md`).
+- **IA integrada no mesmo binário**: a busca chama a geração de lances milhares de vezes
+  por lance pensado — se isso cruzasse qualquer fronteira de processo a cada nó, seria
+  ordens de magnitude mais lento. A única fronteira externa é a de entrada/saída do
+  protocolo: uma posição entra, um lance sai.
+- **Fora de escopo agora** (deliberado, ver `project_context.md`/`CLAUDE.md`): bitboards,
+  magic bitboards, transposition table. Entram só se sobrar tempo depois do MVP funcional.
+- **Perft** como validação de geração de lances (padrão-ouro da área) e **testes como
+  subcomando do próprio binário** (`./main.out test`, `./main.out perft N`) — decidido, ver
+  `project_context.md` §3.
+
+## 3. Comunicação Motor ↔ Cliente Desktop — stdin/stdout direto
+
+Esta é a seção que substitui a antiga "Integração C ↔ Node/TS": **não existe FFI nem
+servidor aqui.** O cliente desktop spawna o binário do motor como subprocesso e conversa
+com ele por texto, uma linha por comando/resposta, num protocolo inspirado no UCI:
+
 ```
-
-**Teste recomendado — perft**: é o padrão-ouro pra validar geração de lances em motores de xadrez. Consiste em contar o número de nós (posições) alcançáveis em profundidades conhecidas a partir de posições de referência, e comparar com valores publicados. Pega bugs sutis (en passant errado, roque através de casa atacada, promoção mal tratada) que teste manual dificilmente encontra.
-
-## 3. IA (C): arquitetura e transferência de dados
-
-**A IA integra diretamente com o motor — mesmo binário, chamadas de função C comuns.** Isso é importante: durante a busca, a IA chama a função de geração de lances do motor milhares de vezes. Se isso passasse por qualquer fronteira (FFI, subprocess, rede) a cada nó da árvore de busca, a IA seria ordens de magnitude mais lenta. A fronteira com o "mundo de fora" (o backend em Node) deve existir só na borda externa: *"aqui está uma posição, busque até profundidade/tempo X, devolva o melhor lance"* — uma chamada de entrada, uma de saída. Tudo dentro disso é C chamando C.
-
-**Camadas dentro do C:**
-
-- **Avaliação**: função estática que dá uma pontuação pra uma posição — material + piece-square tables (tabelas de valor por casa/tipo de peça) pra começar. Pode ser refinada depois (segurança do rei, estrutura de peões, mobilidade).
-- **Busca**: minimax + poda alfa-beta, com iterative deepening (buscar profundidade 1, depois 2, depois 3... dentro de um orçamento de tempo — assim sempre existe um "melhor lance até agora" pronto, mesmo se o tempo acabar no meio da busca de uma profundidade maior). Ordenação de lances (testar capturas primeiro, usando heurística tipo MVV-LVA — most valuable victim, least valuable attacker) torna a poda alfa-beta bem mais eficaz.
-- **Transposition table** (opcional, etapa avançada): cache de posições já buscadas, indexado por hash Zobrist, pra evitar rebuscar a mesma posição alcançada por ordens de lance diferentes.
-- **Interface**: a camada fina que lê comandos de texto (via stdin) e traduz pra chamadas nas camadas acima, formatando a resposta de volta.
-
-**Um detalhe que vale reaproveitar**: como a IA já precisa de acesso total ao motor de regras internamente, o mesmo binário pode expor tanto um comando `go` (buscar melhor lance) quanto um comando `legalmoves`/`checkmove` (só validar/gerar lances, sem busca). Isso significa que o **mesmo processo C serve tanto como "IA" quanto como "validador de regras"** para o backend — sem precisar reimplementar nada em JS.
-
-### Transferência de dados
-
-Protocolo texto, linha a linha, inspirado no UCI (Universal Chess Interface — o protocolo que engines reais como Stockfish usam):
-
-```
-> position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+> position startpos
 > go movetime 2000
 < bestmove e2e4
 
@@ -95,24 +152,78 @@ Protocolo texto, linha a linha, inspirado no UCI (Universal Chess Interface — 
 > legalmoves
 < moves g1f3 b1c3 f1c4 f1b5 d1h5 d1g4 ...
 ```
-*(`>` = enviado pelo backend, `<` = recebido do motor)*
+*(`>` = enviado pelo cliente desktop, `<` = recebido do motor)*
 
-- **Entrada**: sempre o FEN completo da posição atual, não o histórico incremental. Isso deixa o motor stateless entre chamadas — mais simples de implementar e muito mais fácil de testar/depurar (dá pra reproduzir qualquer posição isoladamente).
-- **Limitação a ter em mente**: FEN sozinho não é suficiente pra detectar empate por repetição tripla, porque não carrega o histórico completo da partida. Se quiserem essa regra, o backend precisa rastrear o histórico de posições e informar isso separadamente — ou deixar como um item de escopo futuro.
-- **Saída**: o lance em notação longa (`e2e4`, `e7e8q` pra promoção), e opcionalmente avaliação/profundidade/nós buscados, úteis pra debug e pra UI mostrar "pensando... profundidade 6, avaliação +0.3".
+**Ciclo de vida do processo**: um subprocesso persistente **por partida ativa** — spawnado
+quando a partida começa, mantido vivo até o fim — não um spawn a cada lance. Evita overhead
+repetido e permite ao motor manter estado interno de busca entre lances.
 
-**Ciclo de vida do processo**: um subprocesso persistente por partida ativa (spawn quando a partida começa, mantido vivo até o fim), não um spawn a cada lance. Isso evita overhead repetido de spawn, permite manter estado interno (transposition table) entre lances da mesma partida, e segue o mesmo modelo mental do UCI de verdade.
+**A armadilha que mais importa aqui, e que não tinha como aparecer na versão anterior deste
+documento (que nunca chegava a especificar o lado do pipe do motor):** quando `stdout` é um
+terminal, a libc usa buffer de linha; quando é um **pipe** — exatamente o caso de um
+subprocesso — ela troca para buffer de bloco de 4 KB. Sem tratar isso, o `bestmove` fica
+preso no buffer do motor e o cliente espera para sempre, sem nenhum sintoma visível. O
+motor já está ciente disso (`roadmap-motor.md`, Fase 6a) e vai chamar `setvbuf(stdout, NULL,
+_IOLBF, 0)` logo no início do `main`. **O lado do cliente também precisa ler de forma que
+não fique bloqueado esperando um buffer que nunca enche** — isso é responsabilidade de
+quem escrever a camada de processo no C++ (thread de leitura dedicada, ou I/O assíncrono).
 
-## 4. Integração C ↔ Node/TS
+**Multiplataforma**: a API de spawn de subprocesso e pipes difere entre POSIX (`fork`/`exec`
++ `pipe`) e Windows (`CreateProcess` + `CreatePipe`, ou uma lib que abstraia isso). Dois
+detalhes concretos de que o cliente precisa cuidar: o executável do motor precisa da
+extensão `.exe` no Windows, e o fim de linha pode chegar como `\r\n` — tratar os dois casos
+ao parsear.
 
-Duas opções realistas pra Node chamar o binário C: **FFI** (carregar o C como shared library, ex: com a lib `koffi`) ou **subprocess** (o C roda como processo separado, comunicação por stdin/stdout).
+**Isolamento de falha**: um crash do motor (bug de memória em C, por exemplo) não pode
+derrubar o cliente. O cliente deve detectar o subprocesso morto (pipe fechado / processo
+terminado) e reportar isso como estado recuperável, não deixar a UI travada esperando uma
+resposta que nunca vai chegar.
 
-**Recomendação: subprocess.** A razão específica pro contexto de vocês (API universal, backend pensado pra suportar múltiplas partidas simultâneas — base pro multiplayer futuro): por padrão, uma chamada FFI síncrona bloqueia a thread principal do Node enquanto a IA pensa. Como o Node é single-threaded, isso travaria o processamento de **todas as outras partidas simultâneas** enquanto uma IA calcula um lance. Dá pra contornar isso (threads dedicadas, padrões assíncronos), mas isso adiciona complexidade que o modelo de subprocess já resolve de forma natural — cada processo roda independente, paralelizado pelo próprio sistema operacional, sem nenhum código de concorrência manual em JS ou C.
+## 4. Cliente Desktop (C++)
 
-Vantagens adicionais do subprocess: um crash de bug de memória no C derruba só aquele processo, não o backend inteiro; dá pra testar o motor sozinho no terminal antes de escrever qualquer código de integração; e é literalmente o modelo que engines de xadrez reais usam (UCI), então há bastante prática consolidada em cima disso.
+Decidido — não é mais uma escolha entre stacks: **cliente nativo em C++, com SFML** para
+renderização (ver `monitoramento_controle.md`, Iteração 3). A tabuleiro-cliente já nasce na
+mesma linguagem de sistema que o motor, o que simplifica a integração de processo (sem
+FFI, sem binding — só `stdin`/`stdout`/pipes, nativos da linguagem).
+
+**Responsabilidades do cliente:**
+
+- Renderizar tabuleiro e peças, capturar clique/drag-and-drop.
+- Subir o motor como subprocesso no início da partida, falar o protocolo da seção 3.
+- Traduzir clique de peça → notação de lance (`e2e4`), mandar pro motor, aplicar a
+  resposta na tela — nunca decidir sozinho se um lance é legal.
+- **Multiplayer local (hot-seat) já está no MVP**: dois jogadores humanos revezando no
+  mesmo dispositivo, mesmo cliente, mesmo motor — não precisa de rede nem de servidor,
+  só de alternar de quem é a vez de clicar. É o requisito RF01 do documento de requisitos
+  do grupo, e ele não depende de nenhum trabalho de multiplayer online.
+- Indicação de lances legais, xeque, fim de jogo — tudo **derivado das respostas do motor**
+  (`legalmoves`, o próprio `bestmove`, e futuramente algum sinal de fim de partida no
+  protocolo), nunca recalculado no cliente.
+
+## 5. Extensão — multiplayer online (somente se sobrar tempo)
+
+Tudo abaixo **não faz parte do MVP**. Existe aqui para não perder o desenho caso o grupo
+decida investir tempo depois de o MVP (motor + cliente desktop, jogo completo contra IA e
+multiplayer local) estar de pé e demonstrável.
+
+### 5.1 Por que precisa de servidor aqui e não no MVP
+
+No MVP, o único motor "de verdade" é o que roda na máquina do próprio jogador — não tem
+com quem trapacear. Em multiplayer online, dois jogadores estão em máquinas diferentes;
+nenhum dos dois pode ser a autoridade sobre se o próprio lance é legal. É isso, e só isso,
+que justifica introduzir um terceiro processo: **validação e estado de partida
+server-side**, o requisito RNF02 do documento de requisitos do grupo.
+
+### 5.2 Integração Servidor (Node/TS) ↔ Motor (C)
+
+Mesma decisão de sempre — **subprocesso, não FFI** — e pela mesma razão: uma chamada FFI
+síncrona bloquearia a thread única do Node enquanto uma IA pensa, travando todas as outras
+partidas simultâneas. Subprocesso isola cada partida no seu próprio processo, sem
+concorrência manual em JS ou C, e ainda ganha o isolamento de falha de graça (um crash do
+motor de uma partida não derruba as outras nem o servidor).
 
 ```javascript
-// Pseudocódigo ilustrativo — gerenciamento do subprocess do motor
+// Pseudocódigo ilustrativo — gerenciamento do subprocesso do motor no servidor
 const engine = spawn('./chess_engine' + (process.platform === 'win32' ? '.exe' : ''));
 
 engine.stdin.write(`position fen ${currentFen}\n`);
@@ -122,139 +233,137 @@ engine.stdout.on('data', (chunk) => {
   const line = chunk.toString().trim();
   if (line.startsWith('bestmove')) {
     const move = line.split(' ')[1];
-    // aplicar o lance, atualizar o estado da sessão, notificar clientes via WS
+    // validar, aplicar, atualizar a sessão, notificar os clientes via WS
   }
 });
 ```
 
-**É multiplataforma?** Sim, com alguns cuidados:
-
-- Escrevam o C em padrão portável (evitem APIs específicas de SO na lógica principal do motor).
-- Usem CMake em vez de Makefile puro — generaliza melhor entre compiladores/SOs diferentes.
-- Não existe binário único que rode em qualquer SO: precisa compilar separadamente por SO-alvo (cada membro do grupo compila localmente, ou configuram CI pra gerar os artefatos).
-- `child_process.spawn` do Node é multiplataforma na API, mas fiquem atentos a dois detalhes: o executável precisa da extensão `.exe` no Windows, e a saída do processo pode vir com `\r\n` em vez de `\n` — tratem os dois casos ao parsear linha por linha.
-
-## 5. Backend: endpoints e gerenciamento de estado
+### 5.3 Endpoints e estado de sessão
 
 | Método | Rota | O que faz |
 |---|---|---|
-| `POST` | `/games` | Cria uma partida nova (vs. IA, com profundidade/tempo configurável) |
-| `GET` | `/games/:id` | Retorna o estado atual: FEN, histórico de lances, status, de quem é a vez |
-| `POST` | `/games/:id/moves` | Submete um lance; validado pelo motor antes de ser aplicado |
-| `GET` | `/games/:id/legal-moves` | *(opcional)* lista os lances legais da posição atual, pra UI destacar |
-| `POST` | `/games/:id/resign` | Encerra a partida por desistência |
-| `GET` | `/health` | Verifica se o backend está de pé — essencial no modo local |
-| `WS` | `/games/:id/ws` | Canal em tempo real: notifica lances, "IA pensando", fim de jogo |
-
-A divisão faz sentido assim: **REST pra ações de comando** (criar/consultar/encerrar partida — request/response natural) e **WebSocket pro fluxo de jogo em tempo real** (lances e notificações — importante desde já porque é exatamente o canal que o multiplayer vai reaproveitar sem mudança).
-
-```json
-// POST /games — corpo da requisição
-{
-  "mode": "vs_ai",
-  "aiConfig": { "depth": 6, "movetimeMs": 2000 },
-  "playerColor": "white"
-}
-```
+| `POST` | `/games` | Cria uma partida online nova |
+| `GET` | `/games/:id` | Estado atual: FEN, histórico, status, de quem é a vez |
+| `POST` | `/games/:id/moves` | Submete um lance; validado pelo motor antes de aplicar |
+| `GET` | `/games/:id/legal-moves` | *(opcional)* lances legais da posição, pra UI destacar |
+| `POST` | `/games/:id/resign` | Encerra por desistência |
+| `WS` | `/games/:id/ws` | Notifica lances, "oponente pensando", fim de jogo |
 
 ```json
 // Servidor → Cliente, via WebSocket
-{ "type": "move_made", "by": "ai", "move": "e7e5", "fen": "...", "inCheck": false }
-{ "type": "ai_thinking" }
+{ "type": "move_made", "by": "opponent", "move": "e7e5", "fen": "...", "inCheck": false }
 { "type": "game_over", "result": "checkmate", "winner": "white" }
 { "type": "illegal_move", "move": "e2e5", "reason": "movimento inválido para peão" }
 ```
 
-**Outros pontos importantes de design:**
+- **Sessões em memória** (`gameId → GameSession`) bastam para esse escopo; banco de dados
+  só entra se reconexão persistente virar requisito de verdade.
+- Cada sessão modela dois "slots" de jogador: `{ type: 'ai' }`, `{ type: 'local_human' }`
+  (caso um cliente desktop queira oferecer "jogar online contra alguém que joga localmente
+  do outro lado", cenário raro) ou `{ type: 'remote_human', connectionId }`.
+- **Validação sempre server-autoritativa** — o mesmo motor que valida localmente no MVP é
+  reaproveitado aqui, só que rodando no servidor em vez de na máquina do jogador.
 
-- **Sessões em memória**: um mapa `gameId → GameSession` é suficiente pra essa fase (sem banco de dados). Encapsulem o acesso a esse mapa atrás de um módulo/interface pequeno, pra facilitar trocar por persistência real quando o multiplayer com reconexão for implementado de verdade.
-- **IA assíncrona**: quando for a vez da IA, respondam à requisição do lance do humano imediatamente, computem a IA em background (via o subprocess), e empurrem o resultado por WebSocket quando pronto. Nunca bloqueiem a resposta HTTP esperando a IA pensar.
-- **Validação sempre server-autoritativa**: nunca confiem em legalidade calculada no cliente. Pra UX responsiva sem duplicar as regras em JS, uma boa estratégia é buscar os lances legais da posição uma vez por turno via `/legal-moves` e cachear no cliente só pra destacar visualmente — sem reimplementar validação nenhuma ali.
-- **Isolamento de falha**: um crash do subprocesso do motor não pode derrubar o backend. Tratem a comunicação com try/catch, tenham timeout, e reportem como erro recuperável ao cliente.
-- **Health-check**: crucial especificamente pro modo local — o cliente desktop precisa saber quando o backend local terminou de subir antes de tentar conectar.
+### 5.4 Cliente Web (futuro)
 
-## 6. Estrutura para multiplayer (preparando o terreno, sem implementar ainda)
+Só entra em cena junto com o servidor — não tem função sem ele, já que não haveria com quem
+o cliente web falaria diretamente (motor em C não é exposto à web). Reaproveitar tanto
+quanto possível do desenho visual do cliente desktop, mas como um projeto à parte: nenhum
+código é automaticamente compartilhável entre um cliente C++/SFML e um cliente web.
 
-Não implementem multiplayer agora, mas desenhem a estrutura de forma que adicioná-lo depois não exija reescrever a lógica de jogo:
+## 6. Requisitos
 
-- Modelem cada sessão de partida com dois "slots" de jogador (branco/preto), onde cada slot pode ser `{ type: 'ai' }`, `{ type: 'local_human' }` ou, no futuro, `{ type: 'remote_human', connectionId: ... }`.
-- A lógica de broadcast via WebSocket já deve ser escrita de forma genérica ("notificar todos os clientes inscritos nesse `gameId`"), que funciona igual com uma conexão (single-player, só observando os lances da IA) ou duas (multiplayer).
-
-Com isso, adicionar multiplayer de verdade vira "adicionar um novo tipo de slot + lógica de matchmaking/conexão", não uma reescrita.
-
-## 7. Cliente: opções e requisito offline
-
-Com a arquitetura acima, o requisito "jogar contra a IA localmente sem internet" já está resolvido por construção: o cliente nunca fala com o C diretamente, então "offline" é só o backend (Node/TS + subprocess do motor) rodando em `localhost` em vez de remoto. O fluxo de inicialização fica assim: o app desktop sobe o processo do backend local → aguarda `/health` responder → conecta a UI normalmente, exatamente como se estivesse falando com um servidor remoto.
-
-Dado que o grupo decidiu por cliente desktop, restam duas famílias de opção:
-
-- **Tauri ou Electron (JS/TS)**: reaproveita quase todo o código de UI com um futuro cliente web — se usarem algo como React, boa parte pode literalmente ser compartilhada. Mesmo skillset do time, `fetch`/`WebSocket` nativos, sem lib de rede extra. Tauri é mais leve (usa o webview nativo do SO + uma casca fina em Rust) que Electron (empacota Chromium + Node inteiros), mas ambos evitam introduzir mais uma linguagem no projeto.
-- **C++ nativo (Qt)**: mais "genuinamente desktop", e a transição vindo de C é mais suave do que pra outras linguagens. Mas introduz uma terceira frente de linguagem simultânea no projeto (depois de C no motor e JS/TS no backend), compilação mais lenta que o ciclo de um app web, zero reaproveitamento de código com um cliente web futuro, e rede em C++ exige lib extra (Boost.Beast, Qt Network).
-
-**Recomendação**: Tauri (ou Electron, se preferirem simplicidade/maturidade em troca de peso maior). Como o grupo já vai lidar com C (motor+IA) e JS/TS (backend) ao mesmo tempo, manter o frontend também em JS/TS reduz o número de trocas de contexto de linguagem simultâneas — o que pesa bastante com poucas horas semanais disponíveis — sem abrir mão de nada "impressionante" no projeto, já que isso está garantido pelo motor+IA em C. Se o grupo tiver tempo sobrando e quiser Qt/C++ como parte do aprendizado, é uma escolha válida — só entrem cientes do trade-off de tempo.
-
-## 8. Levantamento de requisitos
-
-### Requisitos funcionais (RF)
+### MVP
 
 | ID | Descrição |
 |---|---|
-| RF01 | O sistema deve permitir uma partida completa contra a IA, localmente, sem internet |
-| RF02 | O motor deve validar a legalidade de todos os lances, incluindo roque, en passant e promoção |
-| RF03 | O sistema deve detectar xeque-mate, afogamento, e empates por regra dos 50 lances / material insuficiente |
-| RF04 | A IA deve retornar um lance válido dentro de um tempo/profundidade configurável |
-| RF05 | A interface deve exibir o tabuleiro e aceitar input de lances, refletindo o estado da partida |
-| RF06 | O backend deve expor uma API (REST + WS) para criar partidas, submeter lances e notificar atualizações |
-| RF07 | A arquitetura de sessões deve suportar, em estrutura, múltiplas partidas simultâneas — base para multiplayer |
-| RF08 | O sistema deve manter o histórico de lances de uma partida |
-
-### Requisitos não funcionais (RNF)
+| RF-M1 | Partida completa contra a IA, localmente, sem internet e sem servidor |
+| RF-M2 | Multiplayer local (hot-seat): dois jogadores no mesmo dispositivo, mesmo cliente |
+| RF-M3 | O motor deve validar a legalidade de todos os lances, incluindo roque, en passant e promoção |
+| RF-M4 | Detecção de xeque-mate, afogamento, e empates por regra dos 50 lances / material insuficiente |
+| RF-M5 | A IA deve retornar um lance válido dentro de um tempo/profundidade configurável |
+| RF-M6 | A interface deve exibir o tabuleiro, aceitar input de lances e refletir o estado da partida |
+| RF-M7 | O sistema deve manter o histórico de lances de uma partida |
 
 | ID | Descrição |
 |---|---|
-| RNF01 | Portabilidade: rodar nos SOs-alvo definidos pelo grupo, com apenas recompilação do C onde necessário |
-| RNF02 | Desempenho: a IA deve responder em tempo jogável (ordem de segundos, não minutos) na profundidade padrão |
-| RNF03 | Isolamento de falhas: um crash do subprocesso do motor não pode derrubar o backend nem travar o cliente |
-| RNF04 | Testabilidade: o motor deve ser testável isoladamente, sem depender do backend ou da interface |
-| RNF05 | Extensibilidade: adicionar multiplayer no futuro não deve exigir reescrever a lógica de jogo já implementada |
-| RNF06 | Usabilidade: feedback claro sobre lances ilegais, de quem é a vez, e estado de xeque |
+| RNF-M1 | Desempenho: a IA deve responder em tempo jogável (segundos, não minutos) na profundidade padrão |
+| RNF-M2 | Isolamento de falhas: um crash do subprocesso do motor não pode derrubar nem travar o cliente |
+| RNF-M3 | Testabilidade: o motor deve ser testável isoladamente, sem depender do cliente (via subcomandos `test`/`perft` e o menu interativo) |
+| RNF-M4 | Portabilidade: motor e cliente compilam e rodam nos SOs-alvo definidos pelo grupo |
+| RNF-M5 | Usabilidade: feedback claro sobre lances ilegais, de quem é a vez, e estado de xeque |
 
-## 9. Roadmap de implementação
+### Extensão — multiplayer online (se sobrar tempo)
 
-A ordem abaixo é deliberada: primeiro as peças mais isoláveis e testáveis sozinhas (motor, depois IA — ambas testáveis via terminal, sem precisar de mais nada), depois a integração (backend), depois um cliente mínimo só pra validar o pipeline inteiro, e só então a interface gráfica de verdade. Essa sequência evita descobrir um bug de regra do xadrez depois de já ter investido tempo em UI.
+Correspondem a RF14–RF19 do documento de requisitos do grupo (autenticação, perfil,
+convite direto, matchmaking, comunicação em tempo real, tratamento de desconexão):
 
-### Etapa 1 — Setup e definição de contratos
-**Implementar:** estrutura do repositório (`engine/`, `backend/`, `client/`); toolchain de build do C (CMake); esqueleto do backend com `/health`; rascunho do protocolo texto entre backend e motor (formato de FEN e de lances).
-**Testar:** build do C compila e roda; `/health` responde; protocolo revisado pelo grupo.
+| ID | Descrição |
+|---|---|
+| RF-X1 | O servidor deve expor uma API (REST + WS) para criar partidas online, submeter lances e notificar atualizações |
+| RF-X2 | A arquitetura de sessões deve suportar múltiplas partidas online simultâneas |
+| RF-X3 | Autenticação e perfil de jogador (apelido + ID) |
+| RF-X4 | Convite direto por apelido/ID e/ou matchmaking automático |
+| RF-X5 | Tratamento de desconexão temporária com janela de reconexão |
 
-### Etapa 2 — Motor de regras (C), isolado
-**Implementar:** representação de tabuleiro + FEN; geração de lances pseudo-legais + filtro de legalidade; roque, en passant, promoção; apply/undo com pilha; detecção de xeque/xeque-mate/afogamento.
-**Testar:** testes unitários com FENs conhecidos; **perft** em profundidades de referência; CLI de debug (lê FEN, lista lances legais).
+| ID | Descrição |
+|---|---|
+| RNF-X1 | Extensibilidade: adicionar esta camada não deve exigir reescrever o motor nem o cliente desktop — só é possível porque o protocolo motor↔processo-pai (§3) não muda |
+| RNF-X2 | Segurança: validação de lance sempre server-side; senhas armazenadas com hash |
+| RNF-X3 | Disponibilidade/escalabilidade do servidor (uptime, sessões assíncronas) |
 
-### Etapa 3 — IA (C), ainda isolada
-**Implementar:** avaliação (material + piece-square tables); minimax + poda alfa-beta; iterative deepening; ordenação de lances (MVV-LVA); interface de comandos via stdin/stdout.
-**Testar:** manualmente via terminal; IA nunca crasha e nunca devolve lance ilegal, em posições variadas; medir nós/segundo e profundidade alcançável em tempo fixo, como baseline.
+## 7. Roadmap de implementação
 
-### Etapa 4 — Backend: integração + API
-**Implementar:** gerenciamento do subprocess (spawn, I/O, parsing); sessões em memória; endpoints REST; WebSocket por partida; tratamento de erro/crash do subprocesso.
-**Testar:** via curl/Postman, sem UI; simular uma partida inteira via chamadas manuais de API; matar o subprocesso manualmente e confirmar que o backend não cai.
+A ordem é deliberada: primeiro o que é isolável e testável sozinho (motor via terminal,
+sem precisar de mais nada), depois a integração com o cliente, e só então multiplayer —
+que fica de fora do caminho crítico inteiramente.
 
-### Etapa 5 — Cliente mínimo (CLI), pra validar o pipeline
-**Implementar:** um cliente de linha de comando (não faz parte do produto final) que imprime o tabuleiro em texto e aceita lances digitados, falando com o backend via HTTP/WS.
-**Testar:** jogar uma partida inteira do início ao fim, só em texto — confirma que todo o pipeline (cliente → API → backend → subprocess → motor/IA → volta) funciona antes de investir em UI gráfica.
+### Etapa 1 — Motor de regras + IA (C), isolado
 
-### Etapa 6 — Cliente desktop real
-**Implementar:** stack final (Tauri/Electron ou Qt); tabuleiro com input de lances, destaque de lances legais, indicação de xeque/fim de jogo; lógica de subir o backend local automaticamente e aguardar `/health`; empacotamento básico.
-**Testar:** partida completa via UI; fluxo offline (desconectar da rede e confirmar que funciona — valida RF01); rodar em pelo menos duas máquinas/SOs diferentes do grupo.
+Coberto em detalhe por `roadmap-motor.md` (Fases 0–8 daquele documento: fundação de
+qualidade, vocabulário completo, geometria, geração pseudo-legal, make/unmake, filtro de
+legalidade, protocolo mínimo + IA aleatória, perft, IA incremental, robustez). Não
+duplicado aqui — esse é o plano de execução autoritativo do motor.
+**Testar:** perft nas posições de referência; corpus de FEN; o próprio motor via seu menu
+interativo/subcomandos, sem precisar de nenhum cliente.
 
-### Etapa 7 — Polimento e preparação para multiplayer
-**Implementar:** transposition table (hash Zobrist), melhor ordenação, avaliação mais refinada; histórico visível, exportação PGN, relógio (se decidido); prova de conceito com dois slots humanos na mesma sessão.
-**Testar:** regressão (rodar perft de novo, garantir que nada quebrou); teste de conceito multiplayer local (dois clientes, mesma partida, mesma máquina).
+### Etapa 2 — Integração Motor ↔ Cliente Desktop
 
-## 10. Decisões em aberto para o grupo
+**Implementar:** no cliente C++, a camada de processo (spawn, pipes, leitura não-bloqueante)
+descrita na seção 3; tradução clique/drag-and-drop → notação de lance; parsing das
+respostas do motor (`bestmove`, `legalmoves`).
+**Testar:** jogar uma partida inteira do início ao fim pela UI, contra o motor real —
+substitui a etapa de "cliente CLI mínimo" que fazia sentido quando havia uma API HTTP no
+meio para validar; aqui a integração já é simples o bastante pra testar direto com a UI.
 
-- **SOs-alvo**: quais sistemas operacionais o projeto precisa suportar? Afeta o setup de build e o empacotamento do cliente.
-- **Tauri vs. Electron vs. Qt**: decisão final — depende de quanto o grupo quer investir em aprender uma stack nova vs. reaproveitar JS/TS.
-- **Cronograma**: este documento não define prazos em semanas porque depende da duração total do projeto e da carga horária do grupo — vale mapear as etapas acima em cima do calendário real de entregas.
-- **Bitboards e transposition table**: tratados aqui como otimizações opcionais da Etapa 7 — vale decidir cedo se isso é meta do grupo, já que impacta o tempo total.
-- **Persistência**: sessões em memória bastam pra este escopo; banco de dados só entra em cena se multiplayer com reconexão for implementado de verdade.
+### Etapa 3 — Cliente desktop completo
+
+**Implementar:** tabuleiro com input de lances, destaque de lances legais, indicadores de
+xeque/fim de jogo, histórico de lances na tela; multiplayer local (hot-seat).
+**Testar:** partida completa via UI, incluindo casos especiais (roque, en passant,
+promoção, xeque-mate, afogamento); rodar em pelo menos duas máquinas/SOs diferentes do
+grupo; matar o processo do motor manualmente e confirmar que o cliente não trava.
+
+### Etapa 4 (extensão, se sobrar tempo) — Servidor + multiplayer online
+
+**Implementar:** servidor Node/TS (seção 5.2–5.3); autenticação e perfil; convite/matchmaking;
+cliente web, se o grupo decidir por ele.
+**Testar:** via curl/Postman antes de qualquer UI; partida completa entre dois clientes
+remotos; matar o subprocesso do motor no servidor e confirmar que só aquela partida cai.
+
+## 8. Decisões em aberto para o grupo
+
+- ~~Cliente fala direto com o motor, ou sempre via backend?~~ **Fechada por este documento:
+  direto, via subprocesso, para o MVP.** (Isso resolve a divergência que existia entre este
+  documento e `project_context.md`, registrada como pendência em `roadmap-motor.md` §7.)
+- **SOs-alvo**: quais sistemas operacionais o motor e o cliente C++/SFML precisam suportar
+  — afeta build (Makefile/CMake) e empacotamento.
+- **Cronograma da extensão**: só faz sentido mapear em cima do calendário real depois que o
+  MVP estiver com data de conclusão mais confiável — não antes.
+- **Stack do servidor**, caso a extensão avance: Node/TypeScript é a escolha default deste
+  documento, mas não foi validada com o grupo ainda.
+- **Bitboards e transposition table**: seguem fora de escopo do MVP (ver `project_context.md`);
+  reavaliar só se sobrar tempo depois da IA v2 (`roadmap-motor.md` Fase 7).
+- **Persistência**: sessões em memória bastam para a extensão de multiplayer nesse escopo;
+  banco de dados só entra se reconexão persistente entre sessões do servidor virar requisito
+  de verdade.

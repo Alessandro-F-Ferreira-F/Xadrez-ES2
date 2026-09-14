@@ -269,8 +269,7 @@ flags novas ligada — ver nota de Makefile no fim desta seção). Para os crash
 |---|---|---|
 | 1 | `main.c:62` | `if (!movelist_find(&l, move_str))` trata o índice devolvido como booleano: índice `0` (achado na primeira posição) é falso, `-1` (não achado) é verdadeiro — os dois ramos estão invertidos. E o lance de verdade nunca é lido: a variável `move` usada em seguida (`main.c:65`) nunca é atribuída |
 | 2 | `main.c:65` (uso), `makemove.c:6-18` | `make_move(b, move, &u)` é chamado com `move` não inicializada — `-Wmaybe-uninitialized` confirma. E mesmo que fosse o lance certo, `make_move` não preenche `*u`: `prev_on_target` (a peça capturada) é calculada e descartada (`-Wunused-variable`); `unmake_move` (`makemove.c:20-22`) é `{ return; }` — não desfaz nada |
-| 3 | `movegen.c` inteiro | **Ainda sem filtro de `side_to_move`** na geração — bug já documentado antes do split, continua idêntico. `generate_pawn_moves` recebe `side` como parâmetro em vez de ler `board->side_to_move` (chamado para as duas cores em `main.c:71-72`); `generate_sliding_moves` nem recebe `side`, itera por `PIECE_TYPE` sem checar a cor da peça |
-| 4 | `board.h:29-30`, `board.c:8-9` | **`board_find_king` e `board_check_invariants` estão declaradas — duas vezes, inclusive: no header e de novo, sem motivo, logo no topo de `board.c` — mas não têm corpo em lugar nenhum do repositório.** Chamar qualquer uma das duas é erro de link. É exatamente a função que `next_steps.md` (Etapa B7) descreve como o próximo passo natural, com a assinatura já pronta para devolver **qual** invariante quebrou (`const char **fail_msgs`) — a implementação é que ficou para trás |
+| 3 | `board.h:29-30`, `board.c:8-9` | **`board_find_king` e `board_check_invariants` estão declaradas — duas vezes, inclusive: no header e de novo, sem motivo, logo no topo de `board.c` — mas não têm corpo em lugar nenhum do repositório.** Chamar qualquer uma das duas é erro de link. É exatamente a função que `next_steps.md` (Etapa B7) descreve como o próximo passo natural, com a assinatura já pronta para devolver **qual** invariante quebrou (`const char **fail_msgs`) — a implementação é que ficou para trás |
 
 ### Menores / higiene — baixo risco, valem a correção quando o arquivo for aberto de qualquer forma
 
@@ -355,35 +354,229 @@ arquivo por outro motivo.
 
 ## Apêndice — referência rápida dos módulos
 
-A revisão anterior reproduzia o texto integral de cada header. Com 10 módulos em vez de 5,
-reproduzir tudo aqui só duplicaria o repositório e ficaria desatualizado mais rápido do que
-seria mantido — o próprio documento antigo já reclamava disso ("precisa ser atualizado
-manualmente quando as interfaces mudarem"). Em vez disso, a tabela do §4 traz papel e linhas
-de cada um; para a assinatura exata de uma função, `grep` no header correspondente é mais
-confiável do que qualquer cópia aqui. As assinaturas centrais, para orientação rápida:
+A tabela do §4 traz papel e linhas de cada arquivo; esta seção traz as partes que valem a
+pena ter à mão sem abrir o arquivo — typedefs, enums, macros e assinaturas — na ordem de
+dependência (`types.h` primeiro, o que só depende dele por último). Comentários com `/* ... */`
+ao lado de uma linha apontam para o bug correspondente no §5, quando existe um. Includes,
+guards e linhas em branco foram omitidos; o conteúdo abaixo reflete o estado **depois** do
+commit `04fdba4` ("fix: bugs de verificação; movimento dos peões corrigido; lance de u32
+para u16") — ou seja, já com boa parte do §5 anterior corrigida.
+
+### `types.h` — vocabulário mínimo
 
 ```c
-/* fen.h */
+typedef uint64_t u64;  typedef uint32_t u32;  typedef uint16_t u16;  typedef uint8_t u8;
+typedef int16_t i16;
+
+#define MAX_FEN_STRING 256
+#define BOARD_SIZE     64
+#define BOARD_WIDTH    8
+#define MAX_MOVES      256
+#define MAX_SEARCH_PLY 64      /* profundidade de busca */
+#define MAX_GAME_PLY   1024    /* plies de uma partida */
+#define NUM_COLORS     2
+
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+```
+
+Ainda inclui `ctype.h stdio.h stdlib.h string.h` de que quase nada aqui precisa
+diretamente — a limpeza sugerida em 10/09 (`next_steps.md` A2) continua pendente.
+
+### `piece.h` — codificação de peça
+
+```c
+typedef enum { WHITE = 1, BLACK = 0 } Color;
+
+typedef enum {
+    EMPTY = 0, PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6
+} PieceType;
+
+typedef u8 Piece;
+
+#define PIECE_MAKE(color, type) ((Piece)((((color) & 1u) << 3) | ((type) & 7u)))
+#define PIECE_TYPE(p)           ((PieceType)((p) & PIECE_TYPE_MASK))
+#define PIECE_COLOR(p)          ((Color)(((unsigned)(p) >> 3) & PIECE_COLOR_MASK))
+
+#define NO_PIECE ((Piece)0)
+
+static inline bool is_own(Piece p, Color c)   { return p != EMPTY && PIECE_COLOR(p) == c; }
+static inline bool is_enemy(Piece p, Color c) { return p != EMPTY && PIECE_COLOR(p) != c; }
+
+char  piece_to_char(Piece p);
+Piece piece_from_char(char c);
+```
+
+`is_own`/`is_enemy` voltaram a morar aqui como a única cópia (o commit `04fdba4` removeu as
+que tinham sido duplicadas em `movegen.c`, e usa esta em `generate_sliding_moves`). A
+armadilha de sempre continua valendo: `PIECE_COLOR(EMPTY) == BLACK`.
+
+### `square.h` — geometria do tabuleiro
+
+```c
+#define SQ_NONE (-1)
+#define RANK_OF(sq)         ((sq) / BOARD_WIDTH)
+#define FILE_OF(sq)         ((sq) % BOARD_WIDTH)
+#define SQ_AT(rank, file)   ((rank) * BOARD_WIDTH + (file))
+#define SQ_OFFBOARD(sq)     (((sq) < 0) || ((sq) >= BOARD_SIZE))
+
+enum { SQ_A1 = 0, SQ_E1 = 4, SQ_H1 = 7, SQ_A8 = 56, SQ_E8 = 60, SQ_H8 = 63 };
+
+typedef enum {
+    DIR_N, DIR_S, DIR_E, DIR_W, DIR_NE, DIR_SW, DIR_SE, DIR_NW, NUM_DIRS
+} Direction;
+
+extern const int DIR_OFFSET[NUM_DIRS];
+extern const int PAWN_PUSH[NUM_COLORS];            /* [WHITE]=+8 [BLACK]=-8 desde 04fdba4 */
+extern int SQ_TO_EDGE[BOARD_SIZE][NUM_DIRS];       /* declarado 2x no header — Bug #7 */
+extern int KNIGHT_TARGETS[BOARD_SIZE][8];          /* alocada, NAO populada ainda */
+extern int KING_TARGETS[BOARD_SIZE][8];            /* alocada, NAO populada ainda */
+extern int PAWN_ATTACKS[NUM_COLORS][BOARD_SIZE][2];
+
+void init_square_tables();                          /* '()' em vez de '(void)' — Bug #6 */
+int  sq_from_coord(const char *coord);
+void sq_to_coord(int sq, char out[3]);
+```
+
+### `board.h` — o tabuleiro
+
+```c
+enum ClastleRights {                                 /* typo no tag — Bug #9 */
+    CASTLE_WK = 1, CASTLE_WQ = 2, CASTLE_BK = 4, CASTLE_BQ = 8,
+    CASTLE_WHITE = CASTLE_WK | CASTLE_WQ,
+    CASTLE_BLACK = CASTLE_BK | CASTLE_BQ,
+    CASTLE_ALL   = CASTLE_WHITE | CASTLE_BLACK
+};
+
+typedef struct {
+    Piece array[BOARD_SIZE];
+    Color side_to_move;
+    int   king_square[2];
+
+    u8    castling_rights;    /* bitmask CASTLE_* */
+    int   ep_square;          /* SQ_NONE se não houver */
+    int   halfmove_clock;
+    int   fullmove_number;
+} Board;
+
+int  board_find_king(const Board *b, Color c);                       /* sem corpo — Bug #4 */
+bool board_check_invariants(const Board *b, const char **fail_msgs); /* sem corpo — Bug #4 */
+void board_clear(Board *b);
+void board_print(const Board *board);
+```
+
+### `fen.h` — a interface inteira de um módulo de 612 linhas
+
+```c
 bool fen_parse(const char *fen_string, Board *out);
 void fen_write(const Board *board, char fen_out[MAX_FEN_STRING]);
+```
 
-/* board.h */
-int  board_find_king(const Board *b, Color c);              /* declarada, sem corpo */
-bool board_check_invariants(const Board *b, const char **fail_msgs); /* declarada, sem corpo */
+Duas funções só — todo o resto de `fen.c` (as seis funções `parse_*` por campo,
+`castling_matches_board`, `split_fen_fields`) é `static`, invisível fora do módulo. Ver
+`docs/fen.md` para o desenho de cada validação.
 
-/* move.h */
-Move encode_move(int from, int to, MoveType type);
-int move_from(Move m); int move_to(Move m); MoveType move_type(Move m);
+### `move.h` — o lance e a lista de lances
 
-/* makemove.h */
+```c
+typedef u16 Move;                     /* era u32 antes do commit 04fdba4 */
+#define MOVE_NONE ((Move)0)
+
+typedef enum {
+    MV_QUIET        =  0, MV_DOUBLE_PUSH  =  1, MV_CASTLE_KING = 2, MV_CASTLE_QUEEN = 3,
+    MV_CAPTURE      =  4, MV_EP_CAPTURE   =  5, /* 6 e 7 nao existem */
+    MV_PROMO_N      =  8, MV_PROMO_B      =  9, MV_PROMO_R     = 10, MV_PROMO_Q      = 11,
+    MV_PROMO_CAP_N  = 12, MV_PROMO_CAP_B  = 13, MV_PROMO_CAP_R = 14, MV_PROMO_CAP_Q  = 15
+} MoveType;
+
+typedef struct {
+    Move moves[MAX_MOVES];
+    int  count;
+} MoveList;
+
+Move     encode_move(int from, int to, MoveType type);
+int      move_from(Move m);
+int      move_to(Move m);
+MoveType move_type(Move m);
+
+bool      move_is_capture(Move m);
+bool      move_is_promotion(Move m);
+PieceType move_promo_type(Move m);
+
+void movelist_clear(MoveList *l);
+void movelist_add(MoveList *l, Move m);
+int  movelist_find(MoveList *l, const char *uci);
+
+void move_to_str(Move m, char out[6]);
+Move move_from_str(const char *in);
+```
+
+`encode_move` agora desloca `type` de verdade (`type << MOVE_TYPE_SHIFT`, corrigido no
+`04fdba4` — antes fazia OR do valor cru `12`, corrompendo a origem). Nota residual não
+coberta por esse commit: `move_from_str` lê o caractere de promoção em `in[5]` — para um
+lance de 5 caracteres bem formado (`"e7e8q"`, sem `\n` sobrando por causa do buffer de 6
+bytes em `main.c`), a peça promovida está em `in[4]`, não `in[5]`; vale conferir com um
+caso de teste de promoção antes de confiar nele.
+
+### `makemove.h` — aplicar e desfazer
+
+```c
+typedef struct {
+    Piece captured;
+    u8    castling_rights;   /* estado ANTES do lance */
+    int   ep_square;
+    int   halfmove_clock;
+} Undo;
+
 void make_move  (Board *b, Move m, Undo *u);
 void unmake_move(Board *b, Move move, const Undo *u);
+```
 
-/* movegen.h */
+Guard corrigido para `MAKEMOVE_H` no `04fdba4` (era `UNDO_H`). Assinatura pronta; corpo
+ainda é o esqueleto descrito no §3 — `*u` não é preenchido, `unmake_move` não desfaz nada.
+
+### `movegen.h` — geração de lances
+
+```c
 void generate_pawn_moves(const Board *board, MoveList *list, Color side);
 void generate_sliding_moves(const Board *board, MoveList *list);
 ```
 
+Só duas funções públicas — cavalo, rei, roque e en passant ainda não têm entrada aqui.
+`generate_sliding_moves` ganhou o filtro `is_own(piece, board->side_to_move)` no `04fdba4`;
+`generate_pawn_moves` continua recebendo `side` como parâmetro em vez de ler
+`board->side_to_move` — por isso `main.c` ainda a chama duas vezes, uma por cor (§5, Bug #3).
+
+### `log.h` — logging
+
+```c
+void log_emit(const char *level, const char *file, int line,
+              const char *func, const char *fmt, ...)
+    __attribute__((format(printf, 5, 6)));
+
+#define LOG_ERROR(...) log_emit("ERROR", __FILE__, __LINE__, __func__, __VA_ARGS__)
+
+#ifdef DEBUG
+#  define LOG_DEBUG(...) log_emit("DEBUG", __FILE__, __LINE__, __func__, __VA_ARGS__)
+#else
+#  define LOG_DEBUG(...) ((void)0)
+#endif
+```
+
+### `utils.h` — debug e entrada
+
+```c
+extern const char *COLOR_CHAR[2];   /* {"BLACK", "WHITE"} */
+
+void print_piece_chart(void);
+void get_fen(char fen[MAX_FEN_STRING]);
+void strslc(const char *src, char *dest, int start, int end);
+void clear_screen(void);
+int  get_int(const char *msg);
+```
+
+---
+
 *Este documento é escrito à mão. A próxima revisão deveria ser disparada por um evento
-concreto — Etapa A do `next_steps.md` fechada, ou os bugs críticos do §5 corrigidos — não
+concreto — Etapa A do `next_steps.md` fechada, ou os bugs restantes do §5 corrigidos — não
 por passagem de tempo.*

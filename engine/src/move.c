@@ -68,7 +68,7 @@ Move move_from_str(const char *in) {
 
     strslc(in, from_str, 0, 2);
     strslc(in, to_str, 2, 4);
-    promoted = in[5];
+    promoted = in[4];
 
     int from, to;
     MoveType promotion_type;

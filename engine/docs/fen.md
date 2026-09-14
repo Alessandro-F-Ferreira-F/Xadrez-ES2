@@ -1,10 +1,12 @@
 # FEN: leitura, validação e escrita
 
-Documento de referência do módulo `src/board.c`. Cobre o formato, o desenho do
-parser, cada validação feita (e por quê), os bugs que foram corrigidos e o que
+Documento de referência do módulo `src/fen.c` (antes de 12/09, esta lógica vivia em
+`src/board.c` — o split de módulos moveu o código, não o comportamento). Cobre o formato,
+o desenho do parser, cada validação feita (e por quê), os bugs que foram corrigidos e o que
 ainda falta.
 
-Escrito em 2026-09-07, junto com a expansão do `parse_fen` para os seis campos.
+Escrito em 2026-09-07, junto com a expansão do `parse_fen` (hoje `fen_parse`) para os seis
+campos.
 
 ---
 

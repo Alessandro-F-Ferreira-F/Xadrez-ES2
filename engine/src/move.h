@@ -5,7 +5,7 @@
 #include "piece.h"
 
 
-typedef u32 Move;
+typedef u16 Move;
 
 #define MOVE_NONE ((Move)0)
 

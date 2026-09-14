@@ -34,17 +34,9 @@ typedef u8 Piece;
 
 #define NO_PIECE ((Piece)0)
 
-static inline bool piece_is_empty(Piece p) {
-    return p == NO_PIECE;
-}
+static inline bool is_own(Piece p, Color c)   { return p != EMPTY && PIECE_COLOR(p) == c; }
+static inline bool is_enemy(Piece p, Color c) { return p != EMPTY && PIECE_COLOR(p) != c; }
 
-static inline bool piece_is_own(Piece p, Color c) {
-    return p != NO_PIECE && PIECE_COLOR(p) == c;
-}
-
-static inline bool piece_is_enemy(Piece p, Color c) {
-    return p != NO_PIECE && PIECE_COLOR(p) != c;
-}
 
 
 char piece_to_char(Piece p);

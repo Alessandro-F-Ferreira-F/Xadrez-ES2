@@ -2,26 +2,32 @@
 
 > Documento de contexto para retomar o projeto ou apresentá-lo a quem for trabalhar nele,
 > sem precisar ler a codebase inteira.
-> Estado em **10 de setembro de 2026**.
+> Estado em **13 de setembro de 2026**, revisão pós-refatoração (commit `8f8a52d`,
+> "organização do código; módulos bem divididos").
 >
-> **Guia de implementação das próximas etapas: `docs/next_steps.md`.** Ele detalha
-> `make_move`/`unmake_move`, cavalo e rei, polimento do gerador e o UCI minimo, com
-> os critérios de saída de cada etapa. Este documento continua sendo o contexto; o
-> next_steps é o plano de execução.
+> **`docs/next_steps.md` está desatualizado em relação a este documento.** Ele foi escrito
+> em 10 de setembro contra o `movegen.c` monolítico de antes da refatoração — os números de
+> linha que cita não existem mais nos arquivos atuais, e vários bugs que ele descreve foram
+> fechados ao mesmo tempo em que outros, novos, apareceram no meio do split. As decisões
+> arquiteturais de lá (Undo do chamador, split de módulos) **continuam valendo** — só a lista
+> de bugs e a numeração de linha precisam de uma nova passada antes de servir de guia de
+> novo. Este documento é a fonte de verdade sobre o estado atual.
 
 ---
 
 ## 1. O que é este repositório
 
-Um **motor de xadrez em C**, escrito do zero como projeto de aprendizado. O objetivo
-declarado não é força de jogo — é entender como uma engine funciona por dentro.
+Um **motor de xadrez em C**, escrito do zero como projeto de aprendizado — agora também o
+repositório oficial do grupo, na disciplina de Engenharia de Software 2. O objetivo declarado
+não é força de jogo — é entender como uma engine funciona por dentro, e fazê-la funcionar em
+equipe.
 
-A fronteira do repositório é estreita e deliberada: **um binário que fala um protocolo
-texto por stdin/stdout.** Nada além disso vive aqui.
+A fronteira do repositório é estreita e deliberada: **um binário que fala um protocolo texto
+por stdin/stdout.** Nada além disso vive aqui.
 
-- O **cliente desktop (C++)** é de outra equipe, em outro repositório.
-- O **backend (Node/TS)** também não vive aqui.
-- Este repo entrega um executável que recebe comandos por linha e responde por linha.
+- O **cliente** é de outra equipe, em outro repositório (ou outra parte deste, fora de `engine/`).
+- Este repo entrega um executável que recebe comandos por linha e responde por linha —
+  hoje, na prática, um menu interativo (`ui()`), não ainda o protocolo real.
 
 A fase atual é **protótipo/demo**: um binário que joga xadrez legalmente do início ao fim,
 com uma IA qualquer. Correção das regras vem primeiro; força de jogo vem por último, e só
@@ -32,665 +38,352 @@ fora de escopo.
 
 ## 2. Estado atual, honestamente
 
-O projeto tem **~750 linhas** em 5 módulos e 6 commits. O parser de FEN é a parte madura;
-a geração de lances mal começou.
+O projeto tem **~1640 linhas** em **10 módulos**. Cresceu bastante desde a última revisão
+(~750 linhas, 5 módulos) — a refatoração de 12/09 dividiu `board.c` como planejado, e foi
+além: `piece.h/c` também saiu do que antes era `types.h`. É uma estrutura bem mais alinhada
+com o desenho de longo prazo do que a anterior — mas o meio do caminho de um split grande é
+exatamente onde bugs de "esqueci de portar isso direito" se escondem, e vários apareceram.
+
+**O resumo mais importante desta revisão: o build compila (28 warnings, zero erros), mas o
+ainda há bugs lógicos, e funcionalidades inexistentes ou incompletas.**
 
 ### Funciona e está verificado
 
 | Área | Estado |
 |---|---|
-| `parse_fen` | **Os seis campos.** Uma função por campo, todas `static`. Valida peças, lado, roque (sintaxe + coerência com o tabuleiro), en passant (fileira + as três casas envolvidas) e os relógios. Aceita de 4 a 6 campos. Invariante: `*out` só é escrito se a FEN inteira validar. Ver `docs/fen.md` |
-| Indexação `a1 = 0` | Convertida e verificada: round-trip FEN idêntico, `king_square` correto, tabuleiro na orientação certa |
-| `board_to_fen` | **Emite os seis campos.** Round-trip `FEN -> Board -> FEN` devolve string idêntica, verificado em 5 posições |
+| `fen_parse` (`fen.c`, ex-`parse_fen`) | Os seis campos, validação completa — sem mudança de comportamento desde a última revisão. Ver `docs/fen.md` (nota: o cabeçalho desse documento ainda diz `src/board.c`; o módulo mudou de nome, ver §8) |
+| `fen_write` (ex-`board_to_fen`) | Round-trip idêntico, os 6 campos |
 | `Board` | Completa: `castling_rights`, `ep_square`, `halfmove_clock`, `fullmove_number` |
-| Build limpo | Zero warnings com `-std=c11 -Wall -Wextra -Wpedantic -Wstrict-prototypes -Og`. O Makefile passou a usar esse conjunto |
-| `SQ_TO_EDGE` | Tabela de distância até a borda, verificada casa a casa contra valores calculados à mão |
-| Conversão de coordenadas | `sq_from_coord` / `coord_from_sq` |
-| Camadas de validação | `find_move` valida na fronteira; `make_move` confia na entrada |
-| Headers | Os cinco são auto-contidos (cada um compila sozinho) |
+| Indexação `a1 = 0` | Inalterada e correta |
+| `SQ_TO_EDGE`, `PAWN_ATTACKS` | Tabelas geradas por `init_square_tables()`, verificadas na forma (não há teste automatizado, mas os valores batem com o cálculo manual em casos conferidos) |
+| Headers auto-contidos | Os 10 compilam sozinhos com `gcc -fsyntax-only -x c` — verificado nesta revisão |
+| Nomenclatura `módulo_verbo` | Consistente: `fen_parse`, `fen_write`, `board_print`, `board_clear`, `move_from`, `move_to`, `movelist_add`, `sq_from_coord`. Ganho real de legibilidade sobre a versão anterior |
+| Codificação de lance (desenho) | O esquema de 4 bits de tipo (`MoveType`) é o padrão da Chess Programming Wiki — captura é bit 2, promoção é bit 3, os dois bits baixos da promoção codificam a peça. Ver §3. |
 
-### Incompleto ou ausente
+### Incompleto ou ausente (sem mudança desde a última revisão)
 
 | Área | Estado |
 |---|---|
-| `parse_fen` | Falta a última validação: rei do lado que **não** joga em xeque é posição ilegal. Depende de `is_square_attacked` |
-| Geração de lances | Peão: empurrada simples, dupla e captura. A dupla está **em paralelo** ao simples e sem checar casas — peão salta sobre peças. Promoção emite só a dama. Sem en passant nem roque |
-| Peças deslizantes | Torre, bispo e dama geram; falta o filtro de `side_to_move` |
-| Cavalo e rei | Não existem |
-| `side_to_move` | A geração **ignora de quem é a vez** e produz lances das duas cores. Reproduzido: com as pretas na vez, `e3e4` (branco) é aceito e jogado |
-| `make_move` | Move a peça e inverte `side_to_move`. Não atualiza `king_square`, não trata captura/roque/en passant/promoção, não mexe nos relógios. E **chama `find_move`**, invertendo a fronteira de validação (ver §3 e `next_steps.md` §2 D4) |
-| `unmake_move` | Esqueleto: move a peça de volta e restaura a captura. Não restaura lado, roque, en passant nem relógios |
-| `MoveHistory` / `push_undo` / `pop_undo` | Existem, como **global em `movegen.c`**, e estão quebrados — `pop_undo` lê uma casa além do topo. Ver §5. Decisão de arquitetura tomada em 2026-09-10: a pilha global sai (§3) |
-| Legalidade | Sem `is_square_attacked`, sem filtro de xeque. Todo lance gerado é pseudo-legal |
-| Perft | Não existe. **Nada da geração está validado ainda** |
-| Protocolo | Não existe. A interação é um `printf`/`fgets` no `main` |
-| Testes | Nenhum automatizado |
+| Cavalo e rei | Tabelas (`KNIGHT_TARGETS`, `KING_TARGETS`) **declaradas e alocadas**, mas `init_square_tables()` só preenche `SQ_TO_EDGE` e `PAWN_ATTACKS` — as duas ficam com zero em todo lugar. Geração de lances para essas peças não existe |
+| Roque, en passant | Não gerados |
+| `is_square_attacked`, filtro de legalidade | Não existem. Todo lance é pseudo-legal na melhor das hipóteses |
+| Perft | Não existe |
+| Protocolo UCI | Não existe |
+| Testes automatizados | Nenhum |
+
+### Novo nesta revisão: regressões e bugs introduzidos pelo split
+
+Isto é o que mudou de fato. Detalhado com evidência no §5; resumo aqui:
+
+| Área | O que quebrou |
+|---|---|
+| `make_move` / `unmake_move` | `make_move` não preenche o `Undo` (nem sequer guarda a peça capturada); `unmake_move` é um `return;` vazio — regressão em relação ao "esqueleto" da revisão anterior, que ao menos desfazia o movimento da peça |
+| `board_check_invariants`, `board_find_king` | Declaradas em `board.h` (e re-declaradas, sem motivo, no topo de `board.c`) — **sem implementação em lugar nenhum do repositório** |
 
 ---
 
 ## 3. Decisões arquiteturais firmadas
 
-Estas são escolhas conscientes com trade-off avaliado. Mudá-las agora custa caro.
+Estas são escolhas conscientes com trade-off avaliado. Mudá-las agora custa caro. Não
+mudaram desde a última revisão, exceto onde marcado.
 
 ### Representação: mailbox de 64 casas
 
-Um `Piece array[64]`, não bitboards. Bitboards são mais rápidos, mas mailbox é muito mais
-fácil de acertar e de depurar — e correção vem antes de velocidade nesta fase.
-
-Efeito colateral feliz, medido: `array[64]` são **64 bytes = exatamente uma linha de cache**.
-Varrer o tabuleiro inteiro custa ~9,5 ns. Uma *piece list* (iterar só as ~30 casas ocupadas)
-foi medida em ~12,3 ns — **mais lenta**, porque a indireção custa mais que a varredura que
-economiza. Decisão registrada: não implementar piece lists.
+Um `Piece array[64]`, não bitboards — inalterado. `array[64]` = 64 bytes = uma linha de
+cache; varredura completa medida em ~9,5 ns contra ~12,3 ns de uma piece list. Sem mudança.
 
 ### Indexação: `a1 = 0` (Little-Endian Rank-File)
 
-```
-sq = rank * 8 + file        rank 0 = 1ª fileira,  file 0 = coluna a
-a1 = 0    h1 = 7    a8 = 56    h8 = 63
-```
+Sem mudança. `sq = rank * 8 + file`; peão branco avança `+8`, preto `-8` — **na intenção**.
+Ver Bug #2: o array que deveria expressar isso está com os índices trocados.
+
+### Codificação da peça
+
+Sem mudança de desenho, só de lugar e nome: vivia em `types.h` (`MAKE_PIECE`/`TYPE_OF`/
+`COLOR_OF`), agora vive em `piece.h` (`PIECE_MAKE`/`PIECE_TYPE`/`PIECE_COLOR`). As duas
+armadilhas de sempre continuam valendo: `PIECE_COLOR(EMPTY) == BLACK`, e comparar o valor
+cru contra um `PieceType` funciona por acidente para pretas e falha para brancas.
+
+`piece.h` ganhou também `piece_is_empty`, `piece_is_own`, `piece_is_enemy` como `static
+inline` — o equivalente aos antigos `is_own`/`is_enemy` de `movegen.c`, só que expostos como
+API do módulo em vez de `static` local não utilizada. **`movegen.c` ainda tem sua própria
+cópia local** (`is_own`/`is_enemy`, linhas 10-11) que poderia ser deletada em favor da de
+`piece.h` — duas implementações da mesma checagem é o tipo de duplicação que diverge.
+
+### Codificação do lance — decisão fechada nesta janela, superando a descrição anterior
+
+**Esta seção substitui integralmente a versão anterior deste documento**, que descrevia um
+`u32` com 8 bits por campo (origem/destino/promoção/flags) e um `enum Promotion` separado.
+Esse desenho não existe mais no código. O que existe agora, em `move.h`:
 
 ```
-    a   b   c   d   e   f   g   h
-8  56  57  58  59  60  61  62  63
-7  48  49  50  51  52  53  54  55
-6  40  41  42  43  44  45  46  47
-5  32  33  34  35  36  37  38  39
-4  24  25  26  27  28  29  30  31
-3  16  17  18  19  20  21  22  23
-2   8   9  10  11  12  13  14  15
-1   0   1   2   3   4   5   6   7
+       tipo (4)   destino (6)   origem (6)
+u16 = [0000]      [000000]      [000000]
+       <<12          <<6           <<0
 ```
-
-É a convenção da Chess Programming Wiki, dos valores de perft publicados e das
-piece-square tables prontas — evita traduzir mentalmente cada exemplo lido.
-
-Consequências: peão branco avança `+8`, preto `-8`. A FEN é lida da fileira 8 para a 1,
-então a **primeira** linha da FEN preenche os índices 56–63.
-
-### Codificação da peça num `u8`
 
 ```c
-MAKE_PIECE(color, type) = (color << 3) | type
-TYPE_OF(piece)          = piece & 0x7
-COLOR_OF(piece)         = (piece >> 3) & 0x1
+typedef enum {
+    MV_QUIET         =  0,
+    MV_DOUBLE_PUSH   =  1,
+    MV_CASTLE_KING   =  2,
+    MV_CASTLE_QUEEN  =  3,
+    MV_CAPTURE       =  4,
+    MV_EP_CAPTURE    =  5,
+    /* 6 e 7 nao existem */
+    MV_PROMO_N       =  8, MV_PROMO_B = 9, MV_PROMO_R = 10, MV_PROMO_Q = 11,
+    MV_PROMO_CAP_N   = 12, MV_PROMO_CAP_B = 13, MV_PROMO_CAP_R = 14, MV_PROMO_CAP_Q = 15
+} MoveType;
 ```
 
-Com `WHITE = 1`, `BLACK = 0`, `EMPTY = 0`. Peão branco = 9, peão preto = 1.
+É o esquema de 4 bits da Chess Programming Wiki ([Encoding Moves](https://www.chessprogramming.org/Encoding_Moves)):
+bit 3 (`& 8`) é promoção, bit 2 (`& 4`) é captura, e os dois bits baixos, quando há
+promoção, indexam a peça (`KNIGHT + (type & 3)`). `move_is_capture`, `move_is_promotion` e
+`move_promo_type` em `move.c` implementam exatamente essa aritmética, e implementam
+**corretamente** — conferido bit a bit nesta revisão.
 
-**Armadilha conhecida:** `COLOR_OF(EMPTY) == BLACK`. Casa vazia se parece com peça preta.
-Sempre teste "está vazia" **antes** de testar a cor.
-
-**Armadilha relacionada:** comparar o valor cru contra um `PieceType` (`if (array[sq] == PAWN)`)
-funciona por acidente para as pretas e falha para as brancas, porque `BLACK = 0` faz o nibble
-de cor sumir. Use sempre `TYPE_OF()`.
-
-### Codificação do lance num `u32`
-
-```
-       origem    destino   promoção   flags
-u32 = [00000000][00000000][00000000][00000000]
-        <<24      <<16       <<8       <<0
-```
-
-8 bits por campo. É folgado — casas cabem em 6 bits e o padrão da literatura é um `u16`
-com 6+6+4. A folga foi mantida deliberadamente por enquanto: cada campo cai num byte
-alinhado, o que facilita a depuração. **Decisão em aberto** (ver §6).
-
-`MoveDescription` é a forma desempacotada, devolvida por `decode_move`.
+Isso também fecha, na prática, a "Decisão em aberto" do documento anterior ("Lance em 16 vs
+32 bits"): o formato lógico agora é de 16 bits (6+6+4), como a literatura recomenda.
 
 ### Direções: tabela de distância até a borda
 
-`SQ_TO_EDGE[64][8]` guarda, para cada casa e cada direção, quantas casas existem até a
-borda. Resolve o problema de wrap-around sem 0x88 nem mailbox 10x12 — as três abordagens
-resolvem o mesmo problema, e trocar depois custa mais do que ganha.
-
-**A ordem do `enum Direction` é carga estrutural, não estética:**
-
-```
-índice:   0     1     2     3     4      5      6      7
-        DIR_N DIR_S DIR_E DIR_W DIR_NE DIR_SW DIR_SE DIR_NW
-        └──── ortogonais ────┘  └────── diagonais ──────┘
-
-DIR_OFFSET = { 8,  -8,   1,   -1,    9,    -9,    -7,     7 }
-```
-
-Torre usa as direções 0–3, bispo 4–7, rainha 0–7. Isso permite **uma única função**
-parametrizada por intervalo de direção, em vez de três. Reordenar o enum quebra isso em
-silêncio.
-
-Note a distinção entre **índice** (o valor do enum, usado para indexar as tabelas) e
-**offset** (o delta somado ao índice da casa). Confundir os dois foi bug real neste projeto.
+Sem mudança. `SQ_TO_EDGE[64][8]`, ordem do enum como carga estrutural. Vive em `square.h/c`
+agora, junto com `PAWN_ATTACKS` e a futura `KNIGHT_TARGETS`/`KING_TARGETS`.
 
 ### Pseudo-legal primeiro, legalidade depois
 
-Gerar todos os lances que respeitam o movimento da peça, e só depois filtrar os que deixam
-o próprio rei em xeque. É mais fácil de acertar do que gerar apenas lances legais direto.
+Sem mudança de decisão. Na prática, hoje nem o pseudo-legal está confiável (§5).
 
-O filtro é: aplica o lance, pergunta se o rei do lado que jogou está atacado, desfaz.
-    precompute_move_data();
+### Apply/undo com pilha, não cópia do tabuleiro — `Undo` é do chamador
 
-### Apply/undo com pilha, não cópia do tabuleiro
-
-Cada nó de busca aplica o lance sobre o `Board` existente e o desfaz depois, guardando o
-que se perdeu numa struct `Undo` na pilha da recursão. **Não** copiar o `Board` inteiro
-por nó.
-
-O `Undo` precisa guardar exatamente o que **não é recalculável** a partir do tabuleiro
-depois do lance:
+**Decisão de 10/09, agora com a assinatura implementada** em `makemove.h`:
 
 ```c
 typedef struct {
-    Piece captured;         /* o tabuleiro depois não sabe o que estava ali */
-    u8    castling_rights;  /* mover a torre destrói o direito, sem deixar rastro */
+    Piece captured;
+    u8    castling_rights;
     int   ep_square;
     int   halfmove_clock;
 } Undo;
+
+void make_move  (Board *b, Move m, Undo *u);
+void unmake_move(Board *b, Move move, const Undo *u);
 ```
 
-Esta decisão dói para trocar depois. Respeitar desde o início.
+A assinatura é exatamente a decidida em 10/09 — o argumento completo (sete pontos, pilha da
+recursão como pilha de undo, compilador verificando o pareamento) continua valendo e não
+precisa ser reescrito aqui. **O que falta é o corpo.** Hoje `make_move` move a peça e inverte
+o lado — só isso — e nunca escreve em `*u`; `unmake_move` é um `return;` vazio. A estrutura
+certa já existe; a Etapa B do `next_steps.md` (make/unmake completos) continua sendo o
+próximo trabalho real, só que a partir de uma base pior do que a de 10/09 (que ao menos
+desfazia o movimento da peça).
+
+Nota de nomenclatura: o header se chama `makemove.h`, mas o *include guard* é `UNDO_H`
+(`#ifndef UNDO_H` / `#define UNDO_H`). Inofensivo hoje, mas se algum dia existir um
+`undo.h` de verdade, a colisão de guard vai silenciosamente pular a inclusão de um dos dois.
 
 ### Contrato de validação: fronteira valida, núcleo confia
 
-Estabelecido nesta sessão e já implementado:
+Sem mudança de decisão. `make_move` continua **não** chamando `find_move`/equivalente —
+isso é bom, mas hoje é mais por `make_move` fazer pouco do que por disciplina proposital.
+
+### Split de `board.c` — fechado, e foi além do planejado
+
+**Decidido em 10/09, executado em 12/09.** O plano original (`next_steps.md` D3) previa três
+módulos saindo de `board.c`: `square.h/c`, `fen.h/c`, `board.h/c`. O resultado real tem
+**quatro**, porque a codificação de peça também saiu de `types.h` para seu próprio módulo:
 
 ```
-uci.c / main.c   →  recebe texto do usuário. VALIDA aqui, com find_move.
-                 ↓
-movegen.c        →  make_move(Board*, u32) confia na entrada. Não verifica nada.
+types.h      vocabulário mínimo: typedefs de largura fixa, MAX_*, MIN/MAX
+piece.h/c    Color, PieceType, Piece, PIECE_MAKE/TYPE/COLOR, piece_to_char
+square.h/c   sq_from_coord, sq_to_coord, SQ_TO_EDGE, Direction, PAWN_ATTACKS
+fen.h/c      fen_parse, fen_write
+board.h/c    Board, CastleRights, board_print, board_clear (board_find_king e
+             board_check_invariants: DECLARADAS, sem corpo — ver Bug #11)
+move.h/c     Move, MoveType, MoveList, encode/decode, movelist_*, move_to_str
+makemove.h/c Undo, make_move, unmake_move
+movegen.h/c  generate_pawn_moves, generate_sliding_moves
+log.h/c      log_emit, LOG_ERROR, LOG_DEBUG
+utils.h/c    impressão de debug, leitura de stdin, strslc
 ```
 
-`make_move` é uma **primitiva**, não um serviço — como `free(p)`, que não confere se `p`
-veio de um `malloc`. A pré-condição é "este `u32` saiu do gerador para esta posição", e
-ela é satisfeita por construção nos dois únicos chamadores:
+Divisão mais fina do que o planejado, e no geral uma divisão coerente — `piece.h` isolado é
+uma responsabilidade genuína (codificação de peça, independente de tabuleiro ou de casa).
+Um `gcc -fsyntax-only -x c` em cada um dos 10 headers passa sem erro — verificado nesta
+revisão.
 
-1. **A busca / o filtro de legalidade** — itera a lista que o gerador acabou de produzir.
-2. **A fronteira do protocolo** — chama `find_move`, que gera, acha, e devolve o lance.
+### Testes como subcomando do binário
 
-`make_move` **não pode** validar, por dois motivos. O decisivo é que o filtro de legalidade
-precisa aplicar lances que talvez sejam ilegais — é aplicando que se descobre. Um `make_move`
-que recusa lances ilegais torna o filtro impossível de escrever, e fecha um ciclo de
-dependência: geração → validação → make → geração. O segundo motivo é custo: na busca,
-regenerar todos os lances dentro do `make_move` transformaria cada nó em O(n²).
-
-`find_move` devolve **o lance como o gerador o produziu**, não um booleano. Quem digitou
-`e5d6` não sabe se aquilo é captura comum ou en passant; o gerador sabe, porque foi ele
-que marcou a flag. Devolver só `true` jogaria fora exatamente o que o `make_move` precisa.
-
-### `Undo` é do chamador, não há pilha global de undo
-
-**Decidido em 2026-09-10.** Assinaturas:
-
-```c
-void make_move  (Board *b, u32 move, Undo *u);
-void unmake_move(Board *b, u32 move, const Undo *u);
-```
-
-O `Undo` guarda só o irrecuperável (`captured`, `castling_rights`, `ep_square`,
-`halfmove_clock`); fora dele ficam o lance (quem desfaz tem o `u32` na mão) e o
-`fullmove_number` (derivável). Perde o campo `Move`, porque o `score` é artefato de
-ordenação: 20 → 12 bytes, medido.
-
-O argumento decisivo: **a pilha da recursão já é a pilha de undo.** Um `MoveHistory`
-explícito é uma segunda cópia de informação que o registro de ativação do C já mantém, e
-duas cópias da mesma verdade podem dessincronizar. Com `Undo u;` local a dessincronização
-é inexprimível, e o compilador passa a verificar o pareamento make/unmake — `unmake_move`
-não compila sem o `u` no escopo.
-
-Consequência: **três necessidades diferentes param de compartilhar uma estrutura.** O
-filtro de legalidade quer 1 `Undo` por nó de recursão; a repetição tripla quer uma lista de
-chaves `u64` (Zobrist), não de `Undo`s; o histórico de partida — para o menu de depuração e
-para `position ... moves` — pertence à camada de protocolo:
-
-```c
-/* uci.h */
-typedef struct { u32 move; Undo u; } GamePly;
-typedef struct { Board board; GamePly ply[MAX_GAME_PLY]; int count; } Game;
-```
-
-E `MAX_PLY = 256` se divide em `MAX_SEARCH_PLY` (64) e `MAX_GAME_PLY` (1024) — a constante
-única estava errada para um dos dois usos.
-
-Justificativa completa (sete argumentos) em `next_steps.md` §2 D1. Nota de referência: o
-Stockfish usa este desenho (`do_move(m, st)`), o TSCP usa o oposto (`hist_dat` global).
-
-### Split de `board.c` em tres modulos
-
-**Decidido em 2026-09-10.** `board.c` está em 721 linhas fazendo FEN e coordenadas.
-
-```
-types.h      vocabulário; só <stdbool.h> e <stdint.h>
-square.h/c   sq_from_coord, coord_from_sq, SQ_TO_EDGE, KNIGHT_TARGETS, PAWN_ATTACKS
-fen.h/c      parse_fen, board_to_fen
-board.h/c    Board, print_board, board_check_invariants
-movegen.h/c  Move, MoveList, MoveDescription, Undo + geração + make/unmake
-uci.h/c      laço de comandos, Game, str_to_move
-```
-
-Agora e não depois porque as tabelas de cavalo e de peão nascem na próxima etapa: é mais
-barato nascerem no lugar do que serem movidas. `square.c` tem responsabilidade coerente —
-**geometria do tabuleiro**, independente de peça e de posição — em vez de ser saco de
-utilitários.
-
-### Testes como subcomando do binario
-
-**Decidido em 2026-09-10.** `./main.out test` roda o round-trip de make/unmake sobre um
-corpus de ~30 FENs; `./main.out perft N` conta. Zero infraestrutura nova, e já abre espaço
-para os comandos de depuração (`d`, `perft`) que o protocolo vai precisar.
-
-### `make_move` nao chama `find_move`
-
-**Decidido em 2026-09-10** — reafirmação da fronteira que esta seção já descrevia, porque o
-código atual a viola. Ver `next_steps.md` §2 D4.
-
-### Motor stateless entre comandos
-
-A posição chega sempre como FEN completa, não como histórico incremental. Qualquer posição
-vira reproduzível isoladamente em teste, e cliente e motor não podem dessincronizar.
-
-**Limite conhecido:** repetição tripla **não é detectável a partir de uma FEN** — ela é uma
-fotografia sem histórico. A regra dos 50 lances funciona (vem do `halfmove_clock`), mas
-repetição não. É por isso que o comando `position` do UCI aceita o sufixo `moves`:
-
-```
-position fen <fen> moves e2e4 e7e5 g1f3
-```
-
-O motor parte da FEN e reaplica os lances, construindo o histórico. Continua stateless —
-tudo veio no comando — mas agora dá para detectar empate por repetição.
-
-O invariante a defender: **protocolo stateless, processo stateful.** Nenhum comando *precisa*
-do anterior; o processo pode cachear o que quiser.
+**Ainda não implementado.** A decisão de 10/09 continua de pé (`./main.out test`,
+`./main.out perft N`), mas `main.c` não tem esses subcomandos — só o menu interativo `ui()`.
+Isso é o item mais alto de retorno da lista de próximos passos: sem ele, todo bug desta
+revisão foi achado por leitura de código e por sessão manual no menu, não por um portão
+automático.
 
 ---
 
 ## 4. Mapa dos módulos
 
-```
-types.h ──┬── board.h ──┬── utils.h ──┬── movegen.h
-          │             │             │
-          └── log.h ────┘             └── (main.c usa todos)
-```
+| Arquivo | Papel | Linhas (.h/.c) | Nota |
+|---|---|---|---|
+| `types.h` | Typedefs de largura fixa, `MAX_*`, `MIN`/`MAX` | 58 / — | Ainda arrasta `ctype.h stdio.h stdlib.h string.h` que quase ninguém usa direto — a limpeza sugerida em 10/09 (A2) não foi feita |
+| `log.h/c` | `LOG_ERROR`/`LOG_DEBUG` via `log_emit`, com `__FILE__/__LINE__/__func__` capturados na macro | 20 / 20 | Sem mudança, continua correto |
+| `piece.h/c` | `Color`, `PieceType`, `Piece`, macros de codificação, `piece_to_char`/`piece_from_char` | 54 / 27 | Novo módulo desde a última revisão |
+| `square.h/c` | Coordenadas, `SQ_TO_EDGE`, `PAWN_ATTACKS`, `KNIGHT_TARGETS`/`KING_TARGETS` (declaradas, não populadas) | 48 / 101 | `PAWN_PUSH` mora aqui e está com os índices trocados (Bug #2) |
+| `board.h/c` | `Board`, `CastleRights`, impressão, limpeza | 36 / 56 | `board_find_king`/`board_check_invariants` sem corpo (Bug #11); `fen_write` chamado sem incluir `fen.h` (Bug #12) |
+| `fen.h/c` | `fen_parse`, `fen_write` | 12 / 612 | Módulo maduro, sem mudança de comportamento. **De longe o maior arquivo do projeto** — candidato a ganhar sua própria bateria de testes primeiro |
+| `move.h/c` | `Move`, `MoveType`, `MoveList`, `encode_move`/decodificação, `movelist_*`, conversão de/para string | 53 / 147 | `encode_move` quebrado (Bug #1); `move_from_str` inutilizável como está (Bug #7) |
+| `makemove.h/c` | `Undo`, `make_move`, `unmake_move` | 18 / 21 | Esqueleto mínimo — nem captura é guardada. Guard do header é `UNDO_H`, não `MAKEMOVE_H` |
+| `movegen.h/c` | Geração de lances de peão e de peças deslizantes | 12 / 119 | Onde vivem os Bugs #2 a #6, #10, #13 (parte) |
+| `utils.h/c` | Impressão de debug, leitura de stdin, `strslc` | 26 / 81 | Sem mudança relevante |
+| `main.c` | Menu interativo `ui()` + `main()` | — / 117 | Bugs #7 (indireto), #8, #9 (uso) |
 
-| Arquivo | Papel | Linhas |
-|---|---|---|
-| `types.h` | Vocabulário: `Board`, `Move`, `MoveList`, `Piece`, `Color`, `Direction`, e as macros de codificação | 98 |
-| `log.h` / `log.c` | `LOG_ERROR(msg)` com `__FILE__`/`__LINE__`/`__func__` capturados **na macro**, não na função | 17 / 5 |
-| `board.h` / `board.c` | FEN (parse, serialize, validação) **e** conversão de coordenadas | 18 / 324 |
-| `movegen.h` / `movegen.c` | Direções, codificação de lance, geração, `find_move`, `make_move` | 20 / ~215 |
-| `utils.h` / `utils.c` | Impressão de debug, leitura de stdin, `strslc` | 18 / ~70 |
-| `main.c` | REPL provisório de teste | 66 |
+**Problemas estruturais que atravessam módulos:**
 
-**Problemas estruturais conhecidos:**
-
-- `board.c` é dois módulos num arquivo só (FEN + coordenadas), e é o maior do projeto.
-  Coordenada não é detalhe de FEN — o protocolo UCI (`e2e4`), a leitura de lances e a
-  impressão de en passant vão todos precisar dela. Pertence ao vocabulário central.
-- `types.h` arrasta seis headers da libc (`ctype`, `stdbool`, `stdint`, `stdio`, `stdlib`,
-  `string`). Todo módulo ganha tudo de graça, e o compilador para de avisar quando surge
-  acoplamento novo. Só `stdbool.h` e `stdint.h` são realmente necessários lá.
-- `utils.h` define uma função `static` **dentro do header** (`clear_screen`). Isso duplica
-  a função em cada unidade de tradução e gera aviso de "definida mas não usada" em todas.
+- **Seis funções com linkage externo que só são usadas dentro do próprio arquivo e deveriam
+  ser `static`** (violação direta do §7 do `CLAUDE.md`, e exatamente a classe de bug que
+  `-Wmissing-prototypes` existe para achar — e já está achando, ver os warnings do build):
+  `ui` (`main.c`), `print_move` e `print_moves` (`move.c`), `check_pawn_promotion` e
+  `genenare_moves_from_direction` (`movegen.c`).
+- **Duas chamadas entre módulos sem o include correspondente**, sobrevivendo só por sorte de
+  assinatura bater no link (`-Wimplicit-function-declaration`): `board.c` chama `fen_write`
+  sem incluir `fen.h`; `main.c` chama `print_moves` sem que `movegen.h` ou `move.h` a
+  declarem para quem inclui só `movegen.h`. Ver Bug #12.
+- O typo `genenare_moves_from_direction` (por `generate_...`) continua no código, já
+  documentado desde a revisão anterior.
 
 ---
 
 ## 5. Bugs abertos
 
-Atualizado em 2026-09-10. **Cinco dos seis primeiros eram detectáveis em compilação** — dois
-deles só com flags que o Makefile ainda não liga (`-Wconversion`, `-Wmissing-prototypes`).
-Tabela completa, com as linhas exatas e as duas reproduções, em `next_steps.md` §3.
+Nesta revisão, cada bug crítico foi **reproduzido com evidência** — warning de compilação,
+ASan/UBSan, ou aritmética direta das macros — em vez de inferido por leitura. Comando usado
+para os warnings: `make` (conjunto de flags do `CLAUDE.md` §7, hoje com só uma das cinco
+flags novas ligada — ver nota de Makefile no fim desta seção). Para os crashes: `make debug`
+(ASan + UBSan) e entrada manual via `stdin`.
 
-| Onde | Problema |
-|---|---|
-| `movegen.c:43` | **`pop_undo` lê uma casa além do topo.** `push_undo` grava em `undos[ply]` e *depois* incrementa; o topo e `ply - 1`. Reproduzido: após um lance, "Unmake Move" imprime `pop undo error` e o tabuleiro não volta. E o decremento acontece mesmo no caminho de falha, tornando `undos[0]` inalcançável |
-| `movegen.c:269` | **`u32 *out_move;` não inicializado.** `find_move` escreve através dele (UB) e `push_undo(out_move, ...)` guarda o **ponteiro truncado a 32 bits** como lance. `-Wuninitialized` + `-Wint-conversion` |
-| `movegen.c:281` | `push_undo` chamado **depois** de mutar o tabuleiro. Funciona por acidente porque `make_move` ainda não toca roque/ep/relógio; quebra no instante em que tocar |
-| `movegen.c:25` | `u8 ep_square` no parâmetro trunca `SQ_NONE`: `-1` vira `255`. `-Wconversion` |
-| `movegen.c:238` | **`find_move` aceita lance da cor errada.** Gera as duas cores, e a checagem de lado só faz `LOG_ERROR` sem `return false` — além de cair na armadilha `COLOR_OF(EMPTY) == BLACK`. Reproduzido |
-| `movegen.c:299` | `printf("%s", PIECE_CHAR[...])` com um `char`. `-Wformat` |
-| `movegen.c:68` | `add_move` usa `>` em vez de `>=`: escreve em `moves[GEN_MOVES_MAX]` |
-| `movegen.c:144` | Duplo avanço do peão **em paralelo** ao simples, sem checar casa intermediária nem destino. `perft(1)` inicial passa (20) e quebra na profundidade 2–3 |
-| `movegen.c:154` | Promoção gera só a dama; perft conta as quatro peças |
-| `movegen.c:181` | `genenare_moves_from_direction` (typo) testa `board->side_to_move` enquanto o laço externo não filtra cor: peça inimiga gera "captura" das próprias peças |
-| `movegen.c:313` | `str_to_move` não checa `sq_from_coord() == -1` (`z9z9` → origem 255), ignora o 5º caractere da promoção, e `char[6]` não cabe `"e7e8q\n"` + NUL |
-| `movegen.c:13` | `g_history` tem linkage externo e **nenhuma declaração em header**: invisível em revisão, alcançável por `extern` de qualquer `.c`. `-Wmissing-prototypes` não cobre variáveis |
-| `movegen.c:289` | Sentinela `move.move == 0` para "vazio": `0` é codificação válida de `a1a1` |
-| `movegen.c:25` | `push_undo` sem limite superior; `pop_undo` em `ply == MAX_PLY` lê índice 256 de 256 |
-| `movegen.c:37` | `pop_undo()` declarada com `()`. `-Wstrict-prototypes` |
-| `types.h:106` | `enum Promotion` começa em 0, e 0 já significa "sem promoção": `encode_move(sq, t, 0, QUIET)` e `encode_move(sq, t, KNIGHT_PROMOTION, QUIET)` são o mesmo `u32`. Recomendação: o campo guarda o `PieceType` cru |
-| `types.h:99` | `enum MoveFlag` não tem os roques. `make_move` precisa saber mover a torre; inferir de "o rei andou duas colunas" é um segundo mecanismo |
-| `main.c:61` | `make_move(b, move)` usa o lance **digitado** (flags = 0), não o que `find_move` produziu — `out` é passado como `NULL` na linha 58. O `u32` que chega ao `make_move` não tem as flags do gerador |
-| `main.c:52` | `char move_out[6]` não comporta `"e7e8q\n"` + NUL, que sao 7 bytes |
 
-### Fechados em 2026-09-10
+### Graves — não crasham na hora, mas quebram a regra ou a arquitetura
 
-| Onde | Era |
-|---|---|
-| `log.h` | `LOG_ERROR` estava sob `#ifdef DEBUG` e o build padrão engolia todo erro. Agora é incondicional |
-| `main.c` | `find_move(..., movedesc.flags)` passando um `u8` onde se espera `u32 *`; e `char move_out[5]` |
+| # | Onde | Problema |
+|---|---|---|
+| 1 | `main.c:62` | `if (!movelist_find(&l, move_str))` trata o índice devolvido como booleano: índice `0` (achado na primeira posição) é falso, `-1` (não achado) é verdadeiro — os dois ramos estão invertidos. E o lance de verdade nunca é lido: a variável `move` usada em seguida (`main.c:65`) nunca é atribuída |
+| 2 | `main.c:65` (uso), `makemove.c:6-18` | `make_move(b, move, &u)` é chamado com `move` não inicializada — `-Wmaybe-uninitialized` confirma. E mesmo que fosse o lance certo, `make_move` não preenche `*u`: `prev_on_target` (a peça capturada) é calculada e descartada (`-Wunused-variable`); `unmake_move` (`makemove.c:20-22`) é `{ return; }` — não desfaz nada |
+| 3 | `movegen.c` inteiro | **Ainda sem filtro de `side_to_move`** na geração — bug já documentado antes do split, continua idêntico. `generate_pawn_moves` recebe `side` como parâmetro em vez de ler `board->side_to_move` (chamado para as duas cores em `main.c:71-72`); `generate_sliding_moves` nem recebe `side`, itera por `PIECE_TYPE` sem checar a cor da peça |
+| 4 | `board.h:29-30`, `board.c:8-9` | **`board_find_king` e `board_check_invariants` estão declaradas — duas vezes, inclusive: no header e de novo, sem motivo, logo no topo de `board.c` — mas não têm corpo em lugar nenhum do repositório.** Chamar qualquer uma das duas é erro de link. É exatamente a função que `next_steps.md` (Etapa B7) descreve como o próximo passo natural, com a assinatura já pronta para devolver **qual** invariante quebrou (`const char **fail_msgs`) — a implementação é que ficou para trás |
 
-### Fechados em 2026-09-07 (ver `docs/fen.md` §4)
+### Menores / higiene — baixo risco, valem a correção quando o arquivo for aberto de qualquer forma
 
-| Onde | Era |
-|---|---|
-| `board.c` | `for (char *ptr = fields[2][0]; ...)` — `char` atribuído a `char *`, o valor `'K'` (75) virava endereço |
-| `board.c` | `split_fen_fields` devolvia o endereço de um vetor local, e os ponteiros dentro dele apontavam para outro local já morto |
-| `board.c` | `coord_from_sq` sem `return` no ramo de erro: `FILE_OF(-1)` é `-1`, então a casa de en passant aparecia como `` `1 `` |
-| `board.c` | `board_to_fen` gravava um espaço **depois** do `'\0'` e emitia só o campo das peças — o round-trip perdia lado, roque e en passant |
-| `board.c` | Roque com caractere desconhecido era ignorado em silêncio (`KQxq` virava `KQq`) |
-| `board.c` | Relógios com `strtol(..., NULL, 10)` sem checar: `"abc"` virava `0` |
-| `main.c` | `MoveList l;` sem inicializar — `add_move` usa `count` como índice de escrita |
-| `types.h` | `SQ_OFFBOARD(sq)` sem parênteses no parâmetro; `SQ_NONE` definido duas vezes |
-| `utils.h` | `clear_screen` definida (não declarada) no header; `\e` não-ISO; `get_int(char[128])` disparando `-Wstringop-overflow`; `()` em vez de `(void)` |
-| `Makefile` | `-Wall -g` sem `-O`, escondendo a maioria dos itens acima |
+| # | Onde | Problema |
+|---|---|---|
+| 5 | `main.c:84-87` | `case 6` (Unmake Move) cai para `default` sem `break` explícito antes — inofensivo hoje porque `default` só tem `break`, mas é o tipo de fallthrough que vira bug real na próxima vez que alguém adicionar um `case 7` |
+| 6 | `square.h:43`, `square.c:56,71` | `init_square_tables()` (e o `static init_pawn_attacks()`) declarados com `()` em vez de `(void)` — sozinhos respondem por 8 dos 28 warnings do build, um por unidade de tradução que inclui `square.h` |
+| 7 | `square.h:33,37` | `extern int SQ_TO_EDGE[...]` declarado duas vezes no mesmo header |
+| 8 | `square.c:8` | `DIR_CHARMAP` definido e nunca usado (`-Wunused-const-variable`) — sobrou de uma função de debug que não existe mais |
+| 9 | `board.h:7` | `enum ClastleRights` — typo no nome do tag (`Clastle`). Cosmético: o tag não é referenciado em lugar nenhum |
 
-### Sobre o Makefile, especificamente
+### Sobre o Makefile
 
-**Resolvido em 2026-09-07.** O texto abaixo fica como registro do raciocínio.
-
-Das últimas seis sessões, **todo bug encontrado era detectável em tempo de compilação**.
-A recomendação é trocar `-g` por `-Og -g` e ligar o conjunto completo:
-
-```
--std=c11 -Wall -Wextra -Wpedantic -Wstrict-prototypes -Og -g
--fsanitize=address,undefined
-```
-
-`-Og` é o nível de otimização feito para depuração: liga as análises que alimentam os avisos
-sem tornar o código irrastreável no gdb. Note que **nenhum sanitizer pega leitura de memória
-não inicializada** — ASan pega fora-dos-limites e use-after-free, UBSan pega UB aritmético.
-Quem pega é o MemorySanitizer, que é só do clang e exige recompilar a libc. Na prática, o
-aviso do compilador é a única defesa viável.
+O acordo do `CLAUDE.md` §7 é cinco flags novas: `-Wmissing-prototypes`, `-Wconversion`,
+`-Wshadow`, `-Wwrite-strings`, `-Wcast-qual`. **Só a primeira foi ligada.** Vale religar as
+outras quatro — `-Wconversion` em particular já pegou dois bugs reais neste projeto antes
+(documentado no `next_steps.md` §3), e o Bug #2 desta revisão (índices de `Color` invertidos
+alimentando aritmética de ponteiro/array) é exatamente o tipo de coisa que conversões
+implícitas de sinal deixam passar batido.
 
 ---
 
-## 6. Decisões em aberto
+## 6. Decisões em aberto (com observações)
 
 | Decisão | Situação |
 |---|---|
-| ~~**Campos que faltam na `Board`**~~ | **Fechada em 2026-09-07.** Os quatro campos existem, `parse_fen` os preenche e `board_to_fen` os emite. `Undo` já está definida com o mesmo conteúdo |
-| **Lance em 16 vs 32 bits** | Hoje 32. O padrão é 16 (6+6+4). Corta a `MoveList` pela metade. Momento barato de decidir: só `encode_move` e `decode_move` tocam o formato |
-| **Sistema de build** | Makefile vs. CMake. O documento de arquitetura pede CMake por causa da integração com a equipe do cliente |
-| ~~**Onde vive `side_to_move` na geração**~~ | **Fechada em 2026-09-10.** Laço externo, uma checagem só, com `is_own()` — que já está escrito em `movegen.c:22` e nunca é usado. Usar o helper torna a armadilha `COLOR_OF(EMPTY) == BLACK` inalcançável em vez de lembrada |
-| ~~**Onde vive o `Undo`**~~ | **Fechada em 2026-09-10.** É do chamador; não há pilha global. Ver §3 |
-| **Zobrist antes ou depois do perft** | Como depurador de `make/unmake` ele é imbatível (`assert(hash == recalculado)` dispara no lance exato). Mas adiciona uma coisa nova na etapa mais delicada. Decisão de sequenciamento, não de arquitetura |
+**Sistema de Build**: Somente Makefile por enquanto, migrar para Cmake depois.<br>
+**`Move` sem score**: Será implementado quando começar na IA.<br>
 
 ---
 
 ## 7. Próximos passos, em ordem
 
-Os primeiros itens são pré-requisitos reais dos seguintes.
+A ordem original do `next_steps.md` (Etapas A-E) continua correta em espírito, mas os itens
+abaixo são **pré-requisitos que apareceram nesta revisão** e vêm antes de continuar qualquer
+feature nova — não porque sejam mais importantes que cavalo/rei/roque, mas porque sem eles
+nem o que já existe está confiável para construir em cima:
 
-1. **Fechar os bugs de `main.c`** — o `find_move` com `flags` no lugar de `&out`, e usar o
-   lance devolvido no `make_move`.
-2. **Completar a `Board` e o ciclo da FEN** — os quatro campos, `parse_fen` lendo os campos
-   3 a 6, `board_to_fen` emitindo os seis. Enquanto o serializador só emite a posição, o
-   round-trip não prova nada sobre roque e en passant.
-3. **Fixar a assinatura de `generate_moves`** antes de gerar mais lances:
-   `int generate_moves(const Board *board, MoveList *out)`. `const` porque geração não
-   modifica nada; retorno é a contagem.
-4. **Peças deslizantes** — uma função só, parametrizada por intervalo de direção (torre 0–3,
-   bispo 4–7, rainha 0–7). Laço interno de três saídas: vazia → adiciona e continua;
-   inimiga → adiciona e para; amiga → para.
-5. **Cavalo e rei por tabela** pré-computada de destinos. Peão por último, é o que tem mais
-   casos (dupla, duas capturas, en passant, promoção em quatro peças).
-6. **`is_square_attacked` → `make_move`/`unmake_move` completos → filtro de legalidade.**
-   Adicionar um `assert` de debug que recalcula `king_square` do zero e compara com o cache
-   — campo denormalizado que dessincroniza é dos bugs mais chatos de rastrear.
-7. **Perft, e perft divide.** Comparar com os valores publicados (inicial, Kiwipete).
-   `perft divide` é a técnica de depuração: mostra a contagem por lance de raiz, você compara
-   com o Stockfish (`go perft N`), acha o que diverge, entra nele e repete — busca binária
-   dentro da árvore. **Nada de busca ou avaliação antes do perft bater.**
-8. **Protocolo stdin/stdout.** Conjunto mínimo: `uci`, `isready`, `quit`, `position`,
-   `legalmoves`, `go movetime`. Só depois disso, a IA.
+1. **Consertar a lógica de `main.c` (Bugs #8, #9)** — usar o índice/lance devolvido por
+   `movelist_find` em vez de tratá-lo como booleano, e efetivamente aplicar o lance
+   encontrado, não uma variável não inicializada.
+2. **Implementar `board_check_invariants` (Bug #11)** — a assinatura já existe e já prevê
+   devolver qual condição quebrou; falta o corpo. `castling_matches_board` (hoje `static` em
+   `fen.c`) já faz a parte de roque; expor o suficiente dela é a maior parte do trabalho.
 
-### Armadilha do protocolo, para quando chegar lá
+3.  Só depois disso, retomar o roteiro do `next_steps.md`: `make_move`/`unmake_move`
+    completos (Etapa B, com o corpo real desta vez), cavalo e rei (Etapa C), roque/en
+    passant/promoção múltipla no gerador (Etapa D), e o subcomando `test`/`perft` que a
+    decisão de 10/09 já previa e que continua sendo a lacuna mais cara: **nenhum destes
+    bugs precisaria ter sido achado por sessão manual se o corpus de ~30 FEN e o round-trip
+    make/unmake já existissem como portão de build.**
 
-Quando a stdout é um terminal, a libc usa buffer de linha e cada `printf` sai na hora.
-Quando é um **pipe** — exatamente o caso do cliente C++ rodando o motor como subprocesso —
-ela muda para buffer de bloco de 4 KB. O `bestmove` fica preso, o cliente espera para
-sempre, e não há sintoma para depurar. Duas linhas no começo do `main` resolvem:
+### Uma recomendação de processo, não de código
 
-```c
-setvbuf(stdout, NULL, _IOLBF, 0);
-setvbuf(stdin,  NULL, _IONBF, 0);
-```
-
-Junto: cuidado com `\r\n` se a equipe do cliente estiver no Windows.
+A partir desse momento, é válido considerar testes básicos dos módulos: teste fen round-trip; teste make/unmake move;
+teste de invariantes do tabuleiro.
 
 ---
 
 ## 8. Referências ativas
 
-- **Chess Programming Wiki** — verbetes centrais para o que vem a seguir:
-  [Encoding Moves](https://www.chessprogramming.org/Encoding_Moves),
+Sem mudança em relação à revisão anterior — continuam as certas para a próxima etapa:
+
+- **Chess Programming Wiki**: [Encoding Moves](https://www.chessprogramming.org/Encoding_Moves)
+  (o esquema que `move.h` já implementa — vale reler à luz do Bug #1),
   [Move List](https://www.chessprogramming.org/Move_List),
   [Pawn Push](https://www.chessprogramming.org/Pawn_Push),
   [Make Move](https://www.chessprogramming.org/Make_Move),
   [Square Attacked By](https://www.chessprogramming.org/Square_Attacked_By),
   [Perft](https://www.chessprogramming.org/Perft) e
   [Perft Results](https://www.chessprogramming.org/Perft_Results).
-- **Especificação UCI** (Stefan Meyer-Kahlen) — ~6 páginas de texto puro, vale ler inteira.
-- **TSCP** (Tom Kerrigan's Simple Chess Program) — engine mailbox completa em ~2000 linhas
-  de C legível. Já está no repositório, em `tscp183b/`.
-- `man gcc`, seção *Options to Request or Suppress Warnings* — em especial a nota sob
-  `-Wmaybe-uninitialized` sobre a dependência do nível de otimização.
+- **Especificação UCI** (Stefan Meyer-Kahlen).
+- **TSCP** — para comparar o desenho de `make_move`/`unmake_move` quando a Etapa B for retomada.
+- `man gcc`, seção *Options to Request or Suppress Warnings*.
+
+**Pendência de documentação, fora do escopo desta revisão:** o cabeçalho de `docs/fen.md`
+ainda diz "Documento de referência do módulo `src/board.c`" — o módulo se chama `fen.c`
+desde o split de 12/09. Correção de uma linha, sinalizada aqui para quem for mexer no
+arquivo por outro motivo.
 
 ---
 
-# Apêndice — Headers
+## Apêndice — referência rápida dos módulos
 
-A interface completa do projeto. Cinco headers, ~120 linhas de declaração descrevendo
-~750 linhas de código.
-
-## `src/types.h`
-
-```c
-#ifndef TYPES_H
-#define TYPES_H
-
-#include <ctype.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
-
-typedef int16_t i16;
-
-#define INPUT_STR_SIZE 128
-#define BOARD_SIZE 64
-#define BOARD_WIDTH 8
-#define GEN_MOVES_MAX 256
-
-#define START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-
-#define MemoryZero(addr, size) memset((addr), 0x0, (size))
-#define MemoryZeroStruct(addr, st) MemoryZero((addr), sizeof(st))
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-
-#define SQ_NONE (-1)
-#define RANK_OF(sq) ((sq) / BOARD_WIDTH)
-#define FILE_OF(sq) ((sq) % BOARD_WIDTH)
-#define FILE_DIST(dest, orig) (abs(FILE_OF(dest) - FILE_OF(orig)))
-#define SQ_FROM_RF(rank, file) ((rank) * BOARD_WIDTH + (file))
-#define SQ_OFFBOARD(sq) (((sq < 0) || (sq >= 64)) ? 1 : 0)
-
-#define MOVE_MASK 0xFFUL
-#define MAX_FEN_STRING 256
-
-typedef enum {
-    WHITE = 1,
-    BLACK = 0
-} Color;
-
-typedef enum {
-    EMPTY = 0,
-    PAWN = 1,
-    KNIGHT = 2,
-    BISHOP = 3,
-    ROOK = 4,
-    QUEEN = 5,
-    KING = 6
-} PieceType;
-
-typedef uint8_t Piece;
-
-#define PIECE_TYPE_MASK 0x7
-#define COLOR_MASK 0x1
-#define MAKE_PIECE(color, type) \
-    ((Piece)((((color) & COLOR_MASK) << 3) | ((type) & PIECE_TYPE_MASK)))
-#define TYPE_OF(piece) ((PieceType)((piece) & PIECE_TYPE_MASK))
-#define COLOR_OF(piece) ((Color)(((piece) >> 3) & COLOR_MASK))
-
-typedef struct {
-    Piece array[BOARD_SIZE];
-    Color side_to_move;
-    int king_square[2];
-} Board;
-
-typedef enum {
-    DIR_N,
-    DIR_S,
-    DIR_E,
-    DIR_W,
-    DIR_NE,
-    DIR_SW,
-    DIR_SE,
-    DIR_NW,
-    DIR_COUNT
-} Direction;
-
-typedef struct {
-    u8 origin_sq;
-    u8 target_sq;
-    u8 promotion;
-    u8 flags;
-} MoveDescription;
-
-typedef struct {
-    u32 move;
-    int score;
-} Move;
-
-typedef struct {
-    Move moves[GEN_MOVES_MAX];
-    int count;
-} MoveList;
-
-#endif
-```
-
-## `src/log.h`
+A revisão anterior reproduzia o texto integral de cada header. Com 10 módulos em vez de 5,
+reproduzir tudo aqui só duplicaria o repositório e ficaria desatualizado mais rápido do que
+seria mantido — o próprio documento antigo já reclamava disso ("precisa ser atualizado
+manualmente quando as interfaces mudarem"). Em vez disso, a tabela do §4 traz papel e linhas
+de cada um; para a assinatura exata de uma função, `grep` no header correspondente é mais
+confiável do que qualquer cópia aqui. As assinaturas centrais, para orientação rápida:
 
 ```c
-#ifndef LOG_H
-#define LOG_H
+/* fen.h */
+bool fen_parse(const char *fen_string, Board *out);
+void fen_write(const Board *board, char fen_out[MAX_FEN_STRING]);
 
-#include <stdio.h>
-#include <stdlib.h>
+/* board.h */
+int  board_find_king(const Board *b, Color c);              /* declarada, sem corpo */
+bool board_check_invariants(const Board *b, const char **fail_msgs); /* declarada, sem corpo */
 
-void log_msg(const char *msg, const char *file, int line, const char *func);
+/* move.h */
+Move encode_move(int from, int to, MoveType type);
+int move_from(Move m); int move_to(Move m); MoveType move_type(Move m);
 
-// #define LOG_ERROR(msg) log_msg((msg), __FILE__, __LINE__, __func__)
+/* makemove.h */
+void make_move  (Board *b, Move m, Undo *u);
+void unmake_move(Board *b, Move move, const Undo *u);
 
-#ifdef DEBUG
-    #define LOG_ERROR(msg) log_msg((msg), __FILE__, __LINE__, __func__)
-#else
-    #define LOG_ERROR(msg) ((void)0)
-#endif
-
-#endif
+/* movegen.h */
+void generate_pawn_moves(const Board *board, MoveList *list, Color side);
+void generate_sliding_moves(const Board *board, MoveList *list);
 ```
 
-> `__FILE__`, `__LINE__` e `__func__` são capturados **na macro**, não dentro de `log_msg`.
-> Se ficassem na função, ela reportaria a si mesma em toda chamada. Isso já foi bug aqui.
-
-## `src/board.h`
-
-```c
-#ifndef BOARD_H
-#define BOARD_H
-
-#include "types.h"
-#include "log.h"
-
-bool parse_fen(const char *fen_string, Board *out);
-void board_to_fen(Board *board, char fen_out[MAX_FEN_STRING]);
-
-int sq_from_coord(const char *coord);
-void coord_from_sq(int sq, char out[3]);
-
-extern const char PIECE_CHAR[17];
-
-#endif
-```
-
-> `PIECE_CHAR` é `".pnbrqk..PNBRQK."` — indexado **diretamente pelo valor codificado da peça**.
-> Peão branco = 9 → `'P'`; peão preto = 1 → `'p'`. Sem `if` nenhum.
-
-## `src/movegen.h`
-
-```c
-#ifndef MOVEGEN_H
-#define MOVEGEN_H
-
-#include "board.h"
-#include "types.h"
-#include "utils.h"
-
-void precompute_move_data();
-void add_move(u32 move, MoveList *list);
-void generate_pawn_moves(Board *board, MoveList *list);
-void print_moves(MoveList *list);
-void print_square_directions(char sq_str[3]);
-bool find_move(Board *board, int origin_sq, int target_sq, int promo, u32 *out);
-u32 encode_move(int origin_sq, int target_sq, int promo, int flags);
-MoveDescription decode_move(u32 move);
-u32 str_to_move(char move_in[5]);
-void make_move(Board *b, u32 move);
-
-#endif
-```
-
-> `precompute_move_data()` deveria ser `(void)` — em C, `()` declara "argumentos não
-> especificados", não "nenhum argumento". `-Wstrict-prototypes` avisa.
-
-## `src/utils.h`
-
-```c
-#ifndef UTILS_H
-#define UTILS_H
-
-#include "types.h"
-#include "log.h"
-#include "board.h"
-
-void print_piece_chart();
-void print_board(const Board *board);
-void get_fen(char fen[MAX_FEN_STRING]);
-int get_int(char msg[INPUT_STR_SIZE]);
-void strslc(const char *src, char *dest, int start, int end);
-
-static void clear_screen() {
-    printf("\e[1;1H\e[2J");
-    fflush(stdout);
-}
-
-#endif
-```
-
-> `clear_screen` é uma função `static` **definida dentro de um header** — cada unidade de
-> tradução ganha a própria cópia, e todas avisam "definida mas não usada". Deveria ser
-> `static inline`, ou ir para o `.c`. O `\e` também não é padrão C (é extensão GNU);
-> a forma portável é `\x1b`.
-
----
-
-*Este documento é escrito à mão — o apêndice de headers precisa ser atualizado manualmente
-quando as interfaces mudarem.*
+*Este documento é escrito à mão. A próxima revisão deveria ser disparada por um evento
+concreto — Etapa A do `next_steps.md` fechada, ou os bugs críticos do §5 corrigidos — não
+por passagem de tempo.*

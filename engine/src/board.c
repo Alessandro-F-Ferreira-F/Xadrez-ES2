@@ -2,7 +2,7 @@
 #include "piece.h"
 #include "square.h"
 
-
+#include "fen.h"
 
 
 int  board_find_king(const Board *b, Color c);

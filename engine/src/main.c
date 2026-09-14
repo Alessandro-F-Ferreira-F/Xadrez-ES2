@@ -18,7 +18,7 @@ void ui(Board *b) {
     char ch = 'y';
     int opt;
     char move_str[6];
-    u32 move;
+    Move move;
     char fen_out[MAX_FEN_STRING];
     /* Precisa comecar zerada: add_move() usa list->count como indice de
        escrita, entao um count com lixo grava fora do vetor logo na primeira

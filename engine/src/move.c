@@ -12,7 +12,7 @@
 #define MOVE_TYPE_MASK 0xFu
 
 Move encode_move(int from, int to, MoveType type) {
-    Move encoded = ((from) | (to << MOVE_TO_SHIFT) | (MOVE_TYPE_SHIFT));
+    Move encoded = (Move)((from) | (to << MOVE_TO_SHIFT) | (type << MOVE_TYPE_SHIFT));
     return encoded;
 }
 
@@ -64,7 +64,7 @@ Move move_from_str(const char *in) {
     char to_str[3];
     char promoted;
 
-    assert(strlen(in) == (size_t)6);
+    assert((strlen(in) <= 6) && (strlen(in) > 4));
 
     strslc(in, from_str, 0, 2);
     strslc(in, to_str, 2, 4);

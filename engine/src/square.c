@@ -7,7 +7,7 @@
 
 static const char DIR_CHARMAP[8][16] = {"NORTE", "SUL", "LESTE", "OESTE", "NORDESTE", "SUDOESTE", "SUDESTE", "NOROESTE"};
 const int DIR_OFFSET[NUM_DIRS] = {+8, -8, +1, -1, +9, -9, -7, +7};
-const int PAWN_PUSH[NUM_COLORS] = {+8, -8};
+const int PAWN_PUSH[NUM_COLORS] = {-8, +8};
 
 
 

@@ -1,5 +1,5 @@
-#ifndef UNDO_H
-#define UNDO_H
+#ifndef MAKEMOVE_H
+#define MAKEMOVE_H
 
 #include "types.h"
 #include "piece.h"
@@ -16,4 +16,4 @@ typedef struct {
 void make_move(Board *b, Move m, Undo *u);
 void unmake_move(Board *b, Move move, const Undo *u);
 
-#endif /* UNDO_H */
+#endif /* MAKEMOVE_H */

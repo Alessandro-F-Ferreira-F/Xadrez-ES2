@@ -1,7 +1,8 @@
 -- testeEmpateRegra(estado) é a função que testa se o estado atual to tabuleiro resulta em um empate
 -- gerarLancesLegais(estado) é a função que gera todos os lances válidos, dado um estado
 -- emXeque(estado) é a função que testa se o rei do lado da vez está em xeque, dado um estado
--- profMax é a variável global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado
+-- profMax é a variável global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado (deve ser maior que 0)
+-- listaCandidatos é a lista de lances possíveis para serem escolhidos, com base nos critérios do minimax
 
 função minimax(estado, profundidade):
     se testeEmpateRegra(estado) então
@@ -17,6 +18,7 @@ função minimax(estado, profundidade):
             se estado.side_to_move == WHITE faça
                 melhor = -3
                 para todo lance em listaGerada faça
+                    undo = novo registro
                     make_move(estado, lance, undo)
                     atual = minimax(estado, profundidade + 1)
                     unmake_move(estado, lance, undo)
@@ -31,7 +33,8 @@ função minimax(estado, profundidade):
                 retornar melhor
             senão:
                 melhor = 3
-                para lance em listaGerada faça
+                para todo lance em listaGerada faça
+                    undo = novo registro
                     make_move(estado, lance, undo)
                     atual = minimax(estado, profundidade + 1)
                     unmake_move(estado, lance, undo)

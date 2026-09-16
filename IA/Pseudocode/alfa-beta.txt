@@ -1,21 +1,10 @@
--- testeEmpateRegra(estado) é a função que testa se o estado atual no tabuleiro resulta em um empate  pelas regras, de 50 lances, tripla repetição e material insuficiente
+-- alfa e beta são, respectivamente, piso do maximizador e teto do minimizador.
 
--- gerarLancesLegais(estado) é a função que gera todos os lances válidos, dado um estado
+-- Todo o bloco inical de comentários de minimax.txt é válido aqui, além dos valores MATE e INFINITO
 
--- emXeque(estado) é a função que testa se o rei do lado da vez está em xeque, dado um estado
+-- Na raiz (profundidade == 0), alfa e beta não são atualizados: os filhos da raiz recebem a janela completa e devolvem valores exatos, não limites. Isso é necessário porque listaCandidatos compara valores por igualdade; com a janela apertada, um filho pode devolver um limite igual a melhor e entrar como empate sem ser. Pressupõe chamada inicial com alfa = -INFINITO e beta = +INFINITO. Se a raiz passar a receber janela estreita (ex.: aspiration windows no aprofundamento iterativo), o corte pode ocorrer na raiz e esta garantia deixa de valer.
 
--- profMax é a variável global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado (profMax deve ser maior que 0)
-
--- listaCandidatos variável global que guarda a lista de lances possíveis para serem escolhidos, todos empatados no melhor valor, com base nos critérios do minimax. Preenchida apenas na raiz da árvore de busca
-
--- Valores utilizados como limite para os estados intermediários (ou seja, que não são fim de partida) no retorno de avaliar explicitados em avaliar.txt
-
--- O valor retornado em um xeque-mate passa a ser (MATE - profundidade), com sinal, sendo negativo se as brancas perdem, positivo se as pretas perdem e a inicialização será feita em + ou - INFINITO. Empate foi convencionado como 0
-
-MATE = 49999
-INFINITO = 50000
-
-função minimax(estado, profundidade):
+função podaAlfaBeta(estado, profundidade, alfa, beta):
     se testeEmpateRegra(estado) então
         retorna 0
     senão se profMax <= profundidade então
@@ -34,30 +23,40 @@ função minimax(estado, profundidade):
                 para todo lance em listaGerada faça
                     undo = novo registro
                     make_move(estado, lance, undo)
-                    atual = minimax(estado, profundidade + 1)
+                    atual = podaAlfaBeta(estado, profundidade + 1, alfa, beta)
                     unmake_move(estado, lance, undo)
 
                     se atual > melhor então 
                         melhor = atual
+                        se melhor > alfa e profundidade > 0 então
+                            alfa = melhor
                         se profundidade == 0 então
                             listaCandidatos.limpar()
                             listaCandidatos.adiciona(lance)
                     senão se atual == melhor e profundidade == 0 então:
                         listaCandidatos.adiciona(lance)
+                    
+                    se alfa >= beta então:
+                        interromper
                 retornar melhor
             senão:
                 melhor = INFINITO
                 para todo lance em listaGerada faça
                     undo = novo registro
                     make_move(estado, lance, undo)
-                    atual = minimax(estado, profundidade + 1)
+                    atual = podaAlfaBeta(estado, profundidade + 1, alfa, beta)
                     unmake_move(estado, lance, undo)
 
                     se atual < melhor então
                         melhor = atual
+                        se melhor < beta e profundidade > 0 então
+                            beta = melhor
                         se profundidade == 0 então
                             listaCandidatos.limpar()
                             listaCandidatos.adiciona(lance)
                     senão se atual == melhor e profundidade == 0 então:
                         listaCandidatos.adiciona(lance)
+                    
+                    se alfa >= beta então:
+                        interromper
                 retornar melhor

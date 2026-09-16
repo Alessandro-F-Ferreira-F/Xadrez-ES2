@@ -17,7 +17,7 @@
 void ui(Board *b) {
     char ch = 'y';
     int opt;
-    char move_str[6];
+    char move_str[INPUT_STR_SIZE];
     Move move;
     char fen_out[MAX_FEN_STRING];
     MoveList l = {0};
@@ -54,22 +54,22 @@ void ui(Board *b) {
                 ch = 'n';
                 break;
             }
+            move_str[strcspn(move_str, "\r\n")] = '\0';
+            generate_all_moves(b, &l);
             int move_i = movelist_find(&l, move_str);
-            
+
             if (move_i == -1) {
                 LOG_ERROR("invalid move");
                 break;
             } else {
-                move = move_from_str(move_str);
+                move = l.moves[move_i];
                 make_move(b, move, &u);
                 clear_screen();
                 board_print(b);
             }
             break;
         case 3:
-            generate_pawn_moves(b, &l, WHITE);
-            generate_pawn_moves(b, &l, BLACK);
-            generate_sliding_moves(b, &l);
+            generate_all_moves(b, &l);
             print_moves(&l);
             MemoryZeroStruct(&l, MoveList); //reset
             fgetc(stdin);

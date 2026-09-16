@@ -29,7 +29,7 @@ typedef struct {
 } Board;
 
 int  board_find_king(const Board *b, Color c);
-bool board_check_invariants(const Board *b, const char **fail_msgs);
+bool board_check_invariants(const Board *b);
 
 void board_clear(Board *b);
 void board_print(const Board *board);

@@ -3,40 +3,49 @@
 #include "square.h"
 #include "board.h"
 
-#include "assert.h"
+#include <assert.h>
 
-static void update_castling_rights(Board *b, Move m) {
-    int from = move_from(m);
-
-    switch (from)
+static void check_rook_squares(int sq, u8 *castling_rights) {
+    switch (sq)
     {
     case SQ_A1:
-        b->castling_rights &= ~(CASTLE_WQ);
+        *castling_rights &= ~(CASTLE_WQ);
         break;
     case SQ_E1:
-        b->castling_rights &= ~(CASTLE_WHITE);
+        *castling_rights &= ~(CASTLE_WHITE);
         break;
     case SQ_H1:
-        b->castling_rights &= ~(CASTLE_WK);
+        *castling_rights &= ~(CASTLE_WK);
         break;
     case SQ_A8:
-        b->castling_rights &= ~(CASTLE_BQ);
+        *castling_rights &= ~(CASTLE_BQ);
         break;
     case SQ_E8:
-        b->castling_rights &= ~(CASTLE_BLACK);
+        *castling_rights &= ~(CASTLE_BLACK);
         break;
     case SQ_H8:
-        b->castling_rights &= ~(CASTLE_BQ);
+        *castling_rights &= ~(CASTLE_BK);
         break;
     default:
         break;
     }
 }
 
+static void update_castling_rights(Board *b, Move m) {
+    int from = move_from(m);
+    int to = move_to(m);
+
+    check_rook_squares(from, &b->castling_rights);
+    check_rook_squares(to, &b->castling_rights);
+}
+
 void make_move(Board *b, Move m, Undo *u) {
     int from = move_from(m);
     int to = move_to(m);
-    Color ms = b->side_to_move; // lado que se moveu (move side)
+
+    assert(!SQ_OFFBOARD(from) && !SQ_OFFBOARD(to) && from != to && "move invalid");
+
+    Color side = b->side_to_move; // lado que se moveu (move side)
 
 
     Piece p = b->array[from];
@@ -56,12 +65,13 @@ void make_move(Board *b, Move m, Undo *u) {
     // atualiza ep_square
     b->ep_square = SQ_NONE;
     if (move_type(m) == MV_DOUBLE_PUSH) {
-        b->ep_square = move_from(m) + PAWN_PUSH[ms];
+        b->ep_square = move_from(m) + PAWN_PUSH[side];
     } 
 
     // atualiza king_square
     b->king_square[WHITE] = board_find_king(b, WHITE);
     b->king_square[BLACK] = board_find_king(b, BLACK);
+
 
     // atualiza direitos de roque
     update_castling_rights(b, m);
@@ -95,8 +105,25 @@ void make_move(Board *b, Move m, Undo *u) {
 
     // capture en passant
     if (move_is_ep_capture(m)) {
-        int ep_capture = to - PAWN_PUSH[ms];
+        int ep_capture = to - PAWN_PUSH[side];
         b->array[ep_capture] = NO_PIECE;
+    }
+
+    // promoção
+    if (move_is_promotion(m)) {
+        PieceType promo_type = move_promo_type(m);
+        Piece promoted = PIECE_MAKE(side, promo_type);
+
+        b->array[to] = promoted;
+    }
+
+    if ((PIECE_TYPE(p) == PAWN) || (captured != NO_PIECE)) {
+        b->halfmove_clock = 0;
+    } else {
+        b->halfmove_clock++;
+    }
+    if (side == BLACK) {
+        b->fullmove_number++;
     }
 }
 

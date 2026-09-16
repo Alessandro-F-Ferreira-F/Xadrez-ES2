@@ -1,12 +1,38 @@
 #include "utils.h"
+// #include <stdlib.h>
+
+
+#define FAIL_MSGS_MAX 128
+
+struct FailLog {
+    char *msgs[FAIL_MSGS_MAX];
+    int count;
+};
+
+static struct FailLog msg_log = {.count = 0};
+
+void fail_msg(char *msg) {
+    if (msg_log.count >= 128) {
+        LOG_ERROR("too many fail messages");
+        return;
+    }
+    msg_log.msgs[msg_log.count++] = msg;
+}
+
+void print_fail_log(void) {
+    printf("[ == FAIL LOG == ]\n");
+    for (int i = 0; i < msg_log.count; i++) {
+        printf("Fail [%d]: %s\n", i, msg_log.msgs[i]);
+    }
+    printf("\n");
+}
+
+const char *COLOR_CHAR[2] = {"BLACK", "WHITE"};
 
 /* 
 strslc() realiza a operação de fatiar uma string:
     começando no índice src[start] até src[end]
 */
-
-const char *COLOR_CHAR[2] = {"BLACK", "WHITE"};
-
 void strslc(const char *src, char *dest, int start, int end) {
     int length = end - start;
     strncpy(dest, src + start, length);

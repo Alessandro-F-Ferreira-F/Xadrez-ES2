@@ -3,8 +3,9 @@
 > Plano de execução em fases incrementais, com critérios de saída verificáveis.
 >
 > Escrito em **5 de setembro de 2026**, commit `0c4a88a`. Revisado em **14 de setembro de
-> 2026** para registrar o que de fato aconteceu desde então — commit `53175ce`, depois da
-> refatoração de módulos (`8f8a52d`) e da rodada de correção de bugs (`04fdba4`).
+> 2026** e de novo em **16 de setembro de 2026** para registrar o que de fato aconteceu —
+> commit `f79d50a` mais a árvore de trabalho, depois da refatoração de módulos (`8f8a52d`),
+> da rodada de correção de bugs (`04fdba4`) e da sessão que completou `make_move`.
 > Leia antes: `onboarding-motor.md` (contexto, sem exigir C).
 > Detalhe técnico completo, e a fonte de verdade sobre o estado atual: `project_context.md`.
 
@@ -16,6 +17,15 @@
 > foi na direção oposta à recomendação daqui, e é a decisão certa). Números de linha e nomes
 > de função foram atualizados para bater com os módulos atuais (o split de `board.c` foi mais
 > fundo do que a §3.3 original previa — ver `project_context.md` §3).
+>
+> **Mudança de plano registrada em 16/09:** o teste de round-trip de FEN sobre o corpus saiu
+> do critério de saída da **Fase 1** e passou para a **Fase 4**, junto com o round-trip de
+> make/unmake. Motivo: o módulo `fen` é o mais maduro do projeto — seis campos, validação
+> completa, round-trip verificado em todas as posições em que foi exercitado — e gastar uma
+> sessão testando-o isoladamente agora não compra informação nova. Testado dentro da Fase 4
+> ele compra as duas coisas de uma vez: é o **oráculo** do teste de make/unmake, então cada
+> uma das ~1000 comparações de FEN daquele teste é também um round-trip de FEN. O corpus
+> continua sendo entregável — mudou a fase em que ele nasce, não a decisão de que ele existe.
 
 ---
 
@@ -37,24 +47,26 @@ irreconhecível.
 
 ## 0. Resumo executivo
 
-| Fase | Nome | Esforço | Portão | Destrava | Status em 14/09 |
+| Fase | Nome | Esforço | Portão | Destrava | Status em 16/09 |
 |---|---|---|---|---|---|
-| 0 | Fundação de qualidade | 1 sessão | 🚧 | Tudo. Item de maior retorno do roadmap | 🔶 parcial |
-| 1 | Vocabulário completo | 1–2 sessões | 🚧 | Roque, en passant, `Undo` | 🔶 parcial |
-| 2 | Geometria pré-computada | 1 sessão | | Cavalo e rei | ⬜ não iniciada |
-| 3 | Geração pseudo-legal | 2–3 sessões | | Perft(1) | 🔶 parcial (peão + deslizante; sem cavalo/rei/roque/EP) |
-| 4 | Aplicar/desfazer lance | 2–3 sessões | 🚧 | Legalidade e busca | ⬜ esqueleto só (§4 desta revisão) |
+| 0 | Fundação de qualidade | 1 sessão | 🚧 | Tudo. Item de maior retorno do roadmap | 🔶 parcial — **8 avisos faltando fechar** |
+| 1 | Vocabulário completo | 1–2 sessões | 🚧 | Roque, en passant, `Undo` | ✅ **fechada em 16/09** (critério revisado) |
+| 2 | Geometria pré-computada | 1 sessão | | Cavalo e rei | 🔶 parcial — rei resolvido sem tabela; cavalo não |
+| 3 | Geração pseudo-legal | 2–3 sessões | | Perft(1) | 🔶 parcial — só falta o cavalo |
+| 4 | Aplicar/desfazer lance | 2–3 sessões | 🚧 | Legalidade e busca | 🔶 **metade**: `make_move` completo e verificado, `unmake_move` sem corpo |
 | 5 | Filtro de legalidade | 1–2 sessões | 🚧 | Xeque, mate, afogamento, perft | ⬜ não iniciada |
 | 6a | Protocolo + IA aleatória | 1 sessão | | **A equipe do cliente** | ⬜ não iniciada — só o menu interativo `ui()` existe |
 | 6b | Perft | 2–4 sessões | 🚧 | Autorização para escrever IA | ⬜ não iniciada |
 | 7 | IA incremental (v1→v5) | 3–5 sessões | | Força de jogo | ⬜ não iniciada |
 | 8 | Robustez e empacotamento | 2 sessões | | Entrega | ⬜ não iniciada |
 
-**Total estimado:** 14–22 sessões de trabalho. Passaram-se aproximadamente 5-6 sessões desde
-a escrita original (5/09 → 14/09, incluindo a sessão de refatoração de módulos e a de
-correção de bugs), e o projeto ainda está dentro da Fase 0/1 — **nenhuma fase tem seu
-critério de saída 🚧 cumprido ainda**, nem mesmo a Fase 0. Ver `project_context.md` §2 e §5
-para o detalhe de cada item pendente; o resumo por fase está nas seções abaixo.
+**Total estimado:** 14–22 sessões de trabalho. Passaram-se aproximadamente 6-7 sessões desde
+a escrita original (5/09 → 16/09). **A Fase 1 é a primeira a fechar seu critério de saída
+🚧**, com o critério revisado desta data. A Fase 0 continua aberta por oito avisos de
+compilação — é meia sessão de trabalho, e três dos oito são bugs reais. A Fase 4 está pela
+metade, e é a metade difícil que já foi: `make_move` trata roque, en passant, promoção,
+relógios e direitos de roque **corretamente**, verificado com evidência; falta o espelho.
+Ver `project_context.md` §2 e §5 para o detalhe de cada item; o resumo por fase está abaixo.
 
 A variabilidade concentra-se na Fase 6b, que não é uma fase de escrever código — é
 a fase de *encontrar bugs escritos nas fases 3, 4 e 5*. Quanto melhor o trabalho
@@ -90,13 +102,17 @@ resposta e justificativa.
 
 ### 2.1 Campos faltantes na `Board` → **fechar agora, junto com o `Undo`** — ✅ feito
 
-**Status em 14/09:** implementado exatamente como proposto. `Board` (`board.h`) tem os
-quatro campos, e `Undo` (`makemove.h`) tem a mesma forma — `Piece captured`, `u8
-castling_rights`, `int ep_square`, `int halfmove_clock`, sem `Move` nem `fullmove_number`.
-O que **não** está feito é o corpo de `make_move`/`unmake_move` que efetivamente usa esses
-campos: hoje `make_move` só move a peça e inverte o lado, sem tocar em `*u` — a estrutura de
-dados está pronta, o comportamento da Fase 4 é que ainda não chegou. Ver `project_context.md`
-§3 ("Apply/undo com pilha... Undo é do chamador").
+**Status em 16/09:** implementado exatamente como proposto, e **agora efetivamente usado**.
+`Board` (`board.h`) tem os quatro campos, e `Undo` (`makemove.h`) tem a mesma forma — `Piece
+captured`, `u8 castling_rights`, `int ep_square`, `int halfmove_clock`, sem `Move` nem
+`fullmove_number`. `make_move` preenche `*u` **antes** de tocar no tabuleiro, que era o ponto
+crítico da ordem, e restaura/atualiza todos os campos da `Board`. Falta `unmake_move`, que é
+quem lê o `Undo` — ver Fase 4.
+
+Uma assimetria que só aparece na hora de escrever o `unmake` e vale registrar aqui: **no en
+passant `u->captured` fica `EMPTY`**, porque a casa de destino estava vazia. O peão capturado
+tem de ser deduzido do `MoveType` + `side`, não lido do `Undo`. Isso não é defeito do desenho
+— é o motivo pelo qual o lance volta como parâmetro em `unmake_move`.
 
 O `project_context.md` já identificou que são os mesmos campos. A conclusão que
 faltava tirar: isso os torna **uma decisão só**, não duas.
@@ -211,9 +227,9 @@ target_compile_definitions(engine PRIVATE
 `make perft`, `make test` viram wrappers de uma linha em cima do CMake. Nada do
 fluxo atual se perde.
 
-### 2.4 Onde vive `side_to_move` na geração → **laço externo, uma checagem** — 🔶 parcial
+### 2.4 Onde vive `side_to_move` na geração → **laço externo, uma checagem** — ✅ feito
 
-**Status em 14/09:** os dois helpers existem, literalmente com estes nomes, em `piece.h`
+**Status em 16/09:** fechada. Os dois helpers existem, literalmente com estes nomes, em `piece.h`
 (o `COLOR_OF` da época virou `PIECE_COLOR` no split de módulos — mesma macro, nome novo):
 
 ```c
@@ -221,12 +237,14 @@ static inline bool is_own(Piece p, Color c)   { return p != EMPTY && PIECE_COLOR
 static inline bool is_enemy(Piece p, Color c) { return p != EMPTY && PIECE_COLOR(p) != c; }
 ```
 
-**Usados em `generate_sliding_moves`** (`movegen.c`, commit `04fdba4`): `if (!is_own(piece,
-board->side_to_move)) continue;` no laço externo, exatamente como recomendado. **Não usados
-em `generate_pawn_moves`**, que continua recebendo `side` como parâmetro explícito em vez de
-ler `board->side_to_move` — e por isso `main.c` ainda a chama duas vezes, uma por cor. A
-segunda metade desta decisão (aplicar o mesmo padrão ao peão, e tirar o parâmetro) é trabalho
-que falta, não um desacordo de desenho.
+**Usados em `generate_sliding_moves`** (`movegen.c`): `if (!is_own(piece,
+b->side_to_move)) continue;` no laço externo, exatamente como recomendado. E a segunda metade
+fechou em 16/09: **`generate_pawn_moves` perdeu o parâmetro `side`** e lê `b->side_to_move`,
+então `main.c` não a chama mais duas vezes. `generate_king_moves` nasceu já com o padrão
+certo. O que restou é cosmético: o peão ainda testa
+`PIECE_COLOR(piece) != side` em vez de `is_own` (`movegen.c:24`) — funciona porque a linha
+anterior já descartou casas vazias via `PIECE_TYPE(piece) != PAWN`, mas é a armadilha
+sobrevivendo por ordem de linhas em vez de por encapsulamento.
 
 É a opção que o documento já identificou como limpa, e está certa. Mas há uma
 armadilha específica da codificação de peça do projeto que precisa ser blindada:
@@ -251,14 +269,22 @@ armadilha documentada ainda é uma armadilha; uma armadilha encapsulada não é.
 
 ### 3.1 Estender a filosofia do `SQ_TO_EDGE` para as saltadoras — 🔶 parcial
 
-**Status em 14/09:** as tabelas foram criadas com nomes e formato quase idênticos ao
-proposto — `KNIGHT_TARGETS[64][8]`, `KING_TARGETS[64][8]`, `PAWN_ATTACKS[2][64][2]` vivem em
-`square.h/c`. **Mas só `PAWN_ATTACKS` é de fato populada.** `init_square_tables()` (o nome
-real da função, não `precompute_move_data`) chama `init_sq_to_edge()` e
-`init_pawn_attacks()` — não existe ainda um `init_knight_targets`/`init_king_targets`, então
-as duas tabelas ficam alocadas e zeradas. As contagens auxiliares `KNIGHT_COUNT`/
-`KING_COUNT` propostas abaixo também não existem no código atual — só os arrays de destino.
-Isso é a Fase 2 completa, ainda não iniciada.
+**Status em 16/09:** metade fechada, e a outra metade mudou de forma.
+
+O **rei** foi resolvido **sem tabela**, e essa é a decisão certa: `generate_king_moves`
+(`movegen.c:180`) usa `SQ_TO_EDGE[from][dir] == 0` como checagem de borda, com o laço parando
+em 1. Isso é o *mesmo* mecanismo dos deslizantes, não um segundo — que era exatamente a
+preocupação desta seção. `KING_TARGETS[64][8]` continua declarada, alocada e zerada em
+`square.c:16`, **sem nenhum leitor**: é alocação órfã e deve ser apagada, antes que alguém a
+preencha e crie o segundo mecanismo que a decisão evitou de propósito.
+
+O **cavalo** continua sendo o caso real desta seção, e continua não feito.
+`init_square_tables()` (o nome real da função, não `precompute_move_data`) chama
+`init_sq_to_edge()` e `init_pawn_attacks()` — `KNIGHT_TARGETS` fica zerada, e não há
+`generate_knight_moves`. Medido em 16/09: a posição inicial gera **16** lances, não 20, e a
+Kiwipete gera **37**, não 48 — a diferença é exatamente o cavalo. `KNIGHT_COUNT` também não
+existe; `offset_square` (`square.c:23`), que `init_pawn_attacks` já usa, é a função certa
+para construir a tabela sem escrever um segundo mecanismo de borda.
 
 `SQ_TO_EDGE` resolve o wraparound para deslizantes e rei elegantemente — a checagem
 de borda vira o limite do laço, e código de runtime não testa nada. Mas **ela não
@@ -289,11 +315,12 @@ parênteses (`types.h:33`) se resolve por deleção — a melhor forma de resolv
 
 ### 3.2 Duas funções de geração, com `const` diferente — ⬜ não iniciada
 
-**Status em 14/09:** nenhuma das duas existe. O que existe hoje são `generate_pawn_moves`
-e `generate_sliding_moves` (`movegen.h`), chamadas separadamente por quem monta a lista —
-não há um `generate_pseudo_legal` único, nem `generate_legal`. A recomendação de assinatura
-abaixo continua de pé para quando essa unificação acontecer (Fase 3, item "fixar a
-assinatura").
+**Status em 16/09:** meio caminho. `generate_all_moves(Board *b, MoveList *list)`
+(`movegen.c:230`) é a entrada única pedida — limpa a lista e chama os três geradores. Mas ela
+recebe `Board *` **não-const** enquanto `generate_pawn_moves`, `generate_sliding_moves` e
+`generate_king_moves` recebem `const Board *`. O `const` certo é o dos três: esta é a metade
+const do par, e perdê-lo aqui apaga justamente a informação que a seção existe para
+registrar. `generate_legal` não existe (Fase 5).
 
 ```c
 int generate_pseudo_legal(const Board *b, MoveList *out);   /* const: não toca nada */
@@ -350,7 +377,7 @@ Sobre `types.h` arrastando seis headers da libc: corte para `stdbool` e `stdint`
 deixe cada `.c` incluir o que usa. O ganho é o já identificado — o compilador volta
 a avisar quando surge acoplamento novo. É um **mecanismo de detecção**, não estética.
 
-### 3.4 `add_move` deve falhar alto, não silenciar — 🔶 parcial, caminho diferente do proposto
+### 3.4 `add_move` deve falhar alto, não silenciar — 🔶 parcial, caminho diferente do proposto (sem mudança em 16/09)
 
 **Status em 14/09:** o `>` virou `>=` (hoje `movelist_add`, em `move.c`). Mas a resposta ao
 "o que fazer quando a lista enche" não foi o `assert` recomendado abaixo — foi
@@ -390,9 +417,14 @@ void add_move(u32 move, MoveList *list) {
 
 ### 3.5 Hash Zobrist — opcional, com um motivo não-óbvio — ⬜ não iniciada, decisão ainda aberta
 
-**Status em 14/09:** nada mudou aqui — não há hash, não há `make_move` completo para
-pendurá-lo. Continua registrada como decisão em aberto em `project_context.md` §6, com a
-mesma pergunta de sequenciamento (antes ou depois do perft).
+**Status em 16/09:** não há hash — mas **a condição que faltava mudou**: `make_move` está
+completo, então já existe onde pendurar a atualização incremental. A recomendação de
+sequenciamento continua a mesma e agora tem uma resposta mais clara: **não agora.** A Fase 4
+está pela metade, e adicionar Zobrist antes de `unmake_move` existir significa depurar duas
+coisas novas ao mesmo tempo, sem o teste-portão para separá-las. Depois do round-trip verde,
+o `assert(hash_incremental == hash_recalculado)` no fim de make/unmake vira o detector mais
+sensível que existe para esta fase — mas ele só vale se o round-trip já estiver verde,
+porque é ele que diz qual das duas metades está errada.
 
 O uso conhecido é a transposition table e a detecção de repetição tripla. Há um
 terceiro, que importa **antes** desses dois:
@@ -423,14 +455,22 @@ original. É decisão de sequenciamento, não de arquitetura.
 
 **Esforço:** 1 sessão. **Prioridade máxima, sem exceção.**
 
-**Status em 14/09: 🔶 parcial.** Item 2 (tirar `LOG_ERROR` do `#ifdef DEBUG`) está feito —
-`log.h` hoje distingue `LOG_ERROR` (sempre ativo) de `LOG_DEBUG` (condicional). Os outros
-quatro não: não há `CMakeLists.txt` (item 1); o build tem **22 avisos** com o conjunto de
-flags atual, que por sua vez só inclui uma das cinco combinadas no `CLAUDE.md` §7 (item 3);
-vários bugs foram fechados no commit `04fdba4`, mas outros continuam abertos e alguns novos
-apareceram no meio da refatoração — ver `project_context.md` §5 para a lista atual, não a
-antiga (item 4); e não existe `tests/test_main.c` nem nenhum teste automatizado (item 5).
-Este continua sendo o item de maior retorno pendente.
+**Status em 16/09: 🔶 parcial, e agora a meia sessão de distância.**
+
+| Item | Estado |
+|---|---|
+| 1. `CMakeLists.txt` | **Descartado por ora, não pendente.** A equipe decidiu manter só o Makefile até o cliente precisar integrar (`CLAUDE.md` §4). Este item sai da conta da fase |
+| 2. `LOG_ERROR` fora do `#ifdef DEBUG` | ✅ feito — `log.h` distingue `LOG_ERROR` (sempre) de `LOG_DEBUG` (condicional) |
+| 3. Fechar todos os avisos | ❌ **8 avisos** (eram 22 em 14/09). Cinco são `-Wmissing-prototypes`; os outros três são bugs reais. Ver `next_steps.md` §5 |
+| 4. Fechar os bugs conhecidos | 🔶 A lista virou outra: cinco dos seis críticos de `docs/bugs.txt` foram fechados na árvore de trabalho; a lista atual é `project_context.md` §5 |
+| 5. Esqueleto de testes | ❌ `test/test.c` existe e o Makefile tem alvo `test`, mas é um **segundo REPL manual sem assertions**. Um alvo chamado `test` que não testa é pior que nenhum, porque parece cobertura |
+
+Medido em 16/09, contra esta árvore, as quatro flags que faltam: `-Wshadow` **0 avisos**,
+`-Wcast-qual` **0**, `-Wwrite-strings` **+6** (todos o mesmo defeito: `fail_msg(char *)`
+recebendo literal — uma palavra fecha os seis), `-Wconversion` **+8** (todos benignos desta
+vez: `&= ~(CASTLE_*)` em `u8`). Ligar as três primeiras custa uma palavra.
+
+Continua sendo o item de maior retorno pendente, e agora é o mais barato também.
 
 #### O quê
 
@@ -471,8 +511,14 @@ composto.**
 
 #### Critério de saída 🚧
 
-Build limpo com `-Wall -Wextra -Wpedantic -Wstrict-prototypes -Og`, **zero avisos**,
-e o binário roda sob ASan/UBSan sem disparar nada.
+Build limpo com `-Wall -Wextra -Wpedantic -Wstrict-prototypes -Wmissing-prototypes -Og`,
+**zero avisos**, e o binário roda sob ASan/UBSan sem disparar nada.
+
+**Onde isso está em 16/09:** 8 avisos, e a metade ASan/UBSan **já passa** — 98 chamadas de
+`make_move` em 4 posições, zero disparos. Falta só fechar os avisos, e um deles
+(`generate_king_moves` lendo `SQ_TO_EDGE[-1]`, ver Fase 5) é um global-buffer-overflow que o
+ASan pega assim que o caminho é exercitado. O item 5 (esqueleto de teste) migrou para a
+Fase 4, onde agora é o critério de saída — ver a nota do cabeçalho.
 
 ---
 
@@ -480,11 +526,30 @@ e o binário roda sob ASan/UBSan sem disparar nada.
 
 **Esforço:** 1–2 sessões.
 
-**Status em 14/09: 🔶 parcial.** Itens 1 (`Board`/`Undo`), 3 (split de módulos, mais fundo do
-que o previsto) e 5 (`is_own`/`is_enemy`) estão feitos. Item 2 (`fen_parse` seis campos,
-`fen_write` seis campos) também — esse módulo é o mais maduro do projeto, ver `docs/fen.md`.
-Faltam o item 4 (`board_check_invariants` — declarada, sem corpo) e o item 6 (corpus de FEN
-com teste de round-trip automatizado — não existe ainda, só verificação manual).
+**Status em 16/09: ✅ FECHADA**, com o critério revisado nesta data.
+
+| Item | Estado |
+|---|---|
+| 1. `Board` e `Undo` completos | ✅ |
+| 2. `fen_parse`/`fen_write` nos 6 campos | ✅ Módulo mais maduro do projeto. Ver `docs/fen.md` |
+| 3. Split de módulos | ✅ Mais fundo do que o previsto — 11 módulos |
+| 4. `board_check_invariants()` | ✅ Implementada (`board.c:42`). Cobre 4 das 6 checagens de `docs/guides.md` — ver a ressalva abaixo |
+| 5. `is_own` / `is_enemy` | ✅ Cópia única em `piece.h`, usada por `movegen.c` e `board.c` |
+| 6. Teste de round-trip de FEN sobre um corpus | ➡️ **movido para a Fase 4** (ver nota do cabeçalho) |
+
+**Ressalva registrada, não bloqueante:** `board_check_invariants` verifica código de peça
+válido, exatamente um rei de cada cor, o cache `king_square` contra uma varredura do zero, e
+nenhum peão na 1ª/8ª fileira. **Faltam duas** das seis de `docs/guides.md`: coerência de
+`ep_square` com `side_to_move`, e direitos de roque contra rei/torres nas casas de origem.
+A segunda **já está escrita** — `castling_matches_board`, hoje `static` em `fen.c:385`; expor
+é a maior parte do trabalho. As duas entram antes de a Fase 4 rodar, porque é lá que a função
+vai ser chamada ~1000 vezes e é lá que a cobertura dela se paga. Fechar a Fase 1 com isso
+anotado é honesto; fechá-la e esquecer não seria.
+
+A função também mudou de assinatura em relação ao proposto: `board_check_invariants(const
+Board *b)`, sem o out-param `const char **fail_msgs`, com as falhas acumuladas num log global
+em `utils.c`. Defensável, e com duas consequências já pagas — ver `project_context.md` §5,
+Bug #7.
 
 #### O quê
 
@@ -494,19 +559,24 @@ com teste de round-trip automatizado — não existe ainda, só verificação ma
 3. Split de módulos (§3.3) e corte dos includes de `types.h`
 4. `board_check_invariants()` implementada
 5. Helpers `is_own` / `is_enemy` (§2.4)
-6. Teste de round-trip de FEN sobre um corpus
+6. ~~Teste de round-trip de FEN sobre um corpus~~ → **movido para a Fase 4 em 16/09**
 
 #### Como
 
-**O corpus de FEN é o entregável real desta fase.** Um arquivo texto com ~30
-posições, uma por linha: inicial, Kiwipete, posições com en passant ativo, com
-roque parcial (`Kq`, `-`), com contadores não-triviais, com promoção iminente. O
-teste lê o arquivo, faz `fen_parse → fen_write`, compara string por string.
+**O corpus de FEN era o entregável real desta fase, e continua sendo entregável — só que da
+Fase 4.** ~30 posições: inicial, Kiwipete, posições com en passant ativo, com roque parcial
+(`Kq`, `-`), com contadores não-triviais, com promoção iminente. Num `const char *[]` num
+`.c` próprio, não num arquivo lido em runtime — sem I/O, sem caminho relativo, sem caso de
+erro no caminho do teste.
 
 > Enquanto `fen_write` só emitia a posição, o round-trip não provava nada sobre
-> roque e en passant. Este é o momento em que ele passa a provar.
+> roque e en passant. Esse momento já passou: `fen_write` emite os seis campos desde 07/09,
+> e o round-trip foi conferido em todas as posições em que o módulo foi exercitado. É por
+> isso que testá-lo isoladamente agora não compra informação nova — e por isso ele foi para
+> a Fase 4, onde a mesma comparação também prova o make/unmake.
 
-**Este item pode ser delegado** a um colega sem C — ver `onboarding-motor.md` §9.1.
+**Este item pode ser delegado** a um colega sem C — ver `onboarding-motor.md` §9.1. Montar o
+corpus é trabalho de xadrez, não de C, e é o caminho crítico da Fase 4.
 
 **Sobre `board_check_invariants()`** — o que verificar:
 
@@ -527,10 +597,22 @@ sintoma, dentro de uma árvore de profundidade 6, é de horas.
 chamador em caso de sucesso. Uma FEN inválida não pode deixar o motor num estado
 meio-inicializado, porque o comando seguinte vai operar sobre lixo.
 
-#### Critério de saída 🚧
+#### Critério de saída 🚧 — revisado em 16/09
 
-Round-trip idêntico nas 30 posições do corpus; `board_check_invariants` passa em
-todas.
+**Antes:** "Round-trip idêntico nas 30 posições do corpus; `board_check_invariants` passa em
+todas."
+
+**Agora:** `board_check_invariants` implementada e passando nas posições exercitadas;
+`fen_parse`/`fen_write` completos nos seis campos.
+
+O round-trip de FEN sobre o corpus **saiu daqui e entrou na Fase 4**. O raciocínio está no
+cabeçalho deste documento: o módulo `fen` já está maduro, e o teste dele não desaparece —
+ele vira o **oráculo** do teste de make/unmake, onde cada uma das ~1000 comparações é
+também um round-trip de FEN. Testar duas vezes a mesma coisa em duas fases diferentes é
+tempo gasto sem informação nova; testar uma vez, no lugar onde ela também prova outra coisa,
+é o mesmo teste rendendo o dobro.
+
+**Atingido em 16/09.**
 
 ---
 
@@ -538,17 +620,28 @@ todas.
 
 **Esforço:** 1 sessão.
 
-**Status em 14/09: ⬜ não iniciada.** `KNIGHT_TARGETS` e `KING_TARGETS` já existem como
-declaração/alocação em `square.h/c` (nascidas junto com o split da Fase 1, adiantando
-espaço), mas `init_square_tables()` — o nome real da função hoje, não
-`precompute_move_data` — só popula `SQ_TO_EDGE` e `PAWN_ATTACKS`. As duas tabelas de peça
-saltadora estão zeradas. `KNIGHT_COUNT`/`KING_COUNT` nem existem ainda.
+**Status em 16/09: 🔶 parcial — o rei saiu da fase, o cavalo continua nela.**
+
+A metade do **rei** foi resolvida de outro jeito, e o jeito certo: `generate_king_moves` usa
+`SQ_TO_EDGE` com o laço parando em 1, que é o mesmo mecanismo dos deslizantes. `KING_TARGETS`
+e `KING_COUNT` **não são mais entregáveis desta fase** — `KING_TARGETS[64][8]` está alocada e
+zerada em `square.c:16` sem nenhum leitor, e o trabalho aqui é **apagá-la**, não preenchê-la
+(ver §3.1).
+
+A metade do **cavalo** continua exatamente onde estava. `KNIGHT_TARGETS[64][8]` alocada e
+zerada; `init_square_tables()` só popula `SQ_TO_EDGE` e `PAWN_ATTACKS`; `KNIGHT_COUNT` não
+existe; não há `generate_knight_moves`. Medido em 16/09: posição inicial gera **16** lances
+(correto: 20), Kiwipete gera **37** (correto: 48).
 
 #### O quê
 
-`KNIGHT_TARGETS`, `KING_TARGETS`, `PAWN_ATTACKS` (§3.1), geradas em
-`precompute_move_data(void)` — hoje chama-se `init_square_tables(void)`, mas o corpo ainda
-não faz a parte do cavalo/rei.
+`KNIGHT_TARGETS` e `PAWN_ATTACKS` (§3.1), geradas em `precompute_move_data(void)` — hoje
+chama-se `init_square_tables(void)`, e o corpo ainda não faz a parte do cavalo. `PAWN_ATTACKS`
+já está pronta. **`KING_TARGETS` saiu do escopo em 16/09** e deve ser apagada.
+
+`offset_square` (`square.c:23`) já faz a aritmética `(rank, file)` com checagem de limites e
+já é usada por `init_pawn_attacks` — reaproveite-a para o cavalo em vez de escrever uma
+segunda.
 
 Note o `void`: em C, `()` declara "argumentos não especificados", não "nenhum
 argumento" — é o aviso de `-Wstrict-prototypes` que já apareceu na Fase 0.
@@ -565,16 +658,21 @@ Teste por contagens conhecidas:
 | Cavalo em a1 | 2 destinos |
 | Cavalo em b1 | 3 destinos |
 | Cavalo em c3 | 8 destinos |
-| Soma de `KNIGHT_COUNT` sobre as 64 casas | 336 |
-| Rei em a1 | 3 destinos |
-| Rei em e4 | 8 destinos |
-| Soma de `KING_COUNT` | 420 |
+| Cavalo em h8 | 2 destinos |
+| Soma de `KNIGHT_COUNT` sobre as 64 casas | **336** |
 
-Essas somas são a forma mais barata de verificar uma tabela inteira de uma vez.
+A soma é a forma mais barata de verificar uma tabela inteira de uma vez. As linhas de rei
+saíram: ele não tem tabela, e conferir `SQ_TO_EDGE` é outra verificação.
 
 #### Critério de saída
 
-As somas batem; `SQ_OFFBOARD` foi deletado.
+A soma bate (336); `KING_TARGETS` foi apagada; `generate_all_moves` na posição inicial
+devolve **20** e na Kiwipete devolve **48**.
+
+Nota sobre `SQ_OFFBOARD`: o critério original pedia a deleção dele. Ele continua vivo e
+**continua sendo usado de propósito** em `make_move` (`assert`) e em `generate_pawn_moves` —
+lugares que não são geração por tabela. A deleção era consequência esperada de tirar a
+checagem de borda do runtime na geração; como ela virou defesa em outra camada, o item cai.
 
 ---
 
@@ -582,14 +680,19 @@ As somas batem; `SQ_OFFBOARD` foi deletado.
 
 **Esforço:** 2–3 sessões.
 
-**Status em 14/09: 🔶 parcial.** Item 1 (`side_to_move` no laço externo) está feito para
-deslizantes, não para peão (§2.4). Item 2 (assinatura única `generate_pseudo_legal`) não
-existe — continuam duas funções separadas. Item 3 (deslizantes com `SQ_TO_EDGE`) está feito
-e correto. Item 4 (cavalo e rei) depende da Fase 2, que não começou. Item 5 (peão) está
-**parcialmente** feito: push simples, push duplo (agora aninhado corretamente, e com a
-direção certa — ver §2.2/`project_context.md` §5) e captura existem, mas ainda sem roque,
-sem en passant, e a promoção só gera a dama (falta multiplicar em 4 lances, ver a tabela
-abaixo). `perft(1)` continua não existindo para verificar a contagem — ver Fase 6b.
+**Status em 16/09: 🔶 parcial — falta uma peça, literalmente.**
+
+| Item | Estado |
+|---|---|
+| 1. `side_to_move` no laço externo | ✅ nos três geradores (§2.4) |
+| 2. Assinatura única `generate_pseudo_legal` | 🔶 existe `generate_all_moves(Board *, MoveList *)` (`movegen.c:230`), que limpa a lista e chama os três geradores. É a entrada única pedida, mas em cima de três laços de 64, não de um só — e recebe `Board *` não-const enquanto os três que ela chama recebem `const Board *` |
+| 3. Deslizantes com `SQ_TO_EDGE` | ✅ correto |
+| 4. Cavalo e rei | 🔶 **rei ✅** (8 direções, `SQ_TO_EDGE`); **cavalo ❌** (Fase 2) |
+| 5. Peão | ✅ **completo**: push, duplo aninhado dentro do simples, captura, promoção nas **quatro** peças (com e sem captura), en passant |
+| 6. Roque | ✅ gerado — direito presente **e** casas entre rei e torre vazias (`check_castle_side`). Xeque/casa atacada ficam para a Fase 5, de propósito |
+
+Verificado em 16/09: a Kiwipete gera 37 lances pseudo-legais contra 48 legais — a diferença é
+exatamente o cavalo. Fechada a Fase 2, esta fecha junto.
 
 #### O quê e em que ordem
 
@@ -648,14 +751,37 @@ antecipada antes da Fase 5 existir.
 
 **Esforço:** 2–3 sessões. **A fase mais delicada do projeto.**
 
-**Status em 14/09: ⬜ não iniciada, na prática.** As assinaturas de §2.1 existem
-(`makemove.h`), mas os corpos são um esqueleto: `make_move` move a peça no array e inverte
-`side_to_move` — só isso, nada de captura, roque, en passant, promoção, `castle_mask`,
-relógios, nem preenchimento do `Undo` (a peça capturada é calculada e descartada).
-`unmake_move` é `{ return; }`, um no-op completo — não desfaz nem o movimento simples. Isso é
-uma regressão em relação a uma versão anterior ao split, que ao menos revertia a peça. Tudo
-o que segue nesta seção — a ordem de operações, as duas armadilhas, o teste de round-trip —
-continua sendo o plano certo; é trabalho que ainda não começou.
+**Status em 16/09: 🔶 metade — e é a metade difícil que já foi.**
+
+**`make_move` está completo e verificado.** Ele faz, na ordem certa: decodifica, **salva o
+`Undo` antes de tocar no tabuleiro** (que era o ponto crítico), move a peça, inverte o lado,
+define `ep_square` no push duplo, atualiza `king_square`, derruba direitos de roque por
+origem **e** por destino, move a torre do roque, limpa a casa correta no en passant, troca a
+peça na promoção, e ajusta `halfmove_clock` e `fullmove_number`.
+
+Verificado nesta data com a FEN de saída conferida à mão em cada caso:
+
+```
+roque O-O            e1g1  -> r3k2r/8/8/8/8/8/8/R4RK1 b kq - 1 1
+roque O-O-O          e1c1  -> r3k2r/8/8/8/8/8/8/2KR3R b kq - 1 1
+en passant           e5f6  -> rnbqkbnr/ppp1p1pp/5P2/3p4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3
+promoção a dama      e7e8q -> rn2Q2k/1P6/8/8/8/8/8/7K b - - 0 1
+promoção com captura b7a8q -> Qn5k/4P3/8/8/8/8/8/7K b - - 0 1
+push duplo           e2e4  -> rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1
+torre captura torre  h1h8  -> r3k2R/8/8/8/8/8/8/R3K3 b Qq - 0 1
+```
+
+A última linha é a que mais vale: `h1h8` derruba `K` (a torre branca saiu de h1) **e** `k`
+(a torre preta foi capturada em h8 sem se mover). É a Armadilha 2 desta seção, e ela passou.
+Mais 98 chamadas de `make_move` em 4 posições sob ASan/UBSan, zero disparos.
+
+**`unmake_move` não tem corpo.** `makemove.c:130` é a declaração repetida, terminada em `;`.
+Reproduzido: `undefined reference to 'unmake_move'` no link. O build passa porque ninguém
+chama. É o item que bloqueia as Fases 5 e 6b inteiras, e o teste-portão desta própria fase.
+
+Detalhe de implementação que só aparece agora: **no en passant `u->captured` vale `EMPTY`**,
+porque a casa de destino estava vazia. O `unmake` tem de deduzir o peão do `MoveType` +
+`side`, não lê-lo do `Undo`. Plano passo a passo em `next_steps.md` §2.
 
 #### O quê
 
@@ -710,9 +836,40 @@ Sem `unmake_move` correto não há filtro de legalidade, não há perft e não h
 Um bug aqui contamina todas as três, e se manifesta em cada uma de forma diferente
 — o que torna o diagnóstico muito mais difícil do que o teste acima.
 
-#### Critério de saída 🚧
+#### Critério de saída 🚧 — ampliado em 16/09
 
-Round-trip de make/unmake verde nas 30 posições, com invariantes passando.
+Round-trip de make/unmake verde nas ~30 posições do corpus, com `board_check_invariants`
+passando — **e, na mesma passagem, o round-trip de FEN sobre esse mesmo corpus**, que era o
+critério de saída da Fase 1 até esta data.
+
+Os dois cabem no mesmo laço porque são a mesma comparação:
+
+```
+para cada FEN do corpus:
+    fen_parse(fen, &b)
+    fen_antes = fen_write(&b)
+    assert(fen_antes == fen)                 <- round-trip de FEN (ex-Fase 1)
+    assert(board_check_invariants(&b))
+
+    generate_all_moves(&b, &lista)
+    para cada lance m:
+        Undo u;
+        make_move(&b, m, &u)
+        unmake_move(&b, m, &u)
+        assert(fen_write(&b) == fen_antes)    <- round-trip de make/unmake
+        assert(board_check_invariants(&b))
+```
+
+Uma linha a mais no teste, e a Fase 1 ganha seu portão de verdade em vez de um teste
+isolado. O corpus continua sendo entregável — ~30 posições num `const char *[]` num `.c`
+próprio, começando pelas quatro posições de referência dos *Perft Results*, uma com en
+passant disponível, uma com promoção a um lance, uma com os quatro roques vivos e uma com
+roque já perdido.
+
+**Antes de rodar 1000 iterações:** `fail_msg` (`utils.c:14`) acumula num log global que nunca
+é zerado e tem teto de 128. Ou ele ganha um reset, ou o teste para na primeira falha — que é
+a opção melhor, porque numa suíte de round-trip a primeira falha é a informativa e as 999
+seguintes são consequência.
 
 ---
 
@@ -720,9 +877,29 @@ Round-trip de make/unmake verde nas 30 posições, com invariantes passando.
 
 **Esforço:** 1–2 sessões.
 
-**Status em 14/09: ⬜ não iniciada.** Bloqueada nas Fases 2 e 4 (precisa de tabelas de
-cavalo/rei populadas e de `make_move`/`unmake_move` de verdade para aplicar-e-desfazer). Não
-existe `is_square_attacked` no repositório.
+**Status em 16/09: ⬜ não iniciada.** Bloqueada na Fase 2 (precisa de `KNIGHT_TARGETS`
+populada para a busca reversa) e na Fase 4 (precisa de `unmake_move` para aplicar-e-desfazer).
+Não existe `is_square_attacked` no repositório.
+
+**Um bug que esta fase vai acordar, e que já está reproduzido em 16/09.**
+`generate_king_moves` (`movegen.c:191`) lê `SQ_TO_EDGE[b->king_square[side]][dir]` **sem
+checar `SQ_NONE`**:
+
+```
+FEN "R6k/8/8/8/8/8/8/K7 w - - 0 1"
+  o gerador emite a8h8 — captura do rei, pseudo-legal e legítima nesta camada
+  make_move grava king_square[BLACK] = -1
+  o generate_all_moves seguinte:
+    movegen.c:191 runtime error: index -1 out of bounds for type 'int [64][8]'
+    AddressSanitizer: global-buffer-overflow
+```
+
+Hoje o sintoma é silencioso, porque o vizinho na memória é `KNIGHT_TARGETS`, que está zerada
+— o `continue` da linha seguinte salva por acidente. **Isso deixa de valer no instante em que
+a Fase 2 popular `KNIGHT_TARGETS`**, e o filtro de legalidade é exatamente o código que
+aplica lances de captura de rei aos milhares. Duas linhas de checagem em
+`generate_king_moves` tornam o bug inexprimível; confiar em pré-condição documentada seria a
+mesma "armadilha lembrada" que §2.4 já decidiu não aceitar.
 
 #### O quê
 
@@ -996,9 +1173,11 @@ Do menos doloroso ao mais:
 3. ~~Split de módulos~~ — **já feito** (Fase 1, e mais fundo do que o item previa). Removido
    desta lista em 14/09
 4. **v4 (ordenação de lances)** — perde profundidade, não correção
-5. **CMake** — o Makefile ainda serve, **mas hoje ele só liga uma das cinco flags de
-   `CLAUDE.md` §7** (§2.3) — cortar a migração para CMake não deveria significar também
-   adiar as quatro flags que faltam; essas são baratas e valem religar de qualquer forma
+5. ~~**CMake**~~ — **cortado por decisão, não por cronograma** (`CLAUDE.md` §4: Makefile
+   agora, CMake quando o cliente precisar integrar). O que **não** foi cortado junto são as
+   quatro flags de `CLAUDE.md` §7 que o Makefile ainda não liga: medidas em 16/09, três delas
+   custam **0, 0 e 6 avisos** (`-Wshadow`, `-Wcast-qual`, `-Wwrite-strings`), e os 6 são o
+   mesmo defeito de uma palavra. Cortar a migração nunca foi motivo para adiar essas
 
 ### O que **não** se corta, em nenhuma hipótese
 
@@ -1085,21 +1264,33 @@ disciplina quer ver — e é verdade.
 
 ---
 
-## 9. Nota sobre esta revisão (14/09)
+## 9. Nota sobre esta revisão (16/09)
 
-Nenhuma fase tinha seu critério de saída 🚧 cumprido nesta data — o projeto está entre a
-Fase 0 e a Fase 3, com trabalho parcial espalhado por várias fases ao mesmo tempo (o que é
-esperado num split grande: mexer em `movegen.c` para o split acaba adiantando pedaço do peão
-e da torre/bispo/dama, mesmo sem a Fase 2 ou a Fase 4 estarem prontas). O maior desvio do
-plano original não é atraso — é a decisão revertida em §2.2 (lance em 16 bits, não 32), que
-valida a arquitetura de encapsulamento deste roadmap mesmo indo contra sua recomendação
-pontual. O segundo maior é `board_check_invariants` estar **declarada e usada em código
-morto** (redeclarada sem motivo em `board.c`) mas sem corpo — é o item de maior retorno
-isolado que falta na Fase 1, porque destrava o teste de round-trip da própria Fase 1 e o
-teste de make/unmake da Fase 4.
+**A Fase 1 fechou** — a primeira a fechar um critério de saída 🚧, e ela fechou de duas
+formas ao mesmo tempo: `board_check_invariants` ganhou corpo (era o item de maior retorno
+isolado apontado na revisão de 14/09), e o teste de round-trip de FEN saiu do critério por
+decisão, não por omissão. Essa segunda metade merece ser lida como decisão de engenharia e
+não como corte: o módulo `fen` é o mais maduro do projeto, e o teste dele não desapareceu —
+ele mudou de fase para onde ele prova duas coisas de uma vez, como oráculo do round-trip de
+make/unmake. Testar duas vezes a mesma coisa em duas fases é tempo gasto sem informação nova.
+
+**A Fase 4 está pela metade, e é a metade difícil que já foi.** `make_move` trata roque, en
+passant, promoção nas quatro peças, relógios e direitos de roque por origem **e** por destino
+— inclusive a Armadilha 2 desta seção, que é o bug clássico de perft na profundidade 4 — e
+tudo isso foi verificado com FEN de saída conferida à mão, não por leitura. O que falta é o
+espelho: `unmake_move` não tem corpo, e é erro de link.
+
+**A lição de processo desta revisão é a mesma de sempre, e desta vez em positivo.** Toda
+verificação acima foi feita com harness descartável em `/tmp`. Funcionou: provou que
+`make_move` está certo **hoje**. Não prova nada sobre amanhã, e não roda no `make` de
+ninguém. O mesmo código, dentro do repositório e no alvo `test`, é regressão permanente —
+e é literalmente o critério de saída da Fase 4. É o item de maior retorno pendente do
+roadmap inteiro, e já era na revisão passada.
 
 Para o estado bug-a-bug, use sempre `project_context.md` §5 — este documento rastreia fases
 e decisões, não a lista de bugs, que muda rápido demais para viver em dois lugares.
+`docs/bugs.txt` é a revisão de 14/09 e está obsoleto: cinco dos seis itens críticos de lá
+foram corrigidos na árvore de trabalho.
 
 ---
 

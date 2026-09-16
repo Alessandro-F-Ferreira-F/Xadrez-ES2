@@ -34,7 +34,7 @@ debug:
 	$(CC) $(DBGFLAGS) $(SRC) -o $(BIN)
 
 test:
-	gcc $(DBGFLAGS) -o build/test.out test/test.c src/board.c src/move.c src/fen.c src/movegen.c src/piece.c src/square.c src/log.c src/utils.c
+	gcc $(DBGFLAGS) -o build/test.out test/test.c src/board.c src/makemove.c src/move.c src/fen.c src/movegen.c src/piece.c src/square.c src/log.c src/utils.c
 
 run: all
 	./$(BIN)

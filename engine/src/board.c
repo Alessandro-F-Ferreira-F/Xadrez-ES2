@@ -3,6 +3,7 @@
 #include "square.h"
 #include "log.h"
 
+#include "utils.h"
 
 bool is_empty(const Board *b, int sq) {return b->array[sq] == NO_PIECE; }
 
@@ -33,12 +34,12 @@ static bool piece_code_is_valid(Piece p) {
     if (p >= 16u) return false;
     if (p == NO_PIECE) return true;
 
-    return (type >= PAWN || type <= KING);
+    return (type >= PAWN && type <= KING);
 
 }
 
 
-bool board_check_invariants(const Board *b, const char **fail_msgs) {
+bool board_check_invariants(const Board *b) {
     int kings[NUM_COLORS] = {0, 0};
     Piece p;
     int sq;
@@ -47,7 +48,7 @@ bool board_check_invariants(const Board *b, const char **fail_msgs) {
         p = b->array[sq];
 
         if (!piece_code_is_valid(p)) {
-            LOG_ERROR("invalid piece code");
+            fail_msg("Invalid piece code");
             return false;
         }
         if (!is_empty(b, sq) && PIECE_TYPE(p) == KING) {
@@ -56,11 +57,11 @@ bool board_check_invariants(const Board *b, const char **fail_msgs) {
     }
 
     if (kings[WHITE] != 1) {
-        LOG_ERROR("number of white kings not equal to 1");
+        fail_msg("Invalid number of white kings");
         return false;
     }
     if (kings[BLACK] != 1) {
-        LOG_ERROR("number of black kings not equal to 1");
+        fail_msg("Invalid number of black kings");
         return false;
     }
 
@@ -68,11 +69,11 @@ bool board_check_invariants(const Board *b, const char **fail_msgs) {
     int bk_sq = board_find_king(b, BLACK);
 
     if (wk_sq != b->king_square[WHITE]) {
-        LOG_ERROR("white king square cache does not match actual king square");
+        fail_msg("White king square cache does not match actual king square");
         return false;
     }
     if (bk_sq != b->king_square[BLACK]) {
-        LOG_ERROR("black king square cache does not match actual king square");
+        fail_msg("Black king square cache does not match actual king square");
         return false;
     }
 
@@ -84,13 +85,13 @@ bool board_check_invariants(const Board *b, const char **fail_msgs) {
             int rank = RANK_OF(sq);
 
             if (rank == 0 || rank == 7) {
-                LOG_ERROR("pawn at first or last rank");
+                fail_msg("Pawn at first or last rank");
                 return false;
             }
         }
     }
-
     
+    return true;
 }
 
 

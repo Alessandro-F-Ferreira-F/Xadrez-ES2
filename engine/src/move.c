@@ -31,7 +31,7 @@ MoveType move_type(Move m) {
 
 bool move_is_castle(Move m) {
     MoveType t = move_type(m);
-    return (t & CASTLE_TYPE_MASK);
+    return ((t == MV_CASTLE_KING) || (t == MV_CASTLE_QUEEN));
 }
 
 bool move_is_capture(Move m) {
@@ -40,7 +40,7 @@ bool move_is_capture(Move m) {
 
 bool move_is_ep_capture(Move m) {
     MoveType t = move_type(m);
-    return (t & MV_EP_CAPTURE);
+    return (t == MV_EP_CAPTURE);
 }
 
 bool move_is_promotion(Move m) {
@@ -75,7 +75,10 @@ Move move_from_str(const char *in) {
     char to_str[3];
     char promoted;
 
-    assert((strlen(in) <= 6) && (strlen(in) > 4));
+    size_t len = strlen(in);
+    if ((len < 4) || (len > 5)) {
+        return MOVE_NONE;
+    }
 
     strslc(in, from_str, 0, 2);
     strslc(in, to_str, 2, 4);
@@ -86,6 +89,9 @@ Move move_from_str(const char *in) {
 
     from = sq_from_coord(from_str);
     to = sq_from_coord(to_str);
+    if ((from == SQ_NONE) || (to == SQ_NONE)) {
+        return MOVE_NONE;
+    }
 
     switch (promoted)
     {
@@ -130,6 +136,8 @@ void movelist_add(MoveList *l, Move m) {
 
 int movelist_find(MoveList *l, const char *uci) {
     Move m = move_from_str(uci);
+    if (m == MOVE_NONE) return -1;
+
     int from = move_from(m);
     int to = move_to(m);
 
@@ -140,7 +148,7 @@ int movelist_find(MoveList *l, const char *uci) {
         t_from = move_from(t);
         t_to = move_to(t);
 
-        if ((to == t_to) && (from == t_from)) {
+        if ((to == t_to) && (from == t_from) && (move_promo_type(m) == move_promo_type(t))) {
             return i;
         }
         

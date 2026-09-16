@@ -26,18 +26,24 @@ void generate_pawn_moves(const Board *b, MoveList *list) {
         // push padrão do peão
         to = from + PAWN_PUSH[side];
         if ((SQ_OFFBOARD(to) == 0) && is_empty(b, to)) {
-            move = encode_move(from, to, MV_QUIET);
             // promoção do peão
             if (check_pawn_promotion(to)) {
-                move = encode_move(from, to, MV_PROMO_Q); 
+                for (int t = MV_PROMO_N; t <= MV_PROMO_Q; t++) {
+                    move = encode_move(from, to, (MoveType)t);
+                    movelist_add(list, move);
+                }
+            } else {
+                move = encode_move(from, to, MV_QUIET);
+                movelist_add(list, move);
             }
-            movelist_add(list, move);
 
             // double pawn push
             if (((RANK_OF(from) == 1) && side == WHITE) || ((RANK_OF(from) == 6) && side == BLACK)) {
                 to = from + (2 * PAWN_PUSH[side]);
-                move = encode_move(from, to, MV_DOUBLE_PUSH);
-                movelist_add(list, move);
+                if (is_empty(b, to)) {
+                    move = encode_move(from, to, MV_DOUBLE_PUSH);
+                    movelist_add(list, move);
+                }
             }
         }
         
@@ -49,12 +55,16 @@ void generate_pawn_moves(const Board *b, MoveList *list) {
 
             piece = b->array[to];
             if (is_enemy(piece, side)) {
-                move = encode_move(from, to, MV_CAPTURE);
                 // promoção do peão com captura
                 if (check_pawn_promotion(to)) {
-                    move = encode_move(from, to, MV_PROMO_CAP_Q); // TODO: adicionar todos possiveis promoções
+                    for (int t = MV_PROMO_CAP_N; t <= MV_PROMO_CAP_Q; t++) {
+                        move = encode_move(from, to, (MoveType)t);
+                        movelist_add(list, move);
+                    }
+                } else {
+                    move = encode_move(from, to, MV_CAPTURE);
+                    movelist_add(list, move);
                 }
-                movelist_add(list, move);
             }
             // captura en passant
             if (b->ep_square == to) {
@@ -120,10 +130,12 @@ void generate_sliding_moves(const Board *b, MoveList *list) {
  */
 static bool check_castle_side(const Board *b, Direction dir, int king_sq) {
     int distance = SQ_TO_EDGE[king_sq][dir];
+    if (distance == 0) {
+        return false;
+    }
 
     Piece p;
     int sq;
-
     int i;
     for (i = 1; i < distance; i++) {
         sq = king_sq + (i * DIR_OFFSET[dir]);
@@ -164,21 +176,6 @@ u8 check_allowed_castles(const Board *b) {
     return free_castle;
 }
 
-void print_castles(u8 castles) {
-    printf("CASTLES:\n");
-    if (castles & CASTLE_WK) {
-        printf("CASTLE WK\n");
-    }
-    if (castles & CASTLE_WQ) {
-        printf("CASTLE WQ\n");
-    }
-    if (castles & CASTLE_BK) {
-        printf("CASTLE BK\n");
-    }
-    if (castles & CASTLE_BQ) {
-        printf("CASTLE BQ\n");
-    }
-}
 
 void generate_king_moves(const Board *b, MoveList *list) {
     Color side = b->side_to_move;
@@ -189,7 +186,10 @@ void generate_king_moves(const Board *b, MoveList *list) {
     // loop das direções do rei
     for (int dir = 0; dir < NUM_DIRS; dir++) {
         to = from + DIR_OFFSET[dir];
+
         if (SQ_OFFBOARD(to)) continue;
+        if (SQ_TO_EDGE[from][dir] == 0) continue;
+
 
         if (is_empty(b, to)) {
             move = encode_move(from, to, MV_QUIET);
@@ -204,7 +204,6 @@ void generate_king_moves(const Board *b, MoveList *list) {
 
     // gera lances de roque
     u8 castles = check_allowed_castles(b);
-    print_castles(castles);
     if (side == WHITE) {
         if ((b->castling_rights & CASTLE_WK) && (castles & CASTLE_WK)) {
             move = encode_move(from, SQ_G1, MV_CASTLE_KING);
@@ -229,6 +228,7 @@ void generate_king_moves(const Board *b, MoveList *list) {
 
 
 void generate_all_moves(Board *b, MoveList *list) {
+    movelist_clear(list);
     generate_pawn_moves(b, list);
     generate_sliding_moves(b, list);
     generate_king_moves(b, list);

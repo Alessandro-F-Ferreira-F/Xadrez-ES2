@@ -14,5 +14,7 @@ int get_int(const char *msg);
 void clear_screen(void);
 void strslc(const char *src, char *dest, int start, int end);
 
+void fail_msg(char *msg);
+void print_fail_log(void);
 
 #endif

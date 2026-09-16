@@ -1,12 +1,97 @@
 #include "board.h"
 #include "piece.h"
 #include "square.h"
+#include "log.h"
 
-#include "fen.h"
+
+bool is_empty(const Board *b, int sq) {return b->array[sq] == NO_PIECE; }
+
+bool fill_sq(Board *b, const char *sq_str, Piece p) {
+    int sq = sq_from_coord(sq_str);
+    if (sq == SQ_NONE) return false;
+
+    b->array[sq] = p;
+    return true;
+}
+
+int  board_find_king(const Board *b, Color c) {
+    int sq;
+    Piece p;
+    for (sq = 0; sq < BOARD_SIZE; sq++) {
+        p = b->array[sq];
+
+        if (is_own(p,c) && PIECE_TYPE(p) == KING) {
+            return sq;
+        }
+    }
+    return -1;
+}
+
+static bool piece_code_is_valid(Piece p) {
+    PieceType type = PIECE_TYPE(p);
+
+    if (p >= 16u) return false;
+    if (p == NO_PIECE) return true;
+
+    return (type >= PAWN || type <= KING);
+
+}
 
 
-int  board_find_king(const Board *b, Color c);
-bool board_check_invariants(const Board *b, const char **fail_msgs);
+bool board_check_invariants(const Board *b, const char **fail_msgs) {
+    int kings[NUM_COLORS] = {0, 0};
+    Piece p;
+    int sq;
+
+    for (sq = 0; sq < BOARD_SIZE; sq++) {
+        p = b->array[sq];
+
+        if (!piece_code_is_valid(p)) {
+            LOG_ERROR("invalid piece code");
+            return false;
+        }
+        if (!is_empty(b, sq) && PIECE_TYPE(p) == KING) {
+            kings[PIECE_COLOR(p)]++;
+        }
+    }
+
+    if (kings[WHITE] != 1) {
+        LOG_ERROR("number of white kings not equal to 1");
+        return false;
+    }
+    if (kings[BLACK] != 1) {
+        LOG_ERROR("number of black kings not equal to 1");
+        return false;
+    }
+
+    int wk_sq = board_find_king(b, WHITE);
+    int bk_sq = board_find_king(b, BLACK);
+
+    if (wk_sq != b->king_square[WHITE]) {
+        LOG_ERROR("white king square cache does not match actual king square");
+        return false;
+    }
+    if (bk_sq != b->king_square[BLACK]) {
+        LOG_ERROR("black king square cache does not match actual king square");
+        return false;
+    }
+
+    // verifica peões
+    for (sq = 0; sq < BOARD_SIZE; sq++) {
+        p = b->array[sq];
+
+        if (!is_empty(b, sq) && PIECE_TYPE(p) == PAWN) {
+            int rank = RANK_OF(sq);
+
+            if (rank == 0 || rank == 7) {
+                LOG_ERROR("pawn at first or last rank");
+                return false;
+            }
+        }
+    }
+
+    
+}
 
 
 void board_clear(Board *b)
@@ -49,8 +134,4 @@ void board_print(const Board *board) {
     printf("En passant square: %s\n", ep);
     printf("Halfmove clock:    %d\n", board->halfmove_clock);
     printf("Fullmove number:   %d\n", board->fullmove_number);
-
-    char fen[MAX_FEN_STRING];
-    fen_write(board, fen);
-    printf("FEN: %s\n\n", fen);
 }

@@ -10,6 +10,7 @@
 #define MOVE_TO_SHIFT 6
 #define MOVE_TYPE_SHIFT 12
 #define MOVE_TYPE_MASK 0xFu
+#define CASTLE_TYPE_MASK 0x2
 
 Move encode_move(int from, int to, MoveType type) {
     Move encoded = (Move)((from) | (to << MOVE_TO_SHIFT) | (type << MOVE_TYPE_SHIFT));
@@ -28,8 +29,18 @@ MoveType move_type(Move m) {
     return (int)((m >> MOVE_TYPE_SHIFT) & MOVE_TYPE_MASK);
 }
 
+bool move_is_castle(Move m) {
+    MoveType t = move_type(m);
+    return (t & CASTLE_TYPE_MASK);
+}
+
 bool move_is_capture(Move m) {
     return (move_type(m) & 4) != 0;
+}
+
+bool move_is_ep_capture(Move m) {
+    MoveType t = move_type(m);
+    return (t & MV_EP_CAPTURE);
 }
 
 bool move_is_promotion(Move m) {
@@ -100,6 +111,7 @@ Move move_from_str(const char *in) {
     return out;
 }
 
+
 void movelist_clear(MoveList *l) {
     l->count = 0;
 }
@@ -118,11 +130,20 @@ void movelist_add(MoveList *l, Move m) {
 
 int movelist_find(MoveList *l, const char *uci) {
     Move m = move_from_str(uci);
+    int from = move_from(m);
+    int to = move_to(m);
+
+    int t_from, t_to;
 
     for (int i = 0; i < l->count; i++) {
-        if (l->moves[i] == m) {
+        Move t = l->moves[i];
+        t_from = move_from(t);
+        t_to = move_to(t);
+
+        if ((to == t_to) && (from == t_from)) {
             return i;
         }
+        
     }
     return -1;
 }

@@ -22,7 +22,7 @@ CFLAGS   := $(STD) $(WARN) -Og -g
 DBGFLAGS := $(STD) $(WARN) -Og -g -DDEBUG -fsanitize=address,undefined \
             -fno-omit-frame-pointer -Wframe-larger-than=16384
 
-.PHONY: all debug run clean
+.PHONY: all debug run clean test
 
 all:
 	@mkdir -p build
@@ -32,6 +32,9 @@ all:
 debug:
 	@mkdir -p build
 	$(CC) $(DBGFLAGS) $(SRC) -o $(BIN)
+
+test:
+	gcc $(DBGFLAGS) -o build/test.out test/test.c src/board.c src/move.c src/fen.c src/movegen.c src/piece.c src/square.c src/log.c src/utils.c
 
 run: all
 	./$(BIN)

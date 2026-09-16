@@ -4,7 +4,8 @@
 #include "types.h"
 #include "piece.h"
 
-enum ClastleRights{
+enum CastleRights{
+    CASTLE_NONE = 0,
     CASTLE_WK = 1,
     CASTLE_WQ = 2,
     CASTLE_BK = 4,
@@ -13,6 +14,7 @@ enum ClastleRights{
     CASTLE_BLACK = CASTLE_BK | CASTLE_BQ,
     CASTLE_ALL = CASTLE_WHITE | CASTLE_BLACK
 };
+
 
 
 typedef struct {
@@ -31,6 +33,9 @@ bool board_check_invariants(const Board *b, const char **fail_msgs);
 
 void board_clear(Board *b);
 void board_print(const Board *board);
+
+bool fill_sq(Board *b, const char *sq_str, Piece p);
+bool is_empty(const Board *b, int sq);
 
 #endif
 

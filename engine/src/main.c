@@ -20,9 +20,6 @@ void ui(Board *b) {
     char move_str[6];
     Move move;
     char fen_out[MAX_FEN_STRING];
-    /* Precisa comecar zerada: add_move() usa list->count como indice de
-       escrita, entao um count com lixo grava fora do vetor logo na primeira
-       geracao. */
     MoveList l = {0};
     Undo u;
     do
@@ -34,7 +31,6 @@ void ui(Board *b) {
         printf("3 - Print moves\n");
         printf("4 - Clear screen\n");
         printf("5 - Quit\n");
-        printf("6 - Unmake Move\n");
 
         opt = get_int("Insert option: ");
 
@@ -58,10 +54,13 @@ void ui(Board *b) {
                 ch = 'n';
                 break;
             }
-
-            if (!movelist_find(&l, move_str)) {
+            int move_i = movelist_find(&l, move_str);
+            
+            if (move_i == -1) {
                 LOG_ERROR("invalid move");
+                break;
             } else {
+                move = move_from_str(move_str);
                 make_move(b, move, &u);
                 clear_screen();
                 board_print(b);
@@ -81,9 +80,6 @@ void ui(Board *b) {
         case 5:
             ch = 'n';
             break;
-        case 6:
-            unmake_move(b, 0, &u);
-            ch = 'n';
         default:
             break;
         }

@@ -38,7 +38,6 @@ static inline bool is_own(Piece p, Color c)   { return p != EMPTY && PIECE_COLOR
 static inline bool is_enemy(Piece p, Color c) { return p != EMPTY && PIECE_COLOR(p) != c; }
 
 
-
 char piece_to_char(Piece p);
 Piece piece_from_char(char c);
 

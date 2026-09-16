@@ -9,6 +9,7 @@ typedef u16 Move;
 
 #define MOVE_NONE ((Move)0)
 
+
 typedef enum {
     MV_QUIET         =  0,
     MV_DOUBLE_PUSH   =  1,
@@ -41,6 +42,8 @@ MoveType move_type(Move m);
 
 bool move_is_capture(Move m);
 bool move_is_promotion(Move m);
+bool move_is_castle(Move m);    
+bool move_is_ep_capture(Move m);
 
 PieceType move_promo_type(Move m);
 
@@ -50,5 +53,7 @@ int movelist_find(MoveList *l, const char *uci);
 
 void move_to_str(Move m, char out[6]);
 Move move_from_str(const char *in);
+
+void print_moves(MoveList *list);
 
 #endif /* MOVE_H */

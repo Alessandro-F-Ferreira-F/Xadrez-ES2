@@ -53,7 +53,7 @@ static void init_sq_to_edge(void) {
     }
 }
 
-static void init_pawn_attacks() {
+static void init_pawn_attacks(void) {
     int rank;
     for (rank = 0; rank < BOARD_WIDTH; rank++) {
         int file;
@@ -68,7 +68,7 @@ static void init_pawn_attacks() {
 }
 
 
-void init_square_tables() {
+void init_square_tables(void) {
     init_sq_to_edge();
     init_pawn_attacks();
 }

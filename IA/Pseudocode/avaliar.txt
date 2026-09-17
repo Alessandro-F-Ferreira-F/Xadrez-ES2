@@ -8,7 +8,7 @@ função avaliar(estado):
     totBrancas = 0
     totPretas = 0
     para toda casa = 0...63:
-        se estado.array[casa] != EMPTY então:
+        se estado.array[casa] != EMPTY então
             se PIECE_COLOR(estado.array[casa]) == WHITE então
                 totBrancas += tabelaValores[PIECE_TYPE(estado.array[casa])]
             senão totPretas += tabelaValores[PIECE_TYPE(estado.array[casa])]

@@ -1,13 +1,15 @@
 -- Convenção adotada: VARIANTE_MINIMAX representa minimax puro, VARIANTE_ALFA_BETA representa poda alfa-beta. Esta convenção será usada dentro da função escolherJogada(estado, variante, randomizador)
 
--- A chamada de escolherJogada dentro da implementação tem a seguinte pré-condição: validade do parâmetro variante que foi passado para a função. Esta validação irá ocorrer em uma função externa, que chamará escolherJogada(estado, variante, randomizador). Os valores válidos são VARIANTE_ALFA_BETA e VARIANTE_MINIMAX
+-- A chamada de escolherJogada dentro da implementação tem a seguinte pré-condição: validade do parâmetro variante que foi passado para a função. Esta validação irá ocorrer em uma função externa, que chamará escolherJogada(estado, variante, randomizador). Os valores válidos são VARIANTE_ALFA_BETA e VARIANTE_MINIMAX. A raiz deve ser nó não terminal, e esta garantia deve ser dada pela função que chamar escolherJogada(estado, variante, randomizador)
 
 -- alfa e beta convencionados como -INFINITO e +INFINITO, respectivamente, para ficarem inicialmente fora do intervalo de valores possíveis do tabuleiro
 
--- Na função escolherJogada, o parâmetro randomizador deve receber 0 ou 1, para desativar/ativar o sorteio da lista de listaCandidatos (a validade do valor passado será verificada em uma função que chama escolherJogada(estado, variante
-, randomizador). Esta função externa ainda não foi nomeada, e não existe ainda).
+-- Na função escolherJogada, o parâmetro randomizador deve receber SORTEIO_DESLIGADO ou SORTEIO_LIGADO, para desativar/ativar o sorteio da lista de listaCandidatos (a validade do valor passado será verificada na função externa que chama escolherJogada(estado, variante, randomizador) e testa pré-condição da raiz não terminal. Esta função externa ainda não foi nomeada, e não existe ainda).
 
--- JOGADA é a estrutura que contem uma jogada com lance (tipo Move), score (retornado pela variante do minimax que foi executada) e tipo de score (se é mate ou não)
+-- JOGADA é a estrutura que contém uma jogada com lance (tipo Move), score (alterado pela variante do minimax que foi executada) e tipo de score (se é mate, centipeão ou movimento inválido)
+-- JOGADA.tipo deve ser TIPO_MATE (representando xeque-mate), TIPO_CENTIPEAO (representando centipeão) ou TIPO_INVALIDO (representando movimento inválido)
+-- Caso LANCE_NULO seja gravado em JOGADA pela função escolherJogada, não houve jogada válida. A função que chamará escolherJogada(estado, variante, randomizador) deve verificar se LANCE_NULO foi gravado em JOGADA antes de usar o movimento, já que LANCE_NULO representa a1->a1, que é um movimento inválido. LANCE_NULO é gravado apenas se a raiz for terminal, violando a pré-condição
+-- Os valores de JOGADA são válidos após o término de uma chamada de escolherJogada(estado, variante, randomizador)
 
 VARIANTE_MINIMAX = 0
 VARIANTE_ALFA_BETA = 1
@@ -16,23 +18,49 @@ ALFA = -INFINITO
 BETA = INFINITO
 
 LANCE_NULO = 0 -- gravado em JOGADA.lance quando a lista de candidatos é vazia, mesmo após a execução de minimax(estado, profundidade) ou de podaAlfaBeta(estado, profundidade, alfa, beta)
+SCORE_INVALIDO = 60000 -- valor default ilustrativo de score, para quando o lance for inválido
 
--- Caso LANCE_NULO seja gravado em JOGADA pela função escolherJogada, não houve jogada válida. A função que chamará escolherJogada(estado, variante, randomizador) deve verificar se LANCE_NULO foi gravado em JOGADA antes de usar o movimento, já que LANCE_NULO representa a1->a1, que é um movimento inválido. LANCE_NULO é gravado apenas se a raiz for terminal, violando a pré-condição
+TIPO_INVALIDO = 0 -- Tipo que representa uma jogada inválida
+TIPO_CENTIPEAO = 1
+TIPO_MATE = -1
 
+
+LIMIAR_MATE = MATE - profMax
+
+SORTEIO_LIGADO = 1
+SORTEIO_DESLIGADO = 0
 
 função escolherJogada(estado, variante, randomizador):
     listaCandidatos.limpar()
     JOGADA.lance = LANCE_NULO
-    JOGADA.score = 0
-    JOGADA.tipo = mate
+    JOGADA.score = SCORE_INVALIDO
+    JOGADA.tipo = TIPO_INVALIDO
 
     se variante == VARIANTE_MINIMAX então
         JOGADA.score = minimax(estado, 0)
     senão se variante == VARIANTE_ALFA_BETA então
         JOGADA.score = podaAlfaBeta(estado, 0, ALFA, BETA)
 
+    se estado.side_to_move == BLACK então JOGADA.score *= -1    
+
     se listaCandidatos != lista vazia então:
-        se randomizador == 1 então:
+        se LIMIAR_MATE <= módulo(JOGADA.score) então
+            JOGADA.tipo = TIPO_MATE
+
+            se JOGADA.score > 0 então
+                sinalMate = 1
+            senão sinalMate = -1
+
+            JOGADA.score = sinalMate * ((MATE - módulo(JOGADA.score) + 1)/2) -- esta linha considera a divisão em C, que é sempre inteira
+            -- Aqui conta lances completos ao invés de meio-lance (este é contado por profundidade)
+
+        senão JOGADA.tipo = TIPO_CENTIPEAO
+
+        se randomizador == SORTEIO_LIGADO então
             JOGADA.lance = listaCandidatos[random(0, tamanho(listaCandidatos) - 1)] -- Supõe intervalo fechado nos dois extremos
         senão:
             JOGADA.lance = listaCandidatos[0]
+    
+    se JOGADA.lance == LANCE_NULO então
+        JOGADA.tipo = TIPO_INVALIDO
+        JOGADA.score = SCORE_INVALIDO

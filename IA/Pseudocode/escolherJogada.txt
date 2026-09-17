@@ -7,27 +7,32 @@
 -- Na função escolherJogada, o parâmetro randomizador deve receber 0 ou 1, para desativar/ativar o sorteio da lista de listaCandidatos (a validade do valor passado será verificada em uma função que chama escolherJogada(estado, variante
 , randomizador). Esta função externa ainda não foi nomeada, e não existe ainda).
 
+-- JOGADA é a estrutura que contem uma jogada com lance (tipo Move), score (retornado pela variante do minimax que foi executada) e tipo de score (se é mate ou não)
+
 VARIANTE_MINIMAX = 0
 VARIANTE_ALFA_BETA = 1
 
 ALFA = -INFINITO
 BETA = INFINITO
-LANCE_NULO = 0 -- retornado quando a lista de candidatos é vazia, mesmo após a execução de minimax(estado, profundidade) ou de podaAlfaBeta(estado, profundidade, alfa, beta)
 
--- Caso LANCE_NULO seja retornado pela função escolherJogada, não houve jogada válida. A função que chamará escolherJogada(estado, variante, randomizador) deve verificar se LANCE_NULO foi retornado antes de usar o movimento, já que LANCE_NULO representa a1->a1, que é um movimento inválido. LANCE_NULO é retornado apenas se a raiz for terminal, violando a pré-condição
+LANCE_NULO = 0 -- gravado em JOGADA.lance quando a lista de candidatos é vazia, mesmo após a execução de minimax(estado, profundidade) ou de podaAlfaBeta(estado, profundidade, alfa, beta)
+
+-- Caso LANCE_NULO seja gravado em JOGADA pela função escolherJogada, não houve jogada válida. A função que chamará escolherJogada(estado, variante, randomizador) deve verificar se LANCE_NULO foi gravado em JOGADA antes de usar o movimento, já que LANCE_NULO representa a1->a1, que é um movimento inválido. LANCE_NULO é gravado apenas se a raiz for terminal, violando a pré-condição
 
 
 função escolherJogada(estado, variante, randomizador):
     listaCandidatos.limpar()
+    JOGADA.lance = LANCE_NULO
+    JOGADA.score = 0
+    JOGADA.tipo = mate
 
     se variante == VARIANTE_MINIMAX então
-        minimax(estado, 0)
+        JOGADA.score = minimax(estado, 0)
     senão se variante == VARIANTE_ALFA_BETA então
-        podaAlfaBeta(estado, 0, ALFA, BETA)
+        JOGADA.score = podaAlfaBeta(estado, 0, ALFA, BETA)
 
     se listaCandidatos != lista vazia então:
         se randomizador == 1 então:
-            retorna listaCandidatos[random(0, tamanho(listaCandidatos) - 1)] -- Supõe intervalo fechado nos dois extremos
-        senão retorna listaCandidatos[0]
-
-    retorna LANCE_NULO
+            JOGADA.lance = listaCandidatos[random(0, tamanho(listaCandidatos) - 1)] -- Supõe intervalo fechado nos dois extremos
+        senão:
+            JOGADA.lance = listaCandidatos[0]

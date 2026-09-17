@@ -1,0 +1,63 @@
+-- testeEmpateRegra(estado) é a função que testa se o estado atual no tabuleiro resulta em um empate  pelas regras, de 50 lances, tripla repetição e material insuficiente
+
+-- gerarLancesLegais(estado) é a função que gera todos os lances válidos, dado um estado
+
+-- emXeque(estado) é a função que testa se o rei do lado da vez está em xeque, dado um estado
+
+-- profMax é a variável global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado (profMax deve ser maior que 0)
+
+-- listaCandidatos variável global que guarda a lista de lances possíveis para serem escolhidos, todos empatados no melhor valor, com base nos critérios do minimax. Preenchida apenas na raiz da árvore de busca
+
+-- Valores utilizados como limite para os estados intermediários (ou seja, que não são fim de partida) no retorno de avaliar explicitados em avaliar.txt
+
+-- O valor retornado em um xeque-mate passa a ser (MATE - profundidade), com sinal, sendo negativo se as brancas perdem, positivo se as pretas perdem e a inicialização será feita em + ou - INFINITO. Empate foi convencionado como 0
+
+MATE = 49999
+INFINITO = 50000
+
+função minimax(estado, profundidade):
+    se testeEmpateRegra(estado) então
+        retorna 0
+    senão se profMax <= profundidade então
+        retorna avaliar(estado)
+    senão 
+        listaGerada = gerarLancesLegais(estado)
+        se listaGerada == vazio então
+            se emXeque(estado) então
+                se estado.side_to_move == WHITE então
+                    retorna -(MATE - profundidade)
+                senão retorna MATE - profundidade
+            senão retorna 0
+        senão:
+            se estado.side_to_move == WHITE faça
+                melhor = -INFINITO
+                para todo lance em listaGerada faça
+                    undo = novo registro
+                    make_move(estado, lance, undo)
+                    atual = minimax(estado, profundidade + 1)
+                    unmake_move(estado, lance, undo)
+
+                    se atual > melhor então 
+                        melhor = atual
+                        se profundidade == 0 então
+                            listaCandidatos.limpar()
+                            listaCandidatos.adiciona(lance)
+                    senão se atual == melhor e profundidade == 0 então:
+                        listaCandidatos.adiciona(lance)
+                retornar melhor
+            senão:
+                melhor = INFINITO
+                para todo lance em listaGerada faça
+                    undo = novo registro
+                    make_move(estado, lance, undo)
+                    atual = minimax(estado, profundidade + 1)
+                    unmake_move(estado, lance, undo)
+
+                    se atual < melhor então
+                        melhor = atual
+                        se profundidade == 0 então
+                            listaCandidatos.limpar()
+                            listaCandidatos.adiciona(lance)
+                    senão se atual == melhor e profundidade == 0 então:
+                        listaCandidatos.adiciona(lance)
+                retornar melhor

@@ -1,0 +1,16 @@
+-- Valores atribuídos às peças, em módulo (Valores de centipeão de Michniewski adotados. Brancas > 0 e pretas < 0): Peão = 100, Cavalo = 320, Bispo = 330, Torre = 500, Dama = 900 e Rei = 0 (Rei zero para não afetar os valores de estado dos tabuleiros, visto que o jogo acaba com o xeque-mate, então ele sempre está no tabuleiro)
+
+-- Com as ponderações da PSTs de Michniewski para peso por posição, temos o maior valor da diferença, em módulo, retornado pela função avaliar(estado) sendo 10615 (cenário em que um lado tem apenas um rei e o outro tem nove rainhas, com oito delas sendo peões promovidos, duas torres, dois cavalos e dois bispos, todos posicionados nas melhores posições possíveis). Não será implementado ainda, sendo usado agora o limiar de 10400 (com sinal, dependendo do lado), sem as ponderações por peso
+
+-- tabelaValores = [0, 100, 320, 330, 500, 900, 0] tal que o índice da tabela é PIECE_TYPE(p)
+
+função avaliar(estado):
+    totBrancas = 0
+    totPretas = 0
+    para toda casa = 0...63:
+        se estado.array[casa] != EMPTY então:
+            se PIECE_COLOR(estado.array[casa]) == WHITE então
+                totBrancas += tabelaValores[PIECE_TYPE(estado.array[casa])]
+            senão totPretas += tabelaValores[PIECE_TYPE(estado.array[casa])]
+
+    retorna totBrancas - totPretas

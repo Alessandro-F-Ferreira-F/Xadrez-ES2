@@ -1,0 +1,33 @@
+-- Convenção adotada: VARIANTE_MINIMAX representa minimax puro, VARIANTE_ALFA_BETA representa poda alfa-beta. Esta convenção será usada dentro da função escolherJogada(estado, variante, randomizador)
+
+-- A chamada de escolherJogada dentro da implementação tem a seguinte pré-condição: validade do parâmetro variante que foi passado para a função. Esta validação irá ocorrer em uma função externa, que chamará escolherJogada(estado, variante, randomizador). Os valores válidos são VARIANTE_ALFA_BETA e VARIANTE_MINIMAX
+
+-- alfa e beta convencionados como -INFINITO e +INFINITO, respectivamente, para ficarem inicialmente fora do intervalo de valores possíveis do tabuleiro
+
+-- Na função escolherJogada, o parâmetro randomizador deve receber 0 ou 1, para desativar/ativar o sorteio da lista de listaCandidatos (a validade do valor passado será verificada em uma função que chama escolherJogada(estado, variante
+, randomizador). Esta função externa ainda não foi nomeada, e não existe ainda).
+
+VARIANTE_MINIMAX = 0
+VARIANTE_ALFA_BETA = 1
+
+ALFA = -INFINITO
+BETA = INFINITO
+LANCE_NULO = 0 -- retornado quando a lista de candidatos é vazia, mesmo após a execução de minimax(estado, profundidade) ou de podaAlfaBeta(estado, profundidade, alfa, beta)
+
+-- Caso LANCE_NULO seja retornado pela função escolherJogada, não houve jogada válida. A função que chamará escolherJogada(estado, variante, randomizador) deve verificar se LANCE_NULO foi retornado antes de usar o movimento, já que LANCE_NULO representa a1->a1, que é um movimento inválido. LANCE_NULO é retornado apenas se a raiz for terminal, violando a pré-condição
+
+
+função escolherJogada(estado, variante, randomizador):
+    listaCandidatos.limpar()
+
+    se variante == VARIANTE_MINIMAX então
+        minimax(estado, 0)
+    senão se variante == VARIANTE_ALFA_BETA então
+        podaAlfaBeta(estado, 0, ALFA, BETA)
+
+    se listaCandidatos != lista vazia então:
+        se randomizador == 1 então:
+            retorna listaCandidatos[random(0, tamanho(listaCandidatos) - 1)] -- Supõe intervalo fechado nos dois extremos
+        senão retorna listaCandidatos[0]
+
+    retorna LANCE_NULO

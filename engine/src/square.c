@@ -1,5 +1,5 @@
-#include "square.h"
-#include "piece.h"
+#include "../include/square.h"
+#include "../include/piece.h"
 
 
 

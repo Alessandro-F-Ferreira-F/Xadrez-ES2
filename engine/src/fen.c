@@ -13,12 +13,12 @@
  * copiada para '*out' na última linha.
  */
 
-#include "fen.h"
+#include "../include/fen.h"
 
 #include <errno.h>
-#include "piece.h"
-#include "square.h"
-#include "log.h"
+#include "../include/piece.h"
+#include "../include/square.h"
+#include "../include/log.h"
 
 #define FEN_MIN_FIELDS    4
 #define FEN_MAX_FIELDS    6

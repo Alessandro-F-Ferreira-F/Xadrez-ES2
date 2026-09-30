@@ -1,11 +1,11 @@
-#include "types.h"
-#include "board.h"
-#include "move.h"
-#include "movegen.h"
-#include "utils.h"
-#include "fen.h"
-#include "square.h"
-#include "makemove.h"
+#include "../include/types.h"
+#include "../include/board.h"
+#include "../include/move.h"
+#include "../include/movegen.h"
+#include "../include/utils.h"
+#include "../include/fen.h"
+#include "../include/square.h"
+#include "../include/makemove.h"
 
 
 #define TEST_FEN_01 "rnb1kb1r/2ppnppp/1p1Pp3/1p6/5P2/2N5/PPP1N2P/R1BK4 w kq - 0 11"
@@ -28,9 +28,10 @@ void ui(Board *b) {
         board_print(b);
         printf("1 - Insert FEN\n");
         printf("2 - Make move\n");
-        printf("3 - Print moves\n");
-        printf("4 - Clear screen\n");
-        printf("5 - Quit\n");
+        printf("3 - Unmake move\n");
+        printf("4 - Print moves\n");
+        printf("5 - Clear screen\n");
+        printf("6 - Quit\n");
 
         opt = get_int("Insert option: ");
 
@@ -50,7 +51,7 @@ void ui(Board *b) {
             break;
         case 2:
             printf("Insert move: ");
-            if (fgets(move_str, sizeof move_str, stdin) == NULL) {
+            if (fgets(move_str, sizeof(move_str), stdin) == NULL) {
                 ch = 'n';
                 break;
             }

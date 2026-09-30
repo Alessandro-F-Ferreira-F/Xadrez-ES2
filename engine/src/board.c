@@ -1,9 +1,9 @@
-#include "board.h"
-#include "piece.h"
-#include "square.h"
-#include "log.h"
+#include "../include/board.h"
+#include "../include/piece.h"
+#include "../include/square.h"
+#include "../include/log.h"
 
-#include "utils.h"
+#include "../include/utils.h"
 
 bool is_empty(const Board *b, int sq) {return b->array[sq] == NO_PIECE; }
 

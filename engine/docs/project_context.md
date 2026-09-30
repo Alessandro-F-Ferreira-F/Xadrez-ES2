@@ -13,8 +13,6 @@
 > não tem corpo nenhum.
 >
 > `docs/next_steps.md` foi reescrito junto com este documento e está sincronizado.
-> `docs/bugs.txt` é a revisão anterior (contra o commit `f79d50a` puro) e está **obsoleto**:
-> cinco dos seis bugs que ele lista foram corrigidos na árvore de trabalho — ver §5.
 
 ---
 
@@ -246,13 +244,6 @@ CMake fica para quando o cliente precisar integrar. O item 1 da Fase 0 do roadma
 ---
 
 ## 5. Bugs abertos
-
-Cada item foi reproduzido nesta revisão — aviso de compilação, ASan/UBSan, erro de link, ou
-saída medida — não inferido por leitura. `docs/bugs.txt` é a lista da revisão anterior e
-está **obsoleto**: dos seis itens críticos de lá, cinco foram corrigidos na árvore de
-trabalho (predicados de roque/EP por igualdade; `SQ_H8` derrubando `CASTLE_BK`; o `return
-true` que faltava; `piece_code_is_valid` com `&&`; `update_castling_rights` cobrindo `to`).
-O sexto — `unmake_move` sem corpo — é o Bug #1 abaixo.
 
 ### Bloqueantes
 

@@ -1,10 +1,10 @@
-#include "move.h"
+#include "../include/move.h"
 
 #include <assert.h>
 
-#include "log.h"
-#include "square.h"
-#include "utils.h"
+#include "../include/log.h"
+#include "../include/square.h"
+#include "../include/utils.h"
 
 #define MOVE_SQ_MASK 0x3Fu //63 
 #define MOVE_TO_SHIFT 6

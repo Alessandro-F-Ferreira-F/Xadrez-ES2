@@ -1,7 +1,7 @@
-#include "makemove.h"
-#include "move.h"
-#include "square.h"
-#include "board.h"
+#include "../include/makemove.h"
+#include "../include/move.h"
+#include "../include/square.h"
+#include "../include/board.h"
 
 #include <assert.h>
 
@@ -127,4 +127,14 @@ void make_move(Board *b, Move m, Undo *u) {
     }
 }
 
-void unmake_move(Board *b, Move move, const Undo *u);
+void unmake_move(Board *b, Move move, const Undo *u) {
+    int from = move_from(move);
+    int to = move_to(move);
+
+    assert(!SQ_OFFBOARD(from) && !SQ_OFFBOARD(to) && "invalid 'from' or 'to' square");
+
+    if (move_type(move) == MV_QUIET) {
+        b->array[from] = b->array[to];
+        b->array[to] = NO_PIECE;
+    }
+}

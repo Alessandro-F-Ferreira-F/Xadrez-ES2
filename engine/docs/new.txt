@@ -1,0 +1,11 @@
+unmake_move(move):
+
+1. se move for do tipo MV_QUIET:
+    casa "from" recebe a peça da casa "to"
+    casa "to" recebe a peça capturada
+
+
+
+arg_01: abcdef12/0
+
+buffer: abcdef12/0

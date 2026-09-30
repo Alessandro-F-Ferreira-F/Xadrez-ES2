@@ -39,6 +39,14 @@ char* string_to_cstr(String s) {
     return out;
 }
 
+bool string_to_cstr_static(String s, char *out, size_t cap) {
+    if (s.len == 0 || s.len > cap) return false;
+
+    memcpy(out, s.data, s.len);
+    out[s.len] = '\0';
+    return true;
+}
+
 void string_chop_left(String *s) {
     if (s->len == 0) return;
     s->len  -= 1;
@@ -86,41 +94,17 @@ bool string_starts_with(String s, String prefix) {
     return memcmp(s.data, prefix.data, prefix.len) == 0;
 }
 
-bool string_parse_int(String s, int64_t *out) {
+bool string_parse_int(String s, int *out) {
     char *cstr = string_to_cstr(s);
     if (cstr == NULL) return false;
 
     char *endptr;
-    *out = (int64_t)strtol(cstr, &endptr, 10);
+    *out = (int)strtol(cstr, &endptr, 10);
     bool ok = (*endptr == '\0');
 
     free(cstr);
     return ok;
 }
-
-/* 
- * IO FUNCTIONS
- */
-
-int read_line(char *buf, size_t cap)
-{
-    if (!fgets(buf, (int)cap, stdin)) return 0;
- 
-    size_t n = strlen(buf);
-    if (n > 0 && buf[n - 1] == '\n') {
-        buf[--n] = '\0';
-    } else if (n + 1 == cap) {   /* buffer cheio e sem '\n': cabe ou foi truncada? */
-        int c = getchar();
-        if (c != '\n' && c != EOF) {
-            while (c != '\n' && c != EOF) c = getchar();   /* descarta o resto */
-            return -1;
-        }
-    }                            /* senao: ultima linha do arquivo, sem '\n' */
-    if (n > 0 && buf[n - 1] == '\r') buf[n - 1] = '\0';   /* Windows */
-    return 1;
-}
-
-
 
 int string_split(const char *line, String argv[], int max_split) {
     if (max_split <= 0) return -1;
@@ -143,13 +127,82 @@ int string_split(const char *line, String argv[], int max_split) {
     }
 }
 
+String string_split_next(const char *line) {
+    char *p = line;
+    size_t count = 0;
+    while (*p && isspace((unsigned char)*p)) p++;
+    
+    char *start = p;
+    while (*p && !isspace((unsigned char)*p)) {
+        p++;
+        count++;
+    }
+
+    String out;
+    out.data = start;
+    out.len = count;
+
+    return out;
+}
+
+/* 
+ * IO FUNCTIONS
+ */
+
+
+/*
+    Lê até uma quebra de linha de stdin.
+    Retorna 1 = ok, 0 = EOF, -1 = linha longa demais.
+ */
+int read_line(char *buf, size_t cap)
+{
+    if (!fgets(buf, (int)cap, stdin)) return 0;
+ 
+    size_t n = strlen(buf);
+    if (n > 0 && buf[n - 1] == '\n') {
+        buf[--n] = '\0';
+    } else if (n + 1 == cap) {   /* buffer cheio e sem '\n': cabe ou foi truncada? */
+        int c = getchar();
+        if (c != '\n' && c != EOF) {
+            while (c != '\n' && c != EOF) c = getchar();   /* descarta o resto */
+            return -1;
+        }
+    }                            /* senao: ultima linha do arquivo, sem '\n' */
+    if (n > 0 && buf[n - 1] == '\r') buf[n - 1] = '\0';   /* Windows */
+    return 1;
+}
+
+/*
+    Lê a próxima palavra de stdin.
+ */
+bool read_word(char *buf, size_t cap) {
+    char temp[LINE_CAP];
+
+    if (read_line(temp, LINE_CAP) == -1) return false;
+
+    String out = string_split_next(temp);
+
+    if(!string_to_cstr_static(out, buf, cap)) return false;
+    return true;
+}
+
+bool read_int(int *out) {
+    char temp[WORD_CAP];
+
+    if (!read_word(temp, WORD_CAP)) return false;
+
+    String s_temp = string_from_cstr(temp);
+    if (!string_parse_int(s_temp, out)) return false;
+    return true;
+}
+
 /*
     Concatena os `argc` números de argumentos, armazenados em `*argv[]`, a partir de uma posição `start`
     do vetor de argumentos.
 
     Devolve false se não couber, se buf_cap for 0, ou se algum argv[i] for NULL.
  */
-bool string_join_args(int argc, char **argv, int start, char *out_buf, size_t buf_cap) {
+bool join_args(int argc, char **argv, int start, char *out_buf, size_t buf_cap) {
     if (buf_cap == 0) return false;
     out_buf[0] = '\0';
 
@@ -161,6 +214,7 @@ bool string_join_args(int argc, char **argv, int start, char *out_buf, size_t bu
         }
 
         size_t n = strlen(argv[i]);
+        // len + n + 2 -> tamanho acumulando + tamanho atual + espaço + \0
         if (len + n + 2 > buf_cap) {
             LOG_ERROR("Buffer out of capacity");
             return false;

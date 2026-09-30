@@ -137,4 +137,6 @@ void unmake_move(Board *b, Move move, const Undo *u) {
         b->array[from] = b->array[to];
         b->array[to] = NO_PIECE;
     }
+
+    
 }

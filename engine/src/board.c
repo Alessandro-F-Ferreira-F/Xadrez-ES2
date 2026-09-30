@@ -105,6 +105,21 @@ void board_clear(Board *b)
     b->fullmove_number     = 1;
 }
 
+void board_new(Board *new) {
+    board_clear(new);
+    
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        char ch = BOARD_START_POS[i];
+        Piece p = piece_from_char(ch);
+        new->array[i] = p;
+    }   
+
+    new->side_to_move = WHITE;
+    new->castling_rights = CASTLE_ALL;
+    new->king_square[WHITE] = SQ_AT(0, 4);
+    new->king_square[BLACK] = SQ_AT(7, 4);
+}
+
 void board_print(const Board *board) {
     printf("\n");
 

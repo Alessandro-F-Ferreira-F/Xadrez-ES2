@@ -15,6 +15,7 @@ bool fill_sq(Board *b, const char *sq_str, Piece p) {
     return true;
 }
 
+
 int  board_find_king(const Board *b, Color c) {
     int sq;
     Piece p;
@@ -109,10 +110,14 @@ void board_new(Board *new) {
     board_clear(new);
     
     for (int i = 0; i < BOARD_SIZE; i++) {
+        int file = i % BOARD_WIDTH;
+        int visual_rank = i / BOARD_WIDTH;             /* 0 = fileira 8, 7 = fileira 1 */
+        int rank = (BOARD_WIDTH - 1) - visual_rank;    /* a1 = 0: fileira 1 vira rank 0 */
+
         char ch = BOARD_START_POS[i];
         Piece p = piece_from_char(ch);
-        new->array[i] = p;
-    }   
+        new->array[SQ_AT(rank, file)] = p;
+    }
 
     new->side_to_move = WHITE;
     new->castling_rights = CASTLE_ALL;

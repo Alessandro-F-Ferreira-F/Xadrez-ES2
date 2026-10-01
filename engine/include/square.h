@@ -8,7 +8,7 @@
 #define RANK_OF(sq) ((sq) / BOARD_WIDTH)
 #define FILE_OF(sq) ((sq) % BOARD_WIDTH)
 #define FILE_DIST(dest, orig) (abs(FILE_OF(dest) - FILE_OF(orig)))
-#define SQ_AT(rank, file) ((rank) * BOARD_WIDTH + (file))
+#define SQ_AT(rank, file) (int)((rank) * BOARD_WIDTH + (file))
 #define SQ_OFFBOARD(sq) (((sq) < 0) || ((sq) >= BOARD_SIZE))
 
 

@@ -77,8 +77,9 @@ static void ui(Board *b) {
         printf("4 - Reset board\n");
         printf("5 - Print moves from square\n");
         printf("6 - Print all moves\n");
-        printf("7 - Clear screen\n");
-        printf("8 - Quit\n");
+        printf("7 - Edit square\n");
+        printf("8 - Clear screen\n");
+        printf("9 - Quit\n");
 
         opt = get_int("Insert option: ");
         /* get_int devolve 0 em EOF, e 0 cai no default: sem isto o laco nunca acaba com Ctrl-D */
@@ -164,8 +165,16 @@ static void ui(Board *b) {
             wait_enter();
             break;
         case 7:
+            printf("Square to edit: ");
+            int edit_sq = read_coord();
+            printf("New piece ('.' for empty piecd): ");
+            char pc = fgetc(stdin);
+            int p = piece_from_char(pc);
+            b->array[edit_sq] = p;
             break;   /* a tela e limpa no topo da proxima volta */
         case 8:
+            break;
+        case 9:
             ch = 'n';
             break;
         default:

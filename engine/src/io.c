@@ -40,7 +40,7 @@ char* string_to_cstr(String s) {
 }
 
 bool string_to_cstr_static(String s, char *out, size_t cap) {
-    if (s.len == 0 || s.len > cap) return false;
+    if (s.len == 0 || s.len >= cap) return false;
 
     memcpy(out, s.data, s.len);
     out[s.len] = '\0';

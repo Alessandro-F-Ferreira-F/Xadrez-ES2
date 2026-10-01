@@ -9,7 +9,7 @@ bool check_pawn_promotion(int from) {
     return false;
 }
 
-void generate_pawn_moves(const Board *b, MoveList *list) {
+void generate_pawn_moves(Board *b, MoveList *list) {
     int from, to;
     Piece piece;
     Move move;
@@ -124,6 +124,8 @@ void generate_sliding_moves(const Board *b, MoveList *list) {
         }
     }
 }
+
+void generate_knight_moves(const Board *b, MoveList *list);
 
 /* 
  * Verifica se as casas entre o rei e as torres estão vazias, e retorna os roques permitidos

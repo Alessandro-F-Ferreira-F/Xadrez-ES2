@@ -106,6 +106,7 @@ void make_move(Board *b, Move m, Undo *u) {
     // capture en passant
     if (move_is_ep_capture(m)) {
         int ep_capture = to - PAWN_PUSH[side];
+        u->captured = b->array[ep_capture];
         b->array[ep_capture] = NO_PIECE;
     }
 
@@ -128,15 +129,58 @@ void make_move(Board *b, Move m, Undo *u) {
 }
 
 void unmake_move(Board *b, Move move, const Undo *u) {
+    // Inverter side to move
+    Color moved_side = b->side_to_move == WHITE ? BLACK : WHITE;
+    b->side_to_move = moved_side;
+    
     int from = move_from(move);
     int to = move_to(move);
 
     assert(!SQ_OFFBOARD(from) && !SQ_OFFBOARD(to) && "invalid 'from' or 'to' square");
 
-    if (move_type(move) == MV_QUIET) {
-        b->array[from] = b->array[to];
-        b->array[to] = NO_PIECE;
+    // Tratar casos especiais
+    MoveType mt = move_type(move);
+
+    if (move_is_promotion(move)) {
+        b->array[to] = PIECE_MAKE(moved_side, PAWN);
+    }
+    else if (move_is_castle(move)) {
+        int rook_from, rook_to;
+        switch (mt)
+        {
+        case MV_CASTLE_QUEEN:
+            rook_from = CASTLE_POSITIONS[moved_side][0][0];
+            rook_to   = CASTLE_POSITIONS[moved_side][0][1];
+
+            b->array[rook_to]   = b->array[rook_from];
+            b->array[rook_from] = NO_PIECE;
+            break;
+        case MV_CASTLE_KING:
+            rook_from = CASTLE_POSITIONS[moved_side][1][0];
+            rook_to   = CASTLE_POSITIONS[moved_side][1][1];
+
+            b->array[rook_to]   = b->array[rook_from];
+            b->array[rook_from] = NO_PIECE;
+            break;    
+        default:
+            break;
+        }
     }
 
-    
+
+    // Desfazer o lance
+    b->array[from] = b->array[to];
+    if (move_is_ep_capture(move)) {
+        int capture_sq = u->ep_square - PAWN_PUSH[moved_side];
+        b->array[capture_sq] = u->captured; 
+        b->array[to] = NO_PIECE;
+    } else {
+        b->array[to] = u->captured;
+    }
+
+    b->ep_square = u->ep_square;
+    b->castling_rights = u->castling_rights;
+    if (moved_side == BLACK) b->fullmove_number--;
+    b->halfmove_clock = u->halfmove_clock;
+    b->king_square[moved_side] = board_find_king(b, moved_side);
 }

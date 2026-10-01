@@ -31,7 +31,9 @@ enum CastleRights{
     CASTLE_ALL = CASTLE_WHITE | CASTLE_BLACK
 };
 
-
+// int CASTLE_UNDO_POSITIONS[4][2] = {{3, 0}, {5, 7}, {59, 56}, {61, 63}};
+// Tabela para reverter o castle em unmake move
+static const int CASTLE_POSITIONS[NUM_COLORS][2][2] = {{{59, 56}, {61, 63}}, {{3, 0}, {5, 7}}};
 
 typedef struct {
     Piece array[BOARD_SIZE];

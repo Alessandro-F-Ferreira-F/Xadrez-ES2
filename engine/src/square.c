@@ -67,6 +67,7 @@ static void init_pawn_attacks(void) {
     }
 }
 
+static void init_knight_targets(void);
 
 void init_square_tables(void) {
     init_sq_to_edge();

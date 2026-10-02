@@ -29,6 +29,10 @@ all:
 	$(CC) $(CFLAGS) $(SRC) -o $(BIN)
 
 # -DDEBUG liga o LOG_ERROR; sem ele os erros de FEN e de lance somem.
+
+release:
+	@mkdir -p build
+	$(CC) -O3 $(SRC) -o $(BIN)
 debug:
 	@mkdir -p build
 	$(CC) $(DBGFLAGS) $(SRC) -o $(BIN)

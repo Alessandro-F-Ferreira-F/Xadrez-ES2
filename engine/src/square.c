@@ -9,10 +9,32 @@ static const char DIR_CHARMAP[8][16] = {"NORTE", "SUL", "LESTE", "OESTE", "NORDE
 const int DIR_OFFSET[NUM_DIRS] = {+8, -8, +1, -1, +9, -9, -7, +7};
 const int PAWN_PUSH[NUM_COLORS] = {-8, +8};
 
+/* 
+KNIGHT OFFSETS
+        noNoWe    noNoEa
+            +15  +17
+
+noWeWe  +6 __|     |__+10  noEaEa
+              \   /
+               >0<
+           __ /   \ __
+soWeWe -10   |     |   -6  soEaEa
+
+            -17  -15
+        soSoWe    soSoEa
+*/
+
+// const int KNIGHT_OFFSETS[8] = {+6, +15, +17, +10, -6, -15, -17, -10};
+
+/* 
+    * KNIGHT_VECTORS guarda o vetor com o offset horizontal e vertical para as casas alcançaveis
+    * pelo cavalo. Isso permite calcular se uma casa atacada pelo cavalo está fora do tabuleiro ou não.
+*/
+const int KNIGHT_VECTORS[8][2] = {{-2,1}, {-1,2}, {1,2}, {2,1}, {2,-1}, {1,-2}, {-1,-2}, {-2,-1}};
 
 
 int SQ_TO_EDGE[BOARD_SIZE][NUM_DIRS]; // * guarda para o numero de casas até o fim do tabuleiro para cada direção -- para CADA casa
-int KNIGHT_TARGETS[BOARD_SIZE][8];
+int KNIGHT_ATTACKS[BOARD_SIZE][8];
 int KING_TARGETS[BOARD_SIZE][8];
 int PAWN_ATTACKS[NUM_COLORS][BOARD_SIZE][2]; // * para cada casa das 64 do tabuleiro, guarda as casas de ataque do peão, para cada cor
 
@@ -67,11 +89,29 @@ static void init_pawn_attacks(void) {
     }
 }
 
-static void init_knight_targets(void);
+/* 
+
+*/
+
+static void init_knight_attacks(void) {
+    int rank, file, drank, dfile;
+    int sq;
+    for (rank = 0; rank < BOARD_WIDTH; rank++) {
+        for (file = 0; file < BOARD_WIDTH; file++) {
+            sq = SQ_AT(rank, file);
+            for (int i = 0; i < 8; i++) {
+                drank = KNIGHT_VECTORS[i][0];
+                dfile = KNIGHT_VECTORS[i][1];
+                KNIGHT_ATTACKS[sq][i] = offset_square(rank, file, drank, dfile);
+            }
+        }
+    }
+}
 
 void init_square_tables(void) {
     init_sq_to_edge();
     init_pawn_attacks();
+    init_knight_attacks();
 }
 
 int sq_from_coord(const char *coord) {

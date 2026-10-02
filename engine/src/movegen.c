@@ -54,7 +54,7 @@ void generate_pawn_moves(Board *b, MoveList *list) {
             if (to == SQ_NONE) continue;
 
             piece = b->array[to];
-            if (is_enemy(piece, side)) {
+            if (is_enemy(b, to)) {
                 // promoção do peão com captura
                 if (check_pawn_promotion(to)) {
                     for (int t = MV_PROMO_CAP_N; t <= MV_PROMO_CAP_Q; t++) {
@@ -105,7 +105,7 @@ void generate_sliding_moves(const Board *b, MoveList *list) {
 
     for (int from = 0; from < BOARD_SIZE; from++) {
         piece = b->array[from];
-        if (!is_own(piece, b->side_to_move)) continue;
+        if (!is_own(b, from)) continue;
 
         if (PIECE_TYPE(piece) == ROOK) {
             for (int dir = 0; dir < 4; dir++) {
@@ -125,7 +125,36 @@ void generate_sliding_moves(const Board *b, MoveList *list) {
     }
 }
 
-void generate_knight_moves(const Board *b, MoveList *list);
+void generate_knight_moves(const Board *b, MoveList *list) {
+    Piece piece, piece_to;
+    Color side = b->side_to_move;
+    Move move;
+    for (int from = 0; from < BOARD_SIZE; from++) {
+        piece = b->array[from];
+
+        if (PIECE_TYPE(piece) != KNIGHT) continue;
+        if (PIECE_COLOR(piece) != side) continue;
+
+        // knight_targets = KNIGHT_ATTACKS[from];
+        for (int i = 0; i < 8; i++) {
+            int to = KNIGHT_ATTACKS[from][i];
+
+            if (to == SQ_NONE) continue;
+            piece_to = b->array[to];
+
+            if (is_own(b, to)) continue;
+            
+            else if (is_empty(b, to)) {
+                move = encode_move(from, to, MV_QUIET);
+                movelist_add(list, move);
+            }
+            else if (is_enemy(b, to)) {
+                move = encode_move(from, to, MV_CAPTURE);
+                movelist_add(list, move);
+            }
+        }
+    } 
+}
 
 /* 
  * Verifica se as casas entre o rei e as torres estão vazias, e retorna os roques permitidos
@@ -147,7 +176,7 @@ static bool check_castle_side(const Board *b, Direction dir, int king_sq) {
     
     sq = king_sq + (i * DIR_OFFSET[dir]);
     p = b->array[sq];
-    if (is_own(p, b->side_to_move) && PIECE_TYPE(p) == ROOK) return true;
+    if (is_own(b, sq) && PIECE_TYPE(p) == ROOK) return true;
 
     return false;
 }
@@ -198,7 +227,7 @@ void generate_king_moves(const Board *b, MoveList *list) {
             movelist_add(list, move);
             continue;
         }
-        if (is_enemy(b->array[to], side)) {
+        if (is_enemy(b, to)) {
             move = encode_move(from, to, MV_CAPTURE);
             movelist_add(list, move);
         }
@@ -234,4 +263,5 @@ void generate_all_moves(Board *b, MoveList *list) {
     generate_pawn_moves(b, list);
     generate_sliding_moves(b, list);
     generate_king_moves(b, list);
+    generate_knight_moves(b, list);
 }

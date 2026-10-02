@@ -1,11 +1,9 @@
 #include "../include/board.h"
 #include "../include/piece.h"
-#include "../include/square.h"
 #include "../include/log.h"
 
 #include "../include/utils.h"
 
-bool is_empty(const Board *b, int sq) {return b->array[sq] == NO_PIECE; }
 
 bool fill_sq(Board *b, const char *sq_str, Piece p) {
     int sq = sq_from_coord(sq_str);
@@ -22,7 +20,7 @@ int  board_find_king(const Board *b, Color c) {
     for (sq = 0; sq < BOARD_SIZE; sq++) {
         p = b->array[sq];
 
-        if (is_own(p,c) && PIECE_TYPE(p) == KING) {
+        if ((p != EMPTY) && (PIECE_COLOR(p) == c) && (PIECE_TYPE(p) == KING)) {
             return sq;
         }
     }

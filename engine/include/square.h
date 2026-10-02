@@ -34,7 +34,7 @@ extern const int DIR_OFFSET[NUM_DIRS];
 extern const int PAWN_PUSH[NUM_COLORS];
 
 extern int SQ_TO_EDGE[BOARD_SIZE][NUM_DIRS];
-extern int KNIGHT_TARGETS[BOARD_SIZE][8];
+extern int KNIGHT_ATTACKS[BOARD_SIZE][8];
 extern int KING_TARGETS[BOARD_SIZE][8];
 extern int PAWN_ATTACKS[NUM_COLORS][BOARD_SIZE][2];
 

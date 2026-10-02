@@ -15,6 +15,7 @@
 #define TEST_FEN_03 "rnb1kbnr/pppp3p/4pp2/6p1/2P2P2/2N1P1PB/PP1P3P/R1BK2NR w kq - 0 8"
 #define TEST_FEN_04_PAWN_CAPTURES "nqrkrbbn/p1p1pppp/8/1p1p4/2P1P3/8/PP1P1PPP/NQRKRBBN b - c3 0 1"
 #define TEST_FEN_05_PAWN_CAPTURE_OFFBOARD "rnbqkbnr/pppppppp/8/7B/8/4P3/PPPP1PPP/RNBQK1NR b KQkq - 0 1"
+#define TEST_FEN_EN_PASSANT "rnbqkbnr/pp1p1ppp/8/2pPp3/8/8/4PPPP/RNBQKBNR w KQkq - 0 1"
 
 static Move read_move(void) {
     char move_str[WORD_CAP];
@@ -189,7 +190,7 @@ int main(void) {
     init_square_tables();
 
     Board b;
-    const char *fen = TEST_FEN_05_PAWN_CAPTURE_OFFBOARD;
+    const char *fen = TEST_FEN_EN_PASSANT;
 
 
     if (fen_parse(fen, &b)) {

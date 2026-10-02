@@ -3,6 +3,9 @@
 
 #include "types.h"
 #include "piece.h"
+#include "square.h"
+
+#include <assert.h>
 
 /*
  * Posicao inicial em ORDEM VISUAL: a primeira linha e a fileira 8, da
@@ -42,7 +45,7 @@ typedef struct {
     
     u8 castling_rights;    /* bitmask CASTLE_* */
     int ep_square;         /* en passant: SQ_NONE se não houver */
-    int halfmove_clock;   
+    int halfmove_clock;
     int fullmove_number;
 } Board;
 
@@ -54,7 +57,24 @@ void board_new(Board *new);
 void board_print(const Board *board);
 
 bool fill_sq(Board *b, const char *sq_str, Piece p);
-bool is_empty(const Board *b, int sq);
+
+static inline bool is_empty(const Board *b, int sq) {
+    assert(!SQ_OFFBOARD(sq) && "sq offboard");
+    return b->array[sq] == NO_PIECE; 
+}
+
+static inline bool is_own(const Board *b, int sq) {
+    assert(!SQ_OFFBOARD(sq) && "sq offboard");    
+    Piece p = b->array[sq];
+    return p != EMPTY && PIECE_COLOR(p) == b->side_to_move; 
+}
+
+static inline bool is_enemy(const Board *b, int sq) { 
+    assert(!SQ_OFFBOARD(sq) && "sq offboard");    
+    Piece p = b->array[sq];
+    return p != EMPTY && PIECE_COLOR(p) != b->side_to_move;
+}
+
 
 #endif
 

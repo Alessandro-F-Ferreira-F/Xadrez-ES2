@@ -1,20 +1,22 @@
-cmake_minimum_required(VERSION 3.28)
-project(CMakeSFMLProject LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.20)
+project(XadrezInterface LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(FetchContent)
-FetchContent_Declare(SFML
-    GIT_REPOSITORY https://github.com/SFML/SFML.git
-    GIT_TAG 3.0.0
-    GIT_SHALLOW ON
-    EXCLUDE_FROM_ALL
-    SYSTEM)
-FetchContent_MakeAvailable(SFML)
+# Encontra a biblioteca SFML já instalada no sistema
+find_package(SFML 2 COMPONENTS graphics window system REQUIRED)
 
-add_executable(main main.cpp)
-target_compile_features(main PRIVATE cxx_std_17)
-target_link_libraries(main PRIVATE SFML::Graphics SFML::Window SFML::System)
+# Coleta os arquivos fonte (.cpp)
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+list(APPEND SOURCES main.cpp)
 
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT main)
+# Define o executável
+add_executable(xadrez ${SOURCES})
+
+# Configura a pasta include/ para os headers
+target_include_directories(xadrez PRIVATE include)
+
+# Linka as bibliotecas da SFML
+target_link_libraries(xadrez PRIVATE sfml-graphics sfml-window sfml-system)

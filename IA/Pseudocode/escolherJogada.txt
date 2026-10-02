@@ -18,7 +18,7 @@ ALFA = -INFINITO
 BETA = INFINITO
 
 LANCE_NULO = 0 -- gravado em JOGADA.lance quando a lista de candidatos é vazia, mesmo após a execução de minimax(estado, profundidade) ou de podaAlfaBeta(estado, profundidade, alfa, beta)
-SCORE_INVALIDO = 60000 -- valor default ilustrativo de score, para quando o lance for inválido
+SCORE_INVALIDO = 30000 -- valor default ilustrativo de score, para quando o lance for inválido. Será int32_t nesta implementação em C
 
 TIPO_INVALIDO = 0 -- Tipo que representa uma jogada inválida
 TIPO_CENTIPEAO = 1

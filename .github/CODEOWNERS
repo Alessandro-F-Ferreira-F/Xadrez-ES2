@@ -1,0 +1,6 @@
+# Regras de Code Owners do repositório Xadrez-ES2
+
+# Responsáveis pela pasta da interface gráfica (SFML / C++)
+/interface/ @Rottschaefer @Alvidosa
+
+/engine/ @caioveigap @Alessandro-F-Ferreira-F

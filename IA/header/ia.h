@@ -65,9 +65,9 @@ Após a chamada:
     p->tipo == TIPO_CENTIPEAO: p->score em centipeões
 */
 
-void escolherJogada(Board *b, int variante, int randomizador);
+void escolherJogada(Board *board, int variante, int randomizador);
 /*
-Escolhe um lance para o lado da vez em b e grava o resultado em JOGADA.
+Escolhe um lance para o lado da vez em board e grava o resultado em JOGADA.
 Variante, randomizador e raiz são verificados internamente; não há
 pré-condição a cargo do chamador.
 
@@ -80,6 +80,15 @@ Após a chamada:
         por regra); não há lance a jogar
     se JOGADA.resultado != RESULTADO_SUCESSO, os demais campos ficam nos
     valores padrão (LANCE_NULO, SCORE_INVALIDO, TIPO_INVALIDO)
+*/
+
+void iniciarSorteio(unsigned int semente);
+/*
+Define a semente do sorteio entre lances empatados (SORTEIO_LIGADO).
+Deve ser chamada uma única vez, antes da primeira escolherJogada:
+    no motor: iniciarSorteio((unsigned int) time(NULL))
+    nos testes: semente fixa, para reproduzir o sorteio
+Sem esta chamada, o sorteio repete a mesma sequência a cada execução.
 */
 
 extern Play JOGADA;

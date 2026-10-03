@@ -69,8 +69,12 @@ void make_move(Board *b, Move m, Undo *u) {
     } 
 
     // atualiza king_square
-    b->king_square[WHITE] = board_find_king(b, WHITE);
-    b->king_square[BLACK] = board_find_king(b, BLACK);
+    if (PIECE_TYPE(p) == KING) {
+        b->king_square[side] = to;
+    }
+    if (PIECE_TYPE(captured) == KING) {
+        b->king_square[PIECE_COLOR(captured)] = SQ_NONE;
+    }
 
 
     // atualiza direitos de roque
@@ -135,7 +139,6 @@ void unmake_move(Board *b, Move move, const Undo *u) {
     
     int from = move_from(move);
     int to = move_to(move);
-
     assert(!SQ_OFFBOARD(from) && !SQ_OFFBOARD(to) && "invalid 'from' or 'to' square");
 
     // Tratar casos especiais
@@ -168,6 +171,8 @@ void unmake_move(Board *b, Move move, const Undo *u) {
     }
 
 
+    Piece moved_piece = b->array[to];
+
     // Desfazer o lance
     b->array[from] = b->array[to];
     if (move_is_ep_capture(move)) {
@@ -176,11 +181,18 @@ void unmake_move(Board *b, Move move, const Undo *u) {
         b->array[to] = NO_PIECE;
     } else {
         b->array[to] = u->captured;
+        if (PIECE_TYPE(u->captured) == KING) {
+            b->king_square[PIECE_COLOR(u->captured)] = to;
+        }
     }
 
     b->ep_square = u->ep_square;
     b->castling_rights = u->castling_rights;
     if (moved_side == BLACK) b->fullmove_number--;
     b->halfmove_clock = u->halfmove_clock;
-    b->king_square[moved_side] = board_find_king(b, moved_side);
+
+
+    if (PIECE_TYPE(moved_piece) == KING) {
+        b->king_square[moved_side] = from;
+    }
 }

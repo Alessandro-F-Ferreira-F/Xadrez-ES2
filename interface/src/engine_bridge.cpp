@@ -1,4 +1,5 @@
 #include "engine_bridge.hpp"
+#include <cstdlib>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -25,13 +26,15 @@ bool EngineBridge::start(const std::string &engineFilePath){
         pipe(pipe_interface);
 
         //O pid é diferente pro pai e pro filho. O retorno é feito depois que o 2 processo é criado
-        pid_t pid = fork()
+        pid_t pid = fork();
+
 
         if (pid < 0){
             return false;
         }
 
         else if (pid == 0) {
+
             //Fluxo do filho(engine)
 
             //No momento, a entrada e saída padrão do processo filho ainda são o teclado e a tela. O pipe já está criado, mas não é o padrão. Substituimos os file_descriptor padrão pelos dos pipes criados.
@@ -68,6 +71,20 @@ bool EngineBridge::start(const std::string &engineFilePath){
 
 
     #endif
+    
+}
+
+bool EngineBridge::sendCommand(const std::string &command){
+
+    std::string cmd = command + "\n";
+
+    ssize_t bytes_enviado = write(pipe_engine[1], cmd.c_str(), cmd.size());
+
+    if (bytes_enviado > 0) {
+        return true;
+    }
+    
+    return false;
     
 }
 

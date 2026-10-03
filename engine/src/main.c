@@ -7,6 +7,7 @@
 #include "../include/square.h"
 #include "../include/makemove.h"
 #include "../include/io.h"
+#include "../test/test.h"
 
 
 
@@ -81,6 +82,7 @@ static void ui(Board *b) {
         printf("7 - Edit square\n");
         printf("8 - Clear screen\n");
         printf("9 - Quit\n");
+        printf("10 - Run make/unmake tests\n");
 
         opt = get_int("Insert option: ");
         /* get_int devolve 0 em EOF, e 0 cai no default: sem isto o laco nunca acaba com Ctrl-D */
@@ -177,6 +179,14 @@ static void ui(Board *b) {
             break;
         case 9:
             ch = 'n';
+            break;
+        case 10:
+            if (run_make_unmake_tests()) {
+                printf("All make/unmake tests passed.\n");
+            } else {
+                printf("Make/unmake tests failed.\n");
+            }
+            wait_enter();
             break;
         default:
             break;

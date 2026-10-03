@@ -15,8 +15,19 @@
 CC       := gcc
 STD      := -std=c11
 WARN     := -Wall -Wextra -Wpedantic -Wstrict-prototypes -Wmissing-prototypes
-SRC      := $(wildcard src/*.c)
-BIN      := build/main.out
+SRC      := $(wildcard src/*.c) test/test.c
+
+ifeq ($(OS),Windows_NT)
+BIN         := build/main.exe
+MKDIR_BUILD := if not exist build mkdir build
+TEST_BIN    := build/test.exe
+RUN_BIN     := $(BIN)
+else
+BIN         := build/main.out
+MKDIR_BUILD := mkdir -p build
+TEST_BIN    := build/test.out
+RUN_BIN     := ./$(BIN)
+endif
 
 CFLAGS   := $(STD) $(WARN) -Og -g
 DBGFLAGS := $(STD) $(WARN) -Og -g -DDEBUG -fsanitize=address,undefined \
@@ -25,19 +36,22 @@ DBGFLAGS := $(STD) $(WARN) -Og -g -DDEBUG -fsanitize=address,undefined \
 .PHONY: all debug run clean test
 
 all:
-	@mkdir -p build
+	@$(MKDIR_BUILD)
 	$(CC) $(CFLAGS) $(SRC) -o $(BIN)
 
 # -DDEBUG liga o LOG_ERROR; sem ele os erros de FEN e de lance somem.
 debug:
-	@mkdir -p build
+	@$(MKDIR_BUILD)
 	$(CC) $(DBGFLAGS) $(SRC) -o $(BIN)
 
 test:
-	gcc $(DBGFLAGS) -o build/test.out test/test.c src/board.c src/makemove.c src/move.c src/fen.c src/movegen.c src/piece.c src/square.c src/log.c src/utils.c
+	@$(MKDIR_BUILD)
+	$(CC) $(CFLAGS) -DMAKE_UNMAKE_TEST_STANDALONE \
+		-o $(TEST_BIN) $(filter-out src/main.c src/io.c,$(SRC))
+	$(TEST_BIN)
 
 run: all
-	./$(BIN)
+	$(RUN_BIN)
 
 clean:
-	rm -f build/*.out
+	rm -f build/*.out build/*.exe

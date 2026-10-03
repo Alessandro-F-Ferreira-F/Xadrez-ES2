@@ -2,7 +2,7 @@
 #include "../include/piece.h"
 #include "../include/square.h"
 
-#include "../include/assert.h"
+#include <assert.h>
 
 bool check_pawn_promotion(int from) {
     if ((RANK_OF(from) == 0) || (RANK_OF(from) == 7)) return true;

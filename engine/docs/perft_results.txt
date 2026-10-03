@@ -1,0 +1,8 @@
+Perft result [depth: 0]: 1
+Perft result [depth: 1]: 20
+Perft result [depth: 2]: 400
+Perft result [depth: 3]: 8,902
+Perft result [depth: 4]: 197,281
+Perft result [depth: 5]: 4,865,609
+Perft result [depth: 6]: 119,060,324
+Perft result [depth: 7]: 3,195,905,546

@@ -22,6 +22,7 @@
 #define TEST_FEN_04_PAWN_CAPTURES "nqrkrbbn/p1p1pppp/8/1p1p4/2P1P3/8/PP1P1PPP/NQRKRBBN b - c3 0 1"
 #define TEST_FEN_05_PAWN_CAPTURE_OFFBOARD "rnbqkbnr/pppppppp/8/7B/8/4P3/PPPP1PPP/RNBQK1NR b KQkq - 0 1"
 #define TEST_FEN_EN_PASSANT "rnbqkbnr/pp1p1ppp/8/2pPp3/8/8/4PPPP/RNBQKBNR w KQkq - 0 1"
+#define TEST_FEN_CHECK_DETECTION "r1bqk1nr/pppp2pp/5p2/4n2B/1b1pP3/8/PP1Q1PPP/RNB1K1NR w KQkq - 0 1"
 
 Board copy_board(Board *b) {
     Board copy;
@@ -39,7 +40,7 @@ u64 perft(Board *board, int depth) {
     int n_moves, i;
     u64 nodes = 0;
 
-    generate_pseudo_legal_moves(board, &list);
+    generate_legal_moves(board, &list);
     n_moves = list.count;
 
     for (int i = 0; i < n_moves; i++) {
@@ -219,7 +220,8 @@ static void ui(Board *b) {
                 break;
             }
             move_str[strcspn(move_str, "\r\n")] = '\0';
-            generate_pseudo_legal_moves(b, &l);
+            generate_legal_moves(b, &l);
+            // generate_pseudo_legal_moves(b, &l);
             int move_i = movelist_find(&l, move_str);
 
             if (move_i == -1) {
@@ -257,6 +259,7 @@ static void ui(Board *b) {
                 break;
             }
             generate_pseudo_legal_moves(b, &l);
+            generate_legal_moves(b, &l);
             MoveList filtered;
             filter_moves_from_sq(&l, &filtered, sq);
 
@@ -270,7 +273,8 @@ static void ui(Board *b) {
             wait_enter();
             break;
         case 6:
-            generate_pseudo_legal_moves(b, &l);
+            // generate_pseudo_legal_moves(b, &l);
+            generate_legal_moves(b, &l);
             print_moves(&l);
             printf("%d moves\n", l.count);
             wait_enter();
@@ -318,6 +322,7 @@ static void ui(Board *b) {
             else {
                 printf("SQUARE IS NOT ATTACKED!\n");
             }
+            wait_enter();
             break;
         default:
             break;
@@ -336,14 +341,17 @@ int main(void) {
 
     Board b;
     board_new(&b);
+    // if(!fen_parse(TEST_FEN_CHECK_DETECTION, &b)) {
+    //     printf("FEN failed!\n");
+    // }
 
     board_print(&b);
 
-    ui(&b);
-    // for (int i = 0; i <= 7; i++) {
-    //     u64 perft_result = perft(&b, i);
-    //     printf("Perft result [depth: %d]: %lu\n", i, perft_result);
-    // }
+    // ui(&b);
+    for (int i = 0; i <= 7; i++) {
+        u64 perft_result = perft(&b, i);
+        printf("Perft result [depth: %d]: %lu\n", i, perft_result);
+    }
 
     // Board game;
     // ui(&game);

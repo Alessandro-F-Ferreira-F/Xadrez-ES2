@@ -1,13 +1,13 @@
 #include "../include/movegen.h"
 #include "../include/piece.h"
 #include "../include/square.h"
-
+#include "../include/makemove.h"
 #include "../include/assert.h"
 
-bool check_pawn_promotion(int from) {
-    if ((RANK_OF(from) == 0) || (RANK_OF(from) == 7)) return true;
-    return false;
-}
+bool is_square_attacked(const Board *b, const int sq, const Color side);
+bool check_pawn_promotion(int from);
+
+
 
 void generate_pawn_moves(Board *b, MoveList *list) {
     int from, to;
@@ -269,9 +269,42 @@ void generate_pseudo_legal_moves(Board *b, MoveList *list) {
     generate_knight_moves(b, list);
 }
 
-bool is_square_attacked(const Board *b, const int sq, const Color side) {
-    Piece piece;
+void generate_legal_moves(Board *b, MoveList *list) {
+    movelist_clear(list);
+    
+    MoveList pseudo_list;
+    generate_pseudo_legal_moves(b, &pseudo_list);
+    
+    Undo u;
+    int king_sq;
+    Color side = b->side_to_move;
 
+    for (int move_i = 0; move_i < pseudo_list.count; move_i++) {
+        Move move = pseudo_list.moves[move_i];
+        make_move(b, move, &u);
+        king_sq = b->king_square[side];
+
+        char out[6];
+        char out_sq[3];
+
+        sq_to_coord(king_sq, out_sq);
+        move_to_str(move, out);
+        bool check = is_square_attacked(b, king_sq, side);
+        // printf("[CHECK %d]: %s king_sq = %s, move = %s\n", move_i, (check ? "TRUE" : "FALSE"), out_sq, out);
+
+        unmake_move(b, move, &u);
+
+        if (!check) {
+            movelist_add(list, move);
+        }
+    }
+}
+
+
+bool is_square_attacked(const Board *b, const int sq, const Color side) {
+    assert(!SQ_OFFBOARD(sq) && "Square offboard.\n");
+    
+    Piece piece;
     Color opposite = side == WHITE ? BLACK : WHITE;
 
     //peões
@@ -283,52 +316,57 @@ bool is_square_attacked(const Board *b, const int sq, const Color side) {
     
     // cavalos
     int *knight_atk = KNIGHT_ATTACKS[sq];
-
+    int to;
     for (int i = 0; i < 8; i++) {
-        int offset_sq = knight_atk[i];
-        if (offset_sq == SQ_NONE) continue;
+        to = knight_atk[i];
+        if (to == SQ_NONE) continue;
 
-        piece = b->array[offset_sq];
-        if (PIECE_TYPE(piece) == KNIGHT) {
+        piece = b->array[to];
+        if (piece == PIECE_MAKE(opposite, KNIGHT)) {
             return true;
         }
     }
 
-    // bispos e rainhas
+    // diagonais (bispos e rainhas)
     int dist_to_edge;
-    int to = sq;
 
     for (int dir = 4; dir < 8; dir++) {
-        dist_to_edge = SQ_TO_EDGE[sq];
+        dist_to_edge = SQ_TO_EDGE[sq][dir];
+        to = sq;
         for (;dist_to_edge > 0; dist_to_edge--) {
             to += DIR_OFFSET[dir];
             piece = b->array[to];
-            if (PIECE_TYPE(piece) == BISHOP || PIECE_TYPE(piece) == QUEEN) return true;
+            if (piece == PIECE_MAKE(opposite, BISHOP) || piece == PIECE_MAKE(opposite, QUEEN)) return true;
             else if (piece != NO_PIECE) break;
         }
     }
 
-    // torre
-    to = sq;
+    // ortogonais (torres e rainhas)
     for (int dir = 0; dir < 4; dir++) {
-        dist_to_edge = SQ_TO_EDGE[sq];
+        to = sq;
+        dist_to_edge = SQ_TO_EDGE[sq][dir];
         for (;dist_to_edge > 0; dist_to_edge--) {
             to += DIR_OFFSET[dir];
             piece = b->array[to];
-            if (PIECE_TYPE(piece) == ROOK) return true;
+            if (piece == PIECE_MAKE(opposite, ROOK)) return true;
+            else if (piece == PIECE_MAKE(opposite, QUEEN)) return true;
             else if (piece != NO_PIECE) break;
         }
     }
 
     //king
-    to = sq;
     for (int dir = 0; dir < 8; dir++) {
-        to += DIR_OFFSET[dir];
+        to = sq + DIR_OFFSET[dir];
         if (SQ_OFFBOARD(to)) continue;
         piece = b->array[to];
 
-        if (PIECE_TYPE(piece) == KING) return true;
+        if (piece == PIECE_MAKE(opposite, KING)) return true;
     }
 
+    return false;
+}
+
+bool check_pawn_promotion(int from) {
+    if ((RANK_OF(from) == 0) || (RANK_OF(from) == 7)) return true;
     return false;
 }

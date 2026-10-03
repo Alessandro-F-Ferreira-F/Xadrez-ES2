@@ -2,7 +2,8 @@
 #include "../include/piece.h"
 #include "../include/square.h"
 #include "../include/makemove.h"
-#include "../include/assert.h"
+
+#include <assert.h>
 
 bool is_square_attacked(const Board *b, const int sq, const Color side);
 bool check_pawn_promotion(int from);

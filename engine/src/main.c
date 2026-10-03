@@ -192,7 +192,7 @@ static void ui(Board *b) {
         printf("9 - Quit\n");
         printf("10 - Perft\n");
         printf("11 - Check square attacked\n");
-        printf("10 - Run make/unmake tests\n");
+        printf("12 - Run make/unmake tests\n");
 
         opt = get_int("Insert option: ");
         /* get_int devolve 0 em EOF, e 0 cai no default: sem isto o laco nunca acaba com Ctrl-D */
@@ -321,7 +321,7 @@ static void ui(Board *b) {
                 printf("SQUARE IS NOT ATTACKED!\n");
             }
             break;
-        case 10:
+        case 12:
             if (run_make_unmake_tests()) {
                 printf("All make/unmake tests passed.\n");
             } else {

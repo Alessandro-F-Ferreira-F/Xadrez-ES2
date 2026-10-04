@@ -1,0 +1,31 @@
+-- converterScore(scoreBruto, ladoDaVez, saida) converte o score devolvido pela busca (convenção interna: brancas positivas) para o formato do UCI, e preenche saida.score e saida.tipo. saida é uma estrutura do mesmo tipo de JOGADA; escolherJogada passa a própria JOGADA, e os testes podem passar uma estrutura local
+
+-- Não lê nem escreve saida.lance nem saida.resultado
+
+-- Pré-condição: scoreBruto é o valor devolvido por minimax ou podaAlfaBeta para uma raiz válida (estritamente entre -INFINITO e +INFINITO). Não deve ser chamada com SCORE_INVALIDO
+
+-- Ordem obrigatória: inversão de perspectiva -> classificação pelo limiar -> conversão para lances completos (só no ramo de mate). Converter antes de classificar torna TIPO_MATE inalcançável; classificar antes de inverter dá o sinal errado para as pretas
+
+-- Perspectiva: o UCI reporta o score do ponto de vista de quem está na vez. Após a inversão, positivo significa que o lado da vez está ganhando
+
+-- Mate é reconhecido por faixa (LIMIAR_MATE), não por igualdade com MATE, pois o valor é MATE - profundidade, com sinal
+
+-- LIMIAR_MATE, MATE, TIPO_MATE e TIPO_CENTIPEAO definidos em escolherJogada.txt e minmax.txt
+
+função converterScore(scoreBruto, ladoDaVez, saida):
+    score = scoreBruto
+    se ladoDaVez == BLACK então
+        score = -score
+
+    se LIMIAR_MATE <= módulo(score) então
+        saida.tipo = TIPO_MATE
+
+        se score > 0 então
+            sinalMate = 1
+        senão sinalMate = -1
+
+        saida.score = sinalMate * ((MATE - módulo(score) + 1)/2) -- esta linha considera a divisão em C, que é sempre inteira
+        -- Aqui conta lances completos ao invés de meio-lance (este é contado por profundidade). Com p = MATE - módulo(score): p ímpar é mate a favor do lado da vez, p par é mate contra
+    senão:
+        saida.tipo = TIPO_CENTIPEAO
+        saida.score = score

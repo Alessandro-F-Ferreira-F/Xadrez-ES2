@@ -49,7 +49,7 @@ bool run_make_unmake_tests(void) {
         }
 
         MoveList moves = {0};
-        generate_pseudo_legal_moves(&board, &moves);
+        generate_legal_moves(&board, &moves);
         bool position_passed = true;
 
         for (int move_index = 0; move_index < moves.count; move_index++) {

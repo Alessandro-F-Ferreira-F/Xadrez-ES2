@@ -260,7 +260,6 @@ static void ui(Board *b) {
                 wait_enter();
                 break;
             }
-            generate_pseudo_legal_moves(b, &l);
             generate_legal_moves(b, &l);
             MoveList filtered;
             filter_moves_from_sq(&l, &filtered, sq);
@@ -275,7 +274,6 @@ static void ui(Board *b) {
             wait_enter();
             break;
         case 6:
-            // generate_pseudo_legal_moves(b, &l);
             generate_legal_moves(b, &l);
             print_moves(&l);
             printf("%d moves\n", l.count);
@@ -297,8 +295,10 @@ static void ui(Board *b) {
         case 10:
             int d = get_int("Insert depth: ");
             Board temp = copy_board(b);
-            u64 perft_result = perft(&temp, d);
-            printf("Perft result [depth: %d]: %lu\n", d, perft_result);
+            for (int depth = 0; depth <= d; depth++) {
+                u64 perft_result = perft(&temp, depth);
+                printf("Perft result [depth: %d]: %lu\n", depth, perft_result);
+            }
             wait_enter();
             break;
         case 11:
@@ -338,34 +338,21 @@ static void ui(Board *b) {
             break;
         }
 
-        // scanf("%c", &ch);
     } while ((ch != 'n'));
 }
 int main(void) {
     init_square_tables();
-    // srand((unsigned)time(NULL));
-
-    // int ply = get_int("Insert ply: ");
-    // int delay_ms = get_int("Delay between moves, in milliseconds (0 = no pause): ");
-    // if (delay_ms < 0) delay_ms = 0;
 
     Board b;
     board_new(&b);
-    // if(!fen_parse(TEST_FEN_CHECK_DETECTION, &b)) {
-    //     printf("FEN failed!\n");
-    // }
 
     board_print(&b);
-
-    // ui(&b);
-    for (int i = 0; i <= 7; i++) {
-        u64 perft_result = perft(&b, i);
-        printf("Perft result [depth: %d]: %lu\n", i, perft_result);
-    }
-
-    // Board game;
-    // ui(&game);
-    // ai_game(ply, delay_ms);
+    ui(&b);
+    
+    // for (int i = 0; i <= 7; i++) {
+    //     u64 perft_result = perft(&b, i);
+    //     printf("Perft result [depth: %d]: %lu\n", i, perft_result);
+    // }
 
     return 0;
 }

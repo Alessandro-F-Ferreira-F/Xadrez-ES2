@@ -3,4 +3,6 @@
 # Responsáveis pela pasta da interface gráfica (SFML / C++)
 /interface/ @Rottschaefer @Alvidosa
 
-/engine/ @caioveigap @Alessandro-F-Ferreira-F
+/engine/ @caioveigap 
+
+/IA/ @Alessandro-F-Ferreira-F

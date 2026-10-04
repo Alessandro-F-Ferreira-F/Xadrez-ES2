@@ -13,6 +13,7 @@
 #include "../include/square.h"
 #include "../include/makemove.h"
 #include "../include/io.h"
+#include "../include/uci.h"
 #include "../test/test.h"
 
 #define TEST_FEN_POSITION_5 "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
@@ -281,19 +282,29 @@ static void ui(Board *b) {
 
     } while ((ch != 'n'));
 }
-int main(void) {
+/*
+ * Sem argumento: o laco do protocolo. E' o default porque e' o que a interface
+ * executa -- ela roda este binario como subprocesso e fala por stdin/stdout
+ * (protocolo.md secao 3). O menu interativo continua existindo, atras do
+ * argumento 'repl', porque depurar a mao continua valendo.
+ */
+int main(int argc, char **argv) {
     init_square_tables();
 
-    Board b;
-    board_new(&b);
-    if(!fen_parse(TEST_FEN_POSITION_5, &b)) {
-        printf("Invalid FEN\n");
-        return -1;
+    if (argc > 1 && strcmp(argv[1], "repl") == 0) {
+        Board b;
+        board_new(&b);
+        if(!fen_parse(TEST_FEN_POSITION_5, &b)) {
+            printf("Invalid FEN\n");
+            return -1;
+        }
+
+        ui(&b);
+
+        return 0;
     }
 
-    ui(&b);
-
-    return 0;
+    return uci_main(argc, argv);
 }
 
 

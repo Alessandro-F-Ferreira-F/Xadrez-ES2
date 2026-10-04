@@ -1,0 +1,6 @@
+position
+position fen 8/8/8/8/8/8/8/8
+position startpos movez e2e4
+naoexisteestecomando foo bar
+isready
+quit

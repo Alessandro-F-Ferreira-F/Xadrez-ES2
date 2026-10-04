@@ -1,0 +1,16 @@
+# Reinclusoes locais. O .gitignore da raiz ignora *.out (saida de compilacao),
+# *.py e .gitignore -- e os tres padroes pegam, por acidente, exatamente o
+# conteudo deste diretorio:
+#
+#   *.out   aqui NAO e binario: e a SAIDA ESPERADA de cada transcricao, a
+#           metade que diz se o teste passou (protocolo.md secao 11.1)
+#   *.py    run.py e o executor das transcricoes, nao script descartavel
+#
+# Sem estas tres linhas o diretorio entra no repositorio com so metade dos
+# arquivos e sem o executor -- quebrado, e em silencio.
+#
+# Regras de um .gitignore mais fundo tem precedencia sobre as de um mais raso,
+# que e o que faz isto funcionar sem alterar o arquivo da raiz.
+!*.out
+!*.py
+!.gitignore

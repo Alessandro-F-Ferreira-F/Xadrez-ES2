@@ -39,9 +39,6 @@ extern int KING_TARGETS[BOARD_SIZE][8];
 extern int PAWN_ATTACKS[NUM_COLORS][BOARD_SIZE][2];
 
 
-static const int KNIGHT_OFFSETS[8] = {+6, +15, +17, +10, -6, -15, -17, -10};
-
-
 void init_square_tables(void);
 int sq_from_coord(const char *coord);
 void sq_to_coord(int sq, char out[3]);

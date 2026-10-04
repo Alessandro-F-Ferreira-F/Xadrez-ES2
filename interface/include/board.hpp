@@ -23,9 +23,6 @@ private:
     void loadTextures();
     void placePiece(PieceType type, PieceColor color, int col, int row);
 
-    // Converte notação algébrica (ex: "e2") em coordenadas de matriz (col=4, row=6)
-    bool parseSquare(const std::string& sqStr, int& outCol, int& outRow) const;
-
 public:
     explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE);
 
@@ -36,10 +33,7 @@ public:
     // Posiciona as 32 peças na configuração inicial do xadrez
     void setupInitialPosition();
 
-    // Aplica um lance individual no formato UCI (ex: "e2e4", "e7e8q")
-    bool applyUCIMove(const std::string& moveStr);
-
-    // Processa comandos completos no protocolo UCI (ex: "position startpos moves e2e4 e7e5")
+    // Esqueleto para receber comandos no protocolo UCI (ex: "position startpos", "e2e4")
     void processUCICommand(const std::string& command);
 
     void draw(sf::RenderWindow &window);

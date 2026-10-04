@@ -43,15 +43,10 @@ cd engine
 make            # build de desenvolvimento
 make run        # executa
 make debug      # build com sanitizers (ASan) e warnings extras
-make test       # executa os testes de ida e volta make/unmake
 make clean
 ```
 
-O binário sai em `engine/build/main.exe` no Windows e `engine/build/main.out`
-nos demais sistemas. No Windows, compile e execute com `mingw32-make all` e
-`mingw32-make run`; nos demais sistemas, use `make all` e `make run`.
-No menu do motor, a opção 10 executa os mesmos testes. A lista de FENs usados
-fica em `engine/test/test.c` e pode ser ampliada adicionando posições ao vetor.
+O binário sai em `engine/build/main.out`.
 
 ## Estado atual
 

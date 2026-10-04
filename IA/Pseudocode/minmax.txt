@@ -4,7 +4,7 @@
 
 -- emXeque(estado) é a função que testa se o rei do lado da vez está em xeque, dado um estado
 
--- profMax é a constante de compilação global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado (profMax deve ser maior que 0)
+-- profMax é a variável global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado (profMax deve ser maior que 0)
 
 -- listaCandidatos variável global que guarda a lista de lances possíveis para serem escolhidos, todos empatados no melhor valor, com base nos critérios do minimax. Preenchida apenas na raiz da árvore de busca
 
@@ -12,8 +12,8 @@
 
 -- O valor retornado em um xeque-mate passa a ser (MATE - profundidade), com sinal, sendo negativo se as brancas perdem, positivo se as pretas perdem e a inicialização será feita em + ou - INFINITO. Empate foi convencionado como 0
 
-MATE = 19999
-INFINITO = 20000
+MATE = 49999
+INFINITO = 50000
 
 função minimax(estado, profundidade):
     se testeEmpateRegra(estado) então

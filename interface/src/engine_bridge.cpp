@@ -18,9 +18,8 @@ EngineBridge::EngineBridge()
 bool EngineBridge::start(const std::string &engineFilePath){
 
     #ifdef _WIN32
-        // TODO: Implementar criação de pipes e processo Win32
-        (void)engineFilePath;
-        return false;
+        //codigo windows
+    
     #else
 
         pipe(pipe_engine);
@@ -68,6 +67,9 @@ bool EngineBridge::start(const std::string &engineFilePath){
 
         return true;
 
+
+
+
     #endif
     
 }
@@ -76,28 +78,13 @@ bool EngineBridge::sendCommand(const std::string &command){
 
     std::string cmd = command + "\n";
 
-    #ifdef _WIN32
-        // TODO: Implementar envio via WriteFile no Windows
-        (void)cmd;
-        return false;
-    #else
-        ssize_t bytes_enviado = write(pipe_engine[1], cmd.c_str(), cmd.size());
+    ssize_t bytes_enviado = write(pipe_engine[1], cmd.c_str(), cmd.size());
 
-        if (bytes_enviado > 0) {
-            return true;
-        }
-        
-        return false;
-    #endif
-}
-
-std::string EngineBridge::readCommand() {
-    // TODO: Implementar leitura do pipe
-    return "";
-}
-
-bool EngineBridge::stop() {
-    // TODO: Implementar encerramento do processo
-    return true;
+    if (bytes_enviado > 0) {
+        return true;
+    }
+    
+    return false;
+    
 }
 

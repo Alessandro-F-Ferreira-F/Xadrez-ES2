@@ -6,7 +6,7 @@
  *
  * Implementa o contrato de 'protocolo.md' v1: um subconjunto do UCI (uci,
  * isready, ucinewgame, position, go, quit) mais as extensoes do projeto
- * (legalmoves, state, d). Uma mensagem por linha, pela stdin/stdout.
+ * (legalmoves, state, d, go perft). Uma mensagem por linha, pela stdin/stdout.
  *
  * A fronteira e' estreita de proposito: este modulo e' o unico lugar do motor
  * que sabe que existe um cliente do outro lado do pipe. Ele valida tudo o que
@@ -33,8 +33,10 @@
  *  3. 'repetition' e 'insufficient-material' nao sao emitidos como motivo de
  *     fim de partida (etapa P6). Repeticao exige o historico de posicoes, que
  *     e' desta camada guardar -- ver uci_session_reset().
- *  4. 'go perft' (etapa P6) nao existe: 'perft' mora em 'main.c', que nao tem
- *     header. Quando sair para um 'perft.h' proprio, o comando e' uma linha.
+ *  4. (resolvida) 'go perft <n>' existe: 'perft' saiu de 'main.c' para 'perft.h',
+ *     e o comando imprime o divide no formato do Stockfish. Limite de
+ *     profundidade 8 (UCI_PERFT_MAX_DEPTH em uci.c), porque sem 'stop' um pedido
+ *     enorme deixaria o motor inalcancavel.
  */
 
 /*

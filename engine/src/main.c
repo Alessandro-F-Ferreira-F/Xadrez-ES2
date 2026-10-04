@@ -13,6 +13,7 @@
 #include "../include/square.h"
 #include "../include/makemove.h"
 #include "../include/io.h"
+#include "../include/perft.h"
 #include "../include/uci.h"
 #include "../test/test.h"
 
@@ -39,29 +40,6 @@ typedef struct {
     int nodes;
 } PerftResult;
 
-
-
-u64 perft(Board *board, int depth) {
-    if (depth == 0) {
-        return 1;
-    }
-    Undo u;
-
-    MoveList list;
-    int n_moves, i;
-    u64 nodes = 0;
-
-    generate_legal_moves(board, &list);
-    n_moves = list.count;
-
-    for (int i = 0; i < n_moves; i++) {
-        make_move(board, list.moves[i], &u);
-        nodes += perft(board, depth-1);
-        unmake_move(board, list.moves[i], &u);
-    }
-
-    return nodes;
-}
 
 
 u64 perft_divide(Board *b, int depth, FILE *out) {
@@ -291,18 +269,18 @@ static void ui(Board *b) {
 int main(int argc, char **argv) {
     init_square_tables();
 
-    if (argc > 1 && strcmp(argv[1], "repl") == 0) {
-        Board b;
-        board_new(&b);
-        if(!fen_parse(TEST_FEN_POSITION_5, &b)) {
-            printf("Invalid FEN\n");
-            return -1;
-        }
+    // if (argc > 1 && strcmp(argv[1], "repl") == 0) {
+    //     Board b;
+    //     board_new(&b);
+    //     if(!fen_parse(TEST_FEN_POSITION_5, &b)) {
+    //         printf("Invalid FEN\n");
+    //         return -1;
+    //     }
 
-        ui(&b);
+    //     ui(&b);
 
-        return 0;
-    }
+    //     return 0;
+    // }
 
     return uci_main(argc, argv);
 }

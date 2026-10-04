@@ -27,6 +27,7 @@ A stderr do motor e ignorada: por contrato ela e diagnostico para humanos, em
 formato livre e instavel.
 """
 
+import re
 import subprocess
 import sys
 import threading
@@ -75,6 +76,27 @@ def lines_match(expected, got):
     return False
 
 
+DIVIDE_LINE = re.compile(r"^\S+: \d+$")
+
+
+def normalize(lines):
+    """Ordena cada bloco contiguo de linhas 'lance: contagem' ('go perft').
+
+    Como 'legalmoves', a ordem dos lances da raiz nao faz parte do contrato; o que
+    importa e o CONJUNTO de pares lance/contagem e o total que vem depois.
+    """
+    out, run = [], []
+    for ln in lines:
+        if DIVIDE_LINE.match(ln):
+            run.append(ln)
+        else:
+            out.extend(sorted(run))
+            run = []
+            out.append(ln)
+    out.extend(sorted(run))
+    return out
+
+
 def check_transcripts(engine):
     failures = []
     cases = sorted(HERE.glob("*.in"))
@@ -87,9 +109,10 @@ def check_transcripts(engine):
             failures.append(f"{case.name}: falta {expected_file.name}")
             continue
 
-        expected = expected_file.read_text().splitlines()
+        expected = normalize(expected_file.read_text().splitlines())
         try:
             got, code = run_engine(engine, case.read_text())
+            got = normalize(got)
         except subprocess.TimeoutExpired:
             failures.append(f"{case.name}: o motor nao terminou (travou, ou nao "
                             f"respondeu ao quit)")

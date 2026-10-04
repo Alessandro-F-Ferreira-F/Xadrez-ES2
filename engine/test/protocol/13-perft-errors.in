@@ -1,0 +1,9 @@
+go perft
+go perft 0
+go perft x
+go perft 9
+go perft 2 extra
+position startpos moves e2e4
+go perft 1
+state
+quit

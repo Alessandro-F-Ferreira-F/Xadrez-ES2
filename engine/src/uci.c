@@ -12,6 +12,7 @@
 #include "../include/move.h"
 #include "../include/movegen.h"
 #include "../include/makemove.h"
+#include "../include/perft.h"
 #include "../include/io.h"
 #include "../include/log.h"
 
@@ -46,6 +47,12 @@
    mesma sequencia de comandos produz sempre a mesma resposta, e e isso que
    torna uma sessao do cliente reproduzivel a partir do arquivo de --trace. */
 #define UCI_RNG_SEED 0x9E3779B97F4A7C15ull
+
+/* Profundidade maxima de 'go perft'. A 8 ja sao ~85 bilhoes de nos (~50 minutos),
+   e como o laco nao le a stdin durante um 'go' (divida 1 em uci.h), nao existe
+   'stop': acima disso o pedido e quase certamente um engano, e o motor ficaria
+   mudo e inalcancavel. */
+#define UCI_PERFT_MAX_DEPTH 8
 
 /* ------------------------------------------------------------------------- *
  * Estado do modulo
@@ -446,6 +453,66 @@ static void uci_cmd_position(int argc) {
     session.board = scratch;   /* o unico ponto em que a posicao aceita muda */
 }
 
+/* Inteiro sem sinal, so digitos, com folga de tamanho: 3 digitos ja passam do teto
+   de UCI_PERFT_MAX_DEPTH, entao nao ha como estourar o int. */
+static bool tok_to_depth(String t, int *out) {
+    int v = 0;
+
+    if (t.len == 0 || t.len > 3) return false;
+    for (size_t i = 0; i < t.len; i++) {
+        if (t.data[i] < '0' || t.data[i] > '9') return false;
+        v = v * 10 + (t.data[i] - '0');
+    }
+    *out = v;
+    return true;
+}
+
+/*
+ * 'go perft <n>': conta os nos a n meios-lances, lance da raiz por lance da raiz
+ * (o "divide"). Formato do Stockfish, que e o oraculo contra o qual o perft deste
+ * motor foi validado: uma linha 'lance: contagem' por lance legal e, por fim,
+ * 'Nodes searched: total'. A ordem dos lances nao faz parte do contrato, como em
+ * 'legalmoves'. Diferente do Stockfish, NAO ha linha em branco antes do total:
+ * o protocolo e uma mensagem nao vazia por linha.
+ *
+ * Trabalha numa COPIA da posicao: o 'go' nao muda a sessao nem que unmake_move
+ * tenha um bug. Cada linha sai assim que o lance da raiz termina, o que importa
+ * nas profundidades altas -- o cliente ve o progresso em vez de minutos de
+ * silencio.
+ */
+static void uci_cmd_go_perft(int argc) {
+    Board    work;
+    MoveList legal;
+    Undo     u;
+    int      depth;
+    u64      total = 0;
+
+    if (argc != 3 || !tok_to_depth(tokens[2], &depth)
+        || depth < 1 || depth > UCI_PERFT_MAX_DEPTH) {
+        uci_error("bad-command", "go");
+        return;
+    }
+
+    work = session.board;
+    generate_legal_moves(&work, &legal);
+
+    for (int i = 0; i < legal.count; i++) {
+        char mv[MOVE_STR_SIZE];
+        u64  nodes;
+
+        move_to_str(legal.moves[i], mv);
+
+        make_move(&work, legal.moves[i], &u);
+        nodes = perft(&work, depth - 1);
+        unmake_move(&work, legal.moves[i], &u);
+
+        uci_send("%s: %llu", mv, (unsigned long long)nodes);
+        total += nodes;
+    }
+
+    uci_send("Nodes searched: %llu", (unsigned long long)total);
+}
+
 /*
  * 'go'. A escolha do lance esta isolada nesta funcao justamente porque ela e o
  * que muda na etapa P5: hoje sorteia da lista legal, amanha chama a IA.
@@ -454,11 +521,16 @@ static Move uci_pick_move(const MoveList *legal) {
     return legal->moves[(int)(uci_rand() % (u64)legal->count)];
 }
 
-static void uci_cmd_go(void) {
+static void uci_cmd_go(int argc) {
     MoveList legal;
     Move     chosen;
     char     mv[MOVE_STR_SIZE];
     bool     is_legal = false;
+
+    if (argc >= 2 && tok_eq(tokens[1], "perft")) {
+        uci_cmd_go_perft(argc);
+        return;
+    }
 
     /* Os parametros ('movetime', 'depth', 'wtime', ...) sao aceitos e ignorados
        nesta etapa, como a spec UCI manda para o que o motor nao implementa. */
@@ -530,7 +602,7 @@ static bool uci_dispatch(void) {
     else if (tok_eq(tokens[0], "position"))   uci_cmd_position(argc);
     else if (tok_eq(tokens[0], "legalmoves")) uci_cmd_legalmoves();
     else if (tok_eq(tokens[0], "state"))      uci_cmd_state();
-    else if (tok_eq(tokens[0], "go"))         uci_cmd_go();
+    else if (tok_eq(tokens[0], "go"))         uci_cmd_go(argc);
     else if (tok_eq(tokens[0], "d"))          uci_cmd_d();
     else if (tok_eq(tokens[0], "quit"))       return false;
     /* Comando desconhecido: silencio. E a regra da spec UCI, e e ela que permite

@@ -21,4 +21,7 @@ CLAUDE.md
 claude-engine/
 personal-docs/
 
+_*
+*.py
+
 .gitignore

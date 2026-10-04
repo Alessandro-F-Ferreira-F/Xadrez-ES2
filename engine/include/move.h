@@ -8,7 +8,7 @@
 typedef u16 Move;
 
 #define MOVE_NONE ((Move)0)
-
+#define MOVE_STR_SIZE 6
 
 typedef enum {
     MV_QUIET         =  0,

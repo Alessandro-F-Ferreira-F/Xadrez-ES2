@@ -55,7 +55,7 @@ PieceType move_promo_type(Move m) {
     return ((PieceType)(KNIGHT + (move_type(m) & 3)));
 }
 
-void move_to_str(Move m, char out[6]) {
+void move_to_str(Move m, char out[MOVE_STR_SIZE]) {
     int n = 0;
 
     sq_to_coord(move_from(m), &out[0]);

@@ -8,6 +8,17 @@
 #include <stdio.h>
 #include <string.h>
 
+
+#define TEST_FEN_01 "rnb1kb1r/2ppnppp/1p1Pp3/1p6/5P2/2N5/PPP1N2P/R1BK4 w kq - 0 11"
+#define TEST_FEN_02 "rn1qkb1r/ppp2pp1/5n1B/P2pp3/6bP/2NPQ3/1PP1PPP1/R3KBNR b KQkq - 0 1"
+#define TEST_FEN_03 "rnb1kbnr/pppp3p/4pp2/6p1/2P2P2/2N1P1PB/PP1P3P/R1BK2NR w kq - 0 8"
+#define TEST_FEN_04_PAWN_CAPTURES "nqrkrbbn/p1p1pppp/8/1p1p4/2P1P3/8/PP1P1PPP/NQRKRBBN b - c3 0 1"
+#define TEST_FEN_05_PAWN_CAPTURE_OFFBOARD "rnbqkbnr/pppppppp/8/7B/8/4P3/PPPP1PPP/RNBQK1NR b KQkq - 0 1"
+#define TEST_FEN_EN_PASSANT "rnbqkbnr/pp1p1ppp/8/2pPp3/8/8/4PPPP/RNBQKBNR w KQkq - 0 1"
+#define TEST_FEN_CHECK_DETECTION "r1bqk1nr/pppp2pp/5p2/4n2B/1b1pP3/8/PP1Q1PPP/RNB1K1NR w KQkq - 0 1"
+
+
+
 static const char *const TEST_FENS[] = {
     START_FEN,
     "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",

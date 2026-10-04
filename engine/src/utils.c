@@ -1,4 +1,6 @@
 #include "../include/utils.h"
+#include "../include/io.h"
+// #include "../include/"
 // #include <stdlib.h>
 
 
@@ -105,3 +107,38 @@ int get_int(const char *msg) {
     return (int)strtol(buffer, NULL, 10);
 }
 
+Move read_move(void) {
+    char move_str[WORD_CAP];
+    if (!read_word(move_str, WORD_CAP)) return MOVE_NONE;
+
+
+    Move temp = move_from_str(move_str);
+    if (temp == MOVE_NONE) {
+        LOG_ERROR("Invalid move");
+        return MOVE_NONE;
+    }
+
+    return temp;
+}
+
+int read_coord(void) {
+    char coord[WORD_CAP];
+
+    if (!read_word(coord, WORD_CAP)) return SQ_NONE;
+
+    return sq_from_coord(coord);
+}
+
+void wait_enter(void) {
+    char tmp[WORD_CAP];
+
+    printf("\nPress Enter to continue...");
+    fflush(stdout);
+    read_line(tmp, sizeof(tmp));
+}
+
+Board copy_board(Board *b) {
+    Board copy;
+    memcpy(&copy, b, sizeof(Board));
+    return copy;
+}

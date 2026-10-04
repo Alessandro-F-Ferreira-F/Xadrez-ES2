@@ -15,21 +15,30 @@
 #include "../include/io.h"
 #include "../test/test.h"
 
+#define TEST_FEN_POSITION_5 "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+
+/* Definido aqui, antes dos prototipos que o usam: ISO C nao permite declarar
+   um enum antecipadamente. */
+typedef enum {
+    AI_OK,
+    AI_NO_MOVES,       /* lista de lances vazia */
+    AI_KING_CAPTURE    /* o sorteado captura um rei */
+} AiResult;
+
+static void ai_game(int ply, int delay_ms);
+static void draw_frame(const Board *b, int played, int ply, int delay_ms);
+static void filter_moves_from_sq(MoveList *all, MoveList *filtered, int sq);
+static void sleep_ms(int ms);
+static AiResult make_random_move(Board *b, Undo *u);
+static Move get_random_move(const MoveList *l);
 
 
-#define TEST_FEN_01 "rnb1kb1r/2ppnppp/1p1Pp3/1p6/5P2/2N5/PPP1N2P/R1BK4 w kq - 0 11"
-#define TEST_FEN_02 "rn1qkb1r/ppp2pp1/5n1B/P2pp3/6bP/2NPQ3/1PP1PPP1/R3KBNR b KQkq - 0 1"
-#define TEST_FEN_03 "rnb1kbnr/pppp3p/4pp2/6p1/2P2P2/2N1P1PB/PP1P3P/R1BK2NR w kq - 0 8"
-#define TEST_FEN_04_PAWN_CAPTURES "nqrkrbbn/p1p1pppp/8/1p1p4/2P1P3/8/PP1P1PPP/NQRKRBBN b - c3 0 1"
-#define TEST_FEN_05_PAWN_CAPTURE_OFFBOARD "rnbqkbnr/pppppppp/8/7B/8/4P3/PPPP1PPP/RNBQK1NR b KQkq - 0 1"
-#define TEST_FEN_EN_PASSANT "rnbqkbnr/pp1p1ppp/8/2pPp3/8/8/4PPPP/RNBQKBNR w KQkq - 0 1"
-#define TEST_FEN_CHECK_DETECTION "r1bqk1nr/pppp2pp/5p2/4n2B/1b1pP3/8/PP1Q1PPP/RNB1K1NR w KQkq - 0 1"
+typedef struct {
+    char move[MOVE_STR_SIZE];
+    int nodes;
+} PerftResult;
 
-Board copy_board(Board *b) {
-    Board copy;
-    memcpy(&copy, b, sizeof(Board));
-    return copy;
-}
+
 
 u64 perft(Board *board, int depth) {
     if (depth == 0) {
@@ -53,121 +62,38 @@ u64 perft(Board *board, int depth) {
     return nodes;
 }
 
-static Move read_move(void) {
-    char move_str[WORD_CAP];
-    if (!read_word(move_str, WORD_CAP)) return MOVE_NONE;
 
+u64 perft_divide(Board *b, int depth, FILE *out) {
+    if (depth < 1) depth = 1;
 
-    Move temp = move_from_str(move_str);
-    if (temp == MOVE_NONE) {
-        LOG_ERROR("Invalid move");
-        return MOVE_NONE;
-    }
-
-    return temp;
-}
-
-static int read_coord(void) {
-    char coord[WORD_CAP];
-
-    if (!read_word(coord, WORD_CAP)) return SQ_NONE;
-
-    return sq_from_coord(coord);
-}
-
-/* O laco do menu comeca com clear_screen(): qualquer mensagem impressa no fim
-   de uma opcao some antes de ser lida, a menos que o usuario tenha tempo. */
-static void wait_enter(void) {
-    char tmp[WORD_CAP];
-
-    printf("\nPress Enter to continue...");
-    fflush(stdout);
-    read_line(tmp, sizeof(tmp));
-}
-
-static void filter_moves_from_sq(MoveList *all, MoveList *filtered, int sq) {
-    movelist_clear(filtered);
-    for (int i = 0; i < all->count; i++) {
-        Move curr = all->moves[i];
-        if (move_from(curr) == sq) {
-            movelist_add(filtered, curr);
-        }
-    }
-}
-
-typedef enum {
-    AI_OK,
-    AI_NO_MOVES,       /* lista de lances vazia */
-    AI_KING_CAPTURE    /* o sorteado captura um rei */
-} AiResult;
-
-/* Pre-condicao: l->count > 0. rand() % count ja cai em [0, count). */
-static Move get_random_move(const MoveList *l) {
-    assert(l != NULL && l->count != 0 && "lista de lances vazia");
-    return l->moves[rand() % l->count];
-}
-
-/* Sem filtro de legalidade o gerador devolve capturas de rei. Aplicar uma deixa
-   o tabuleiro sem rei (king_square == -1) e a proxima geracao indexa fora dos
-   limites; entao o lance NAO e aplicado e quem chama encerra a partida. */
-static AiResult make_random_move(Board *b, Undo *u) {
-    MoveList l;
-    generate_pseudo_legal_moves(b, &l);
-    if (l.count == 0) return AI_NO_MOVES;
-
-    Move selected = get_random_move(&l);
-    if (PIECE_TYPE(b->array[move_to(selected)]) == KING) return AI_KING_CAPTURE;
-
-    make_move(b, selected, u);
-    return AI_OK;
-}
-
-static void sleep_ms(int ms) {
-    if (ms <= 0) return;
-
-    struct timespec ts = {
-        .tv_sec  = ms / 1000,
-        .tv_nsec = (long)(ms % 1000) * 1000000L
-    };
-    nanosleep(&ts, NULL);
-}
-
-/* Redesenha por cima do quadro anterior em vez de empilhar tabuleiros.
-   O fflush garante que o quadro apareca mesmo quando a saida e um pipe
-   (buffer de bloco) e a pausa seguinte nao o segure na memoria. */
-static void draw_frame(const Board *b, int played, int ply, int delay_ms) {
-    clear_screen();
-    board_print(b);
-    printf("\nPly %d/%d  |  %d ms per move\n", played, ply, delay_ms);
-    fflush(stdout);
-}
-
-static void ai_game(int ply, int delay_ms) {
-    Board b;
+    MoveList list;
     Undo u;
-    board_new(&b);
-    draw_frame(&b, 0, ply, delay_ms);
+    int n_moves;
+    u64 nodes = 0;
+    u64 total_nodes = 0;
+    char move_str[MOVE_STR_SIZE];
 
-    for (int i = 0; i < ply; i++) {
-        sleep_ms(delay_ms);
+    PerftResult result_list[MAX_MOVES];
 
-        AiResult r = make_random_move(&b, &u);
+    generate_legal_moves(b, &list);
+    n_moves = list.count;
 
-        /* A mensagem de fim fica logo abaixo do ultimo quadro, sem limpar a tela. */
-        if (r == AI_NO_MOVES) {
-            printf("\n%s has no moves -- game over after %d plies.\n",
-                   COLOR_CHAR[b.side_to_move], i);
-            return;
-        }
-        if (r == AI_KING_CAPTURE) {
-            printf("\n%s would capture a king (no legality filter yet) -- game over after %d plies.\n",
-                   COLOR_CHAR[b.side_to_move], i);
-            return;
-        }
+    for (int i = 0; i < n_moves; i++) {
+        Move m = list.moves[i];
+        move_to_str(m, move_str);
 
-        draw_frame(&b, i + 1, ply, delay_ms);
+        make_move(b, m, &u);
+        nodes = perft(b, depth-1);
+        total_nodes += nodes;
+        unmake_move(b, m, &u);
+
+        fprintf(out, "%s: %zu\n", move_str, nodes);
     }
+
+    fprintf(out, "\nNodes searched: %zu\n", total_nodes);
+    return total_nodes;
 }
+
 
 static void ui(Board *b) {
     char ch = 'y';
@@ -194,6 +120,7 @@ static void ui(Board *b) {
         printf("10 - Perft\n");
         printf("11 - Check square attacked\n");
         printf("12 - Run make/unmake tests\n");
+        printf("13 - Perft divide\n");
 
         opt = get_int("Insert option: ");
         /* get_int devolve 0 em EOF, e 0 cai no default: sem isto o laco nunca acaba com Ctrl-D */
@@ -334,6 +261,20 @@ static void ui(Board *b) {
             }
             wait_enter();
             break;
+        case 13: {
+            int divide_depth = get_int("Insert depth: ");
+            if (divide_depth < 1) {
+                printf("Invalid depth\n");
+                wait_enter();
+                break;
+            }
+
+            /* Em copia: se unmake_move tiver bug, o tabuleiro do menu nao e corrompido. */
+            Board divide_board = copy_board(b);
+            perft_divide(&divide_board, divide_depth, stdout);
+            wait_enter();
+            break;
+        }
         default:
             break;
         }
@@ -345,14 +286,108 @@ int main(void) {
 
     Board b;
     board_new(&b);
+    if(!fen_parse(TEST_FEN_POSITION_5, &b)) {
+        printf("Invalid FEN\n");
+        return -1;
+    }
 
-    board_print(&b);
     ui(&b);
-    
-    // for (int i = 0; i <= 7; i++) {
-    //     u64 perft_result = perft(&b, i);
-    //     printf("Perft result [depth: %d]: %lu\n", i, perft_result);
-    // }
 
     return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// * IA ALEATÓRIA (apenas teste)
+
+static void filter_moves_from_sq(MoveList *all, MoveList *filtered, int sq) {
+    movelist_clear(filtered);
+    for (int i = 0; i < all->count; i++) {
+        Move curr = all->moves[i];
+        if (move_from(curr) == sq) {
+            movelist_add(filtered, curr);
+        }
+    }
+}
+
+/* Pre-condicao: l->count > 0. rand() % count ja cai em [0, count). */
+static Move get_random_move(const MoveList *l) {
+    assert(l != NULL && l->count != 0 && "lista de lances vazia");
+    return l->moves[rand() % l->count];
+}
+
+/* Sem filtro de legalidade o gerador devolve capturas de rei. Aplicar uma deixa
+   o tabuleiro sem rei (king_square == -1) e a proxima geracao indexa fora dos
+   limites; entao o lance NAO e aplicado e quem chama encerra a partida. */
+static AiResult make_random_move(Board *b, Undo *u) {
+    MoveList l;
+    generate_pseudo_legal_moves(b, &l);
+    if (l.count == 0) return AI_NO_MOVES;
+
+    Move selected = get_random_move(&l);
+    if (PIECE_TYPE(b->array[move_to(selected)]) == KING) return AI_KING_CAPTURE;
+
+    make_move(b, selected, u);
+    return AI_OK;
+}
+
+static void sleep_ms(int ms) {
+    if (ms <= 0) return;
+
+    struct timespec ts = {
+        .tv_sec  = ms / 1000,
+        .tv_nsec = (long)(ms % 1000) * 1000000L
+    };
+    nanosleep(&ts, NULL);
+}
+
+/* Redesenha por cima do quadro anterior em vez de empilhar tabuleiros.
+   O fflush garante que o quadro apareca mesmo quando a saida e um pipe
+   (buffer de bloco) e a pausa seguinte nao o segure na memoria. */
+static void draw_frame(const Board *b, int played, int ply, int delay_ms) {
+    clear_screen();
+    board_print(b);
+    printf("\nPly %d/%d  |  %d ms per move\n", played, ply, delay_ms);
+    fflush(stdout);
+}
+
+static void ai_game(int ply, int delay_ms) {
+    Board b;
+    Undo u;
+    board_new(&b);
+    draw_frame(&b, 0, ply, delay_ms);
+
+    for (int i = 0; i < ply; i++) {
+        sleep_ms(delay_ms);
+
+        AiResult r = make_random_move(&b, &u);
+
+        /* A mensagem de fim fica logo abaixo do ultimo quadro, sem limpar a tela. */
+        if (r == AI_NO_MOVES) {
+            printf("\n%s has no moves -- game over after %d plies.\n",
+                   COLOR_CHAR[b.side_to_move], i);
+            return;
+        }
+        if (r == AI_KING_CAPTURE) {
+            printf("\n%s would capture a king (no legality filter yet) -- game over after %d plies.\n",
+                   COLOR_CHAR[b.side_to_move], i);
+            return;
+        }
+
+        draw_frame(&b, i + 1, ply, delay_ms);
+    }
 }

@@ -236,7 +236,7 @@ void generate_king_moves(const Board *b, MoveList *list) {
             movelist_add(list, move);
         }
     }
-
+    
     // gera lances de roque
     u8 castles = check_allowed_castles(b);
     if (side == WHITE) {
@@ -276,22 +276,25 @@ void generate_legal_moves(Board *b, MoveList *list) {
     MoveList pseudo_list;
     generate_pseudo_legal_moves(b, &pseudo_list);
     
+    Move move;
     Undo u;
     int king_sq;
     Color side = b->side_to_move;
 
+    bool in_check = is_square_attacked(b, b->king_square[side], side);
+
     for (int move_i = 0; move_i < pseudo_list.count; move_i++) {
-        Move move = pseudo_list.moves[move_i];
+        move = pseudo_list.moves[move_i];
+
+        if (move_is_castle(move)) {
+            int pass = (move_from(move) + move_to(move)) / 2; // casa atravessada
+            if (in_check || is_square_attacked(b, pass, side)) continue;
+        }
+
         make_move(b, move, &u);
         king_sq = b->king_square[side];
 
-        char out[6];
-        char out_sq[3];
-
-        sq_to_coord(king_sq, out_sq);
-        move_to_str(move, out);
         bool check = is_square_attacked(b, king_sq, side);
-        // printf("[CHECK %d]: %s king_sq = %s, move = %s\n", move_i, (check ? "TRUE" : "FALSE"), out_sq, out);
 
         unmake_move(b, move, &u);
 
@@ -357,6 +360,8 @@ bool is_square_attacked(const Board *b, const int sq, const Color side) {
 
     //king
     for (int dir = 0; dir < 8; dir++) {
+        if (SQ_TO_EDGE[sq][dir] == 0) continue;
+
         to = sq + DIR_OFFSET[dir];
         if (SQ_OFFBOARD(to)) continue;
         piece = b->array[to];

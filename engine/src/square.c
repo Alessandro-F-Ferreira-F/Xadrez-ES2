@@ -24,7 +24,6 @@ soWeWe -10   |     |   -6  soEaEa
         soSoWe    soSoEa
 */
 
-// const int KNIGHT_OFFSETS[8] = {+6, +15, +17, +10, -6, -15, -17, -10};
 
 /* 
     * KNIGHT_VECTORS guarda o vetor com o offset horizontal e vertical para as casas alcançaveis

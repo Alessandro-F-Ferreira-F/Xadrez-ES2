@@ -2,12 +2,16 @@
 
 > Plano de execução em fases incrementais, com critérios de saída verificáveis.
 >
-> Escrito em **5 de setembro de 2026**, commit `0c4a88a`. Revisado em **14 de setembro de
-> 2026** e de novo em **16 de setembro de 2026** para registrar o que de fato aconteceu —
-> commit `f79d50a` mais a árvore de trabalho, depois da refatoração de módulos (`8f8a52d`),
-> da rodada de correção de bugs (`04fdba4`) e da sessão que completou `make_move`.
+> Escrito em **5 de setembro de 2026**, commit `0c4a88a`. Revisado em **14/09**, **16/09** e
+> **4 de outubro de 2026** para registrar o que de fato aconteceu. A revisão de 04/10 (commit
+> `1582162`) só atualiza as marcas de status: as Fases 2, 3, 4, 5 e 6b fecharam — o motor
+> gera, aplica, desfaz e filtra lances legais, e o perft bate nas seis posições de referência
+> (`project_context.md` §2). Os parágrafos "Status em 16/09" abaixo foram mantidos como
+> registro; onde há um "Status em 04/10", vale ele.
 > Leia antes: `onboarding-motor.md` (contexto, sem exigir C).
 > Detalhe técnico completo, e a fonte de verdade sobre o estado atual: `project_context.md`.
+> **O plano de execução das próximas etapas — inclusive a otimização, depois do UCI — está em
+> `next_steps.md`**, que substitui as Fases 6a, 7 e 8 deste documento no nível de detalhe.
 
 > **Como ler esta revisão:** cada fase e cada decisão ganhou uma marca de status —
 > ✅ feito, 🔶 parcial, ⬜ não iniciado — e uma nota curta dizendo o que mudou. O raciocínio
@@ -47,26 +51,43 @@ irreconhecível.
 
 ## 0. Resumo executivo
 
-| Fase | Nome | Esforço | Portão | Destrava | Status em 16/09 |
+| Fase | Nome | Esforço | Portão | Destrava | Status em 04/10 |
 |---|---|---|---|---|---|
-| 0 | Fundação de qualidade | 1 sessão | 🚧 | Tudo. Item de maior retorno do roadmap | 🔶 parcial — **8 avisos faltando fechar** |
-| 1 | Vocabulário completo | 1–2 sessões | 🚧 | Roque, en passant, `Undo` | ✅ **fechada em 16/09** (critério revisado) |
-| 2 | Geometria pré-computada | 1 sessão | | Cavalo e rei | 🔶 parcial — rei resolvido sem tabela; cavalo não |
-| 3 | Geração pseudo-legal | 2–3 sessões | | Perft(1) | 🔶 parcial — só falta o cavalo |
-| 4 | Aplicar/desfazer lance | 2–3 sessões | 🚧 | Legalidade e busca | 🔶 **metade**: `make_move` completo e verificado, `unmake_move` sem corpo |
-| 5 | Filtro de legalidade | 1–2 sessões | 🚧 | Xeque, mate, afogamento, perft | ⬜ não iniciada |
-| 6a | Protocolo + IA aleatória | 1 sessão | | **A equipe do cliente** | ⬜ não iniciada — só o menu interativo `ui()` existe |
-| 6b | Perft | 2–4 sessões | 🚧 | Autorização para escrever IA | ⬜ não iniciada |
-| 7 | IA incremental (v1→v5) | 3–5 sessões | | Força de jogo | ⬜ não iniciada |
+| 0 | Fundação de qualidade | 1 sessão | 🚧 | Tudo. Item de maior retorno do roadmap | 🔶 parcial — **18 avisos** (eram 8), as quatro flags do `CLAUDE.md` §7 ainda fora, `make test` não linka |
+| 1 | Vocabulário completo | 1–2 sessões | 🚧 | Roque, en passant, `Undo` | ✅ fechada em 16/09 (`board_check_invariants` em 4 de 6 checagens) |
+| 2 | Geometria pré-computada | 1 sessão | | Cavalo e rei | ✅ **fechada** — `KNIGHT_ATTACKS` (soma 336); rei por `SQ_TO_EDGE` |
+| 3 | Geração pseudo-legal | 2–3 sessões | | Perft(1) | ✅ **fechada** — todas as peças, roque, en passant, promoção nas 4 peças |
+| 4 | Aplicar/desfazer lance | 2–3 sessões | 🚧 | Legalidade e busca | ✅ **fechada** — round-trip + invariantes em 11 milhões de nós sob ASan/UBSan, zero falhas |
+| 5 | Filtro de legalidade | 1–2 sessões | 🚧 | Xeque, mate, afogamento, perft | ✅ **fechada** — `is_square_attacked` + aplica-e-testa + regras do roque. Falta a função de estado da partida (mate/afogamento/empates) — `next_steps.md` Etapa 9 |
+| 6a | Protocolo + IA aleatória | 1 sessão | | **A equipe do cliente** | ⬜ não iniciada — só o menu `ui()`. A interface já faz o spawn; o motor ainda não responde. `next_steps.md` Etapa 10 |
+| 6b | Perft | 2–4 sessões | 🚧 | Autorização para escrever IA | ✅ **fechada** — seis posições exatas, inicial até d7. Só no menu: falta virar portão do build (`next_steps.md` Etapa 8) |
+| 7 | IA incremental (v1→v5) | 3–5 sessões | | Força de jogo | 🔶 em andamento **fora de `engine/`** — `IA/` tem avaliação, minimax e alfa-beta; ainda não ligada ao motor |
 | 8 | Robustez e empacotamento | 2 sessões | | Entrega | ⬜ não iniciada |
 
-**Total estimado:** 14–22 sessões de trabalho. Passaram-se aproximadamente 6-7 sessões desde
-a escrita original (5/09 → 16/09). **A Fase 1 é a primeira a fechar seu critério de saída
-🚧**, com o critério revisado desta data. A Fase 0 continua aberta por oito avisos de
-compilação — é meia sessão de trabalho, e três dos oito são bugs reais. A Fase 4 está pela
-metade, e é a metade difícil que já foi: `make_move` trata roque, en passant, promoção,
-relógios e direitos de roque **corretamente**, verificado com evidência; falta o espelho.
-Ver `project_context.md` §2 e §5 para o detalhe de cada item; o resumo por fase está abaixo.
+**Total estimado:** 14–22 sessões de trabalho. Em 04/10, **as Fases 1 a 5 e a 6b estão
+fechadas** — tudo o que é "regra do xadrez" está pronto e provado por perft. O caminho
+crítico agora é integração: o portão no build, o fim de partida, o protocolo e a ligação com
+a IA (`next_steps.md` Parte I). A otimização tem plano próprio, para depois do UCI
+(`next_steps.md` Parte II). A Fase 0 continua sendo a pendência mais antiga, e piorou: de 8
+para 18 avisos.
+
+<details>
+<summary>Tabela de status de 16/09, para histórico</summary>
+
+| Fase | Status em 16/09 |
+|---|---|
+| 0 | 🔶 parcial — 8 avisos faltando fechar |
+| 1 | ✅ fechada em 16/09 (critério revisado) |
+| 2 | 🔶 parcial — rei resolvido sem tabela; cavalo não |
+| 3 | 🔶 parcial — só falta o cavalo |
+| 4 | 🔶 metade: `make_move` completo e verificado, `unmake_move` sem corpo |
+| 5 | ⬜ não iniciada |
+| 6a | ⬜ não iniciada |
+| 6b | ⬜ não iniciada |
+| 7 | ⬜ não iniciada |
+| 8 | ⬜ não iniciada |
+
+</details>
 
 A variabilidade concentra-se na Fase 6b, que não é uma fase de escrever código — é
 a fase de *encontrar bugs escritos nas fases 3, 4 e 5*. Quanto melhor o trabalho
@@ -455,6 +476,13 @@ original. É decisão de sequenciamento, não de arquitetura.
 
 **Esforço:** 1 sessão. **Prioridade máxima, sem exceção.**
 
+**Status em 04/10: 🔶 parcial, e mais longe do que em 16/09.** O build tem **18 avisos**
+(eram 8): oito de `-Wmissing-prototypes`, e o resto vindo do código novo de perft e do menu
+em `main.c`. As quatro flags que faltam foram medidas de novo (`-Wshadow` +1, `-Wcast-qual`
+0, `-Wwrite-strings` +6, `-Wconversion` +11, dois deles exatamente no bug da opção 7 do
+menu). O alvo `release` compila sem aviso nenhum. E não há portão automático: `make test` não
+linka. Plano: `next_steps.md` Etapas 8 e 11.
+
 **Status em 16/09: 🔶 parcial, e agora a meia sessão de distância.**
 
 | Item | Estado |
@@ -620,6 +648,12 @@ tempo gasto sem informação nova; testar uma vez, no lugar onde ela também pro
 
 **Esforço:** 1 sessão.
 
+**Status em 04/10: ✅ FECHADA.** `KNIGHT_ATTACKS[64][8]` (o nome mudou: era
+`KNIGHT_TARGETS`) é preenchida no init por `offset_square`, com `SQ_NONE` nos saltos que saem
+do tabuleiro — sem `KNIGHT_COUNT`, uma variação legítima. Contagens conferidas em 01/10
+(a1 = 2, b1 = 3, c3 = 8, h8 = 2, soma = 336), e o perft de 04/10 cobre o resto.
+`KING_TARGETS` continua alocada, zerada e sem leitor — apagar.
+
 **Status em 16/09: 🔶 parcial — o rei saiu da fase, o cavalo continua nela.**
 
 A metade do **rei** foi resolvida de outro jeito, e o jeito certo: `generate_king_moves` usa
@@ -679,6 +713,12 @@ checagem de borda do runtime na geração; como ela virou defesa em outra camada
 ### Fase 3 — Geração pseudo-legal completa
 
 **Esforço:** 2–3 sessões.
+
+**Status em 04/10: ✅ FECHADA.** O cavalo entrou em 01/10, e a entrada única
+(`generate_pseudo_legal_moves`) gera todas as peças. A posição inicial dá 20, a Kiwipete 48.
+O critério de saída desta fase (perft(1)) foi superado pelo da Fase 6b. Pendências de
+higiene, sem efeito no resultado: três varreduras de 64 casas em vez de uma, o `const`
+perdido em `generate_pawn_moves` — as duas entram na otimização (`next_steps.md` O2).
 
 **Status em 16/09: 🔶 parcial — falta uma peça, literalmente.**
 
@@ -750,6 +790,14 @@ antecipada antes da Fase 5 existir.
 ### Fase 4 — `make_move` / `unmake_move` 🚧
 
 **Esforço:** 2–3 sessões. **A fase mais delicada do projeto.**
+
+**Status em 04/10: ✅ FECHADA.** `unmake_move` entrou em `8344d1a` (01/10) e trata todos os
+tipos de lance. O round-trip foi além do critério: em vez de ~1000 pares sobre 30 posições,
+**11 024 485** pares em todo nó do perft das seis posições (profundidade 4), sob ASan e UBSan,
+com `fen_write` antes/depois e `board_check_invariants` depois de cada `make` e de cada
+`unmake` — zero falhas. `king_square` passou a ser atualizado incrementalmente. O teste do
+repositório (`test/test.c`, 18 FENs) está verde, mas só roda pelo menu: virar portão do
+build é a `next_steps.md` Etapa 8.
 
 **Status em 16/09: 🔶 metade — e é a metade difícil que já foi.**
 
@@ -877,6 +925,15 @@ seguintes são consequência.
 
 **Esforço:** 1–2 sessões.
 
+**Status em 04/10: ✅ FECHADA**, com o critério de saída superado pelo perft da Fase 6b.
+`is_square_attacked` por busca reversa (`movegen.c:308`) e `generate_legal_moves` por
+aplica-e-testa (`movegen.c:273`), com as duas condições extras do roque: não rocar estando em
+xeque e não atravessar casa atacada. Os dois bugs que o perft achou em 04/10 eram desta fase —
+o roque, e o *wraparound* do rei dentro de `is_square_attacked` (h4 + 1 = a5) — e estão
+corrigidos em `1582162`. Duas observações para quem vier depois: a assinatura saiu como
+`(b, sq, side)` com `side` = **dono** da casa, não o atacante (`project_context.md` §3); e
+mate/afogamento/empates ainda não têm função própria (`next_steps.md` Etapa 9).
+
 **Status em 16/09: ⬜ não iniciada.** Bloqueada na Fase 2 (precisa de `KNIGHT_TARGETS`
 populada para a busca reversa) e na Fase 4 (precisa de `unmake_move` para aplicar-e-desfazer).
 Não existe `is_square_attacked` no repositório.
@@ -967,6 +1024,13 @@ de mate conhecida retorna lista vazia com `in_check` verdadeiro.
 
 **Esforço:** 1 sessão. **Faça antes do perft estar verde.**
 
+**Status em 04/10: ⬜ não iniciada — e agora é o caminho crítico.** O motor continua sendo
+o menu `ui()` (13 opções). Do outro lado, a interface (`interface/src/engine_bridge.cpp`) já
+faz `fork` + `execlp` do binário e escreve comandos no stdin dele — falta o motor responder.
+A §7 abaixo (quem fala com o motor) foi fechada em 13/09. A "IA aleatória" desta fase existe
+em `main.c`, mas está morta (nunca chamada) e usa o gerador pseudo-legal. O plano atualizado,
+com `legalmoves` e o `go` chamando a IA de `IA/`, é a `next_steps.md` Etapa 10.
+
 **Status em 14/09: ⬜ não iniciada.** A interação hoje é só o menu interativo `ui()` em
 `main.c` (opções numeradas, `fgets` por linha) — nenhum comando UCI, nenhum `setvbuf`, nenhum
 dispatch de linha. §7 (a divergência entre `arquitetura-xadrez.md` e `project_context.md`
@@ -1039,6 +1103,15 @@ ao mate ou afogamento, sem travar.
 **Esforço:** 2–4 sessões. Altamente variável — **é a fase de encontrar bugs, não de
 escrever código.**
 
+**Status em 04/10: ✅ FECHADA.** `perft` e `perft_divide` em `main.c`, no formato do
+Stockfish (`lance: nós` + `Nodes searched: N`). Critério de saída cumprido e superado: as
+**seis** posições da CPW exatas — inicial até d7 (3 195 901 860), Kiwipete d5, posição 3 d7,
+posições 4–6 d5 (`project_context.md` §2). A técnica desta seção funcionou exatamente como
+descrita: a posição 5 divergia em d5, e a bissecção com o Stockfish achou dois bugs numa
+sessão. E confirmou a recomendação de usar pelo menos quatro posições: a posição 5 sozinha
+escondia um dos dois. Pendência: o perft só roda pelo menu — `next_steps.md` Etapa 8 o leva
+para o `make test`.
+
 **Status em 14/09: ⬜ não iniciada.** Não há `perft` nem `perft divide` no código. Sem
 Fases 2, 4 e 5, não há o que contar de forma confiável ainda.
 
@@ -1096,6 +1169,16 @@ de apresentação **e** rede de segurança contra o gargalo de conhecimento (§6
 ### Fase 7 — IA incremental
 
 **Esforço:** 3–5 sessões até v2; o resto conforme sobrar tempo.
+
+**Status em 04/10: 🔶 em andamento fora de `engine/`.** O diretório `IA/` (outro membro da
+equipe) tem avaliação por material (`avaliar.c`), minimax e alfa-beta (`ia.c`), e conversão
+de placar para o formato UCI. Ela usa o `Board`, o `make_move` e o `unmake_move` do motor
+diretamente, e declara num `contrato.h` provisório três funções que espera das regras
+(`gerarLancesLegais`, `emXeque`, `testeEmpateRegra`) — o motor já tem a primeira, com outro
+nome. Ainda não está ligada ao binário, e `escolherJogada` não recebe profundidade nem tempo.
+O teste de regressão desta seção (v2 devolve o mesmo lance que v1) já é possível lá: as duas
+variantes existem. A ordenação de lances, a quiescência e o resto (v3–v6) estão planejados
+como etapas de otimização em `next_steps.md` O4/O5.
 
 **Status em 14/09: ⬜ não iniciada.** Não há avaliação, busca, nem seleção de lance de
 nenhum tipo — nem o v0 (aleatório) da Fase 6a. Depende de tudo antes dela.
@@ -1208,9 +1291,15 @@ e é por isso que o registro de divergências de perft importa.
 
 ---
 
-## 7. Decisão pendente que bloqueia a Fase 6a
+## 7. Decisão pendente que bloqueia a Fase 6a — ✅ fechada em 13/09
 
-Os documentos do projeto divergem:
+**Status em 04/10:** fechada pelo `arquitetura-xadrez.md` §8 em 13/09 — **o cliente fala
+direto com o motor, por subprocesso**, sem backend no MVP. A consequência da tabela abaixo
+vale: o protocolo precisa de `legalmoves` (`arquitetura-xadrez.md` §3 já especifica a
+resposta `moves e2e4 g1f3 ...`). A interface já implementa o lado POSIX do spawn. O texto
+original fica como registro.
+
+Os documentos do projeto divergiam:
 
 - `arquitetura-xadrez.md`: o cliente **nunca** fala diretamente com o motor —
   sempre via backend Node/TypeScript.
@@ -1264,7 +1353,28 @@ disciplina quer ver — e é verdade.
 
 ---
 
-## 9. Nota sobre esta revisão (16/09)
+## 9. Nota sobre a revisão de 04/10
+
+**Cinco fases fecharam de uma vez — 2, 3, 4, 5 e 6b — e fecharam pelo critério mais forte
+que este documento propunha:** perft exato em seis posições de referência, não em uma, e
+round-trip com invariantes em todo nó, não numa amostra. Tudo o que é regra do xadrez está
+pronto. Isso muda a natureza do que falta: deixou de ser "acertar as regras" e passou a ser
+**integração** — o portão no build, o fim de partida, o protocolo, a IA de `IA/` ligada ao
+motor. É trabalho de menor risco técnico e maior risco de coordenação, porque envolve três
+partes do grupo.
+
+**O que não melhorou foi a Fase 0**: de 8 para 18 avisos, e o perft que provou tudo isso só
+roda pelo menu. Pela terceira revisão seguida, o item de maior retorno pendente é o mesmo —
+levar a verificação para dentro do `make test`. A diferença é que agora não falta escrever
+nada: o perft, o teste e os números esperados já existem.
+
+**A otimização ganhou plano próprio**, em `next_steps.md` Parte II, deliberadamente depois do
+UCI: primeiro medir (linha de base de 04/10: 12,2 Mnós/s em `-O2`, 19,0 com `-flto`), depois
+o custo evitável no caminho quente, depois o filtro de legalidade mais barato, e só então a
+busca (ordenação, quiescência, tabela de transposição). Bitboards continuam fora — agora com
+a recomendação explícita de não migrar dentro do prazo.
+
+## 9.1 Nota sobre a revisão de 16/09 (registro)
 
 **A Fase 1 fechou** — a primeira a fechar um critério de saída 🚧, e ela fechou de duas
 formas ao mesmo tempo: `board_check_invariants` ganhou corpo (era o item de maior retorno

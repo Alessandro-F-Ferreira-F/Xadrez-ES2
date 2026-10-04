@@ -3,11 +3,11 @@
 Xadrez desenvolvido como trabalho da disciplina de Engenharia de Software 2 — 2026.2.
 
 # AVISO!!
-O arquivo [`estado-do-projeto`](engine/docs/onboarding-motor.md) contém o estado atual do projeto.<br>
+O arquivo [`estado-do-projeto`](engine/docs/onboarding-motor.md) contém o estado atual do motor, escrito para quem não programa em C (§6).<br>
 Leiam para entender o que já foi feito até o momento.
 
-Juntamente a este arquivo, há o documento [`roadmap`](engine/docs/roadmap-motor.md) que explica quais são os próximos passos.<br>
-*(Tem uma explicação mais detalhada do código)*
+O estado técnico detalhado está em [`project_context`](engine/docs/project_context.md), e os próximos passos — até o protocolo UCI e, depois dele, a otimização — em [`next_steps`](engine/docs/next_steps.md).<br>
+O [`roadmap`](engine/docs/roadmap-motor.md) mostra as fases do motor e o status de cada uma.
 
 ## O projeto
 
@@ -27,9 +27,13 @@ que torna qualquer posição reproduzível isoladamente em teste.
 ## Estrutura
 
 ```
-engine/          Motor em C
+engine/          Motor de regras, em C
+  include/       Headers
   src/           Código-fonte
+  test/          Teste de aplicar/desfazer lances
   docs/          Documentação técnica
+IA/              Busca e avaliação, em C (usa os headers de engine/)
+interface/       Cliente gráfico, em C++ com SFML
 README.md
 LICENSE
 ```
@@ -42,50 +46,58 @@ Requer `gcc` e `make`.
 cd engine
 make            # build de desenvolvimento
 make run        # executa
-make debug      # build com sanitizers (ASan) e warnings extras
-make test       # executa os testes de ida e volta make/unmake
+make debug      # build com sanitizers (ASan/UBSan) — use este para testar
+make release    # build otimizado (-O3)
+make test       # teste de ida e volta make/unmake — QUEBRADO em 04/10, ver abaixo
 make clean
 ```
 
 O binário sai em `engine/build/main.exe` no Windows e `engine/build/main.out`
 nos demais sistemas. No Windows, compile e execute com `mingw32-make all` e
 `mingw32-make run`; nos demais sistemas, use `make all` e `make run`.
-No menu do motor, a opção 10 executa os mesmos testes. A lista de FENs usados
-fica em `engine/test/test.c` e pode ser ampliada adicionando posições ao vetor.
 
-## Estado atual
+Hoje o binário abre um menu de teste. A opção 12 roda o teste de ida e volta make/unmake
+(o `make test` não linka no momento — `project_context.md` §5, Bug #4), e as opções 10 e 13
+rodam o perft e o perft *divide*. A lista de FENs do teste fica em `engine/test/test.c` e
+pode ser ampliada adicionando posições ao vetor.
 
-O motor está em fase de protótipo. O que já funciona:
+## Estado atual (4 de outubro de 2026)
 
-- Leitura e validação de FEN, com detecção dos erros mais comuns (rei ausente ou duplicado,
-  peão em fileira inválida, fileira incompleta, excesso de peças).
-- Serialização de volta para FEN.
-- Representação do tabuleiro em *mailbox* de 64 casas, com `a1 = 0`.
-- Tabela de distância até a borda para cada casa e direção, base da geração de lances das
-  peças deslizantes.
-- Geração de lances de peão (avanço simples).
-- Aplicação de um lance sobre o tabuleiro.
+**As regras do xadrez estão completas e provadas.** O que já funciona:
+
+- Leitura e escrita de FEN, com os seis campos e validação completa.
+- Geração de todos os lances — todas as peças, roque, en passant, promoção nas quatro peças.
+- Aplicar e desfazer lances, testado em mais de 11 milhões de posições sem falha.
+- Filtro de legalidade: o motor descarta lances que deixam o próprio rei em xeque, incluindo
+  as regras especiais do roque.
+- **Perft exato** nas seis posições de referência da Chess Programming Wiki (a posição
+  inicial até a profundidade 7: 3 195 901 860 nós). Os números estão em
+  [`engine/docs/perft_results.txt`](engine/docs/perft_results.txt).
 
 Em desenvolvimento:
 
-- Geração completa de lances: torre, bispo, rainha, cavalo, rei; captura, roque, en passant
-  e promoção.
-- Filtro de legalidade e detecção de xeque.
-- Validação por `perft` contra os valores de referência publicados.
-- Protocolo `stdin`/`stdout` ponta a ponta.
-- Avaliação e busca.
+- Protocolo `stdin`/`stdout` no estilo UCI — o motor ainda não responde aos comandos da
+  interface. É o próximo passo.
+- Detecção de fim de partida (mate, afogamento) e empates por regra.
+- Ligação da IA (`IA/`) com o motor.
+- Depois do protocolo: otimização, com etapas medidas ([`next_steps.md`](engine/docs/next_steps.md), Parte II).
 
 ## Documentação
 
 - [`engine/docs/project_context.md`](engine/docs/project_context.md) — visão geral do motor:
-  decisões arquiteturais e o raciocínio por trás delas, mapa dos módulos, convenções de
-  codificação e próximos passos. **Comece por aqui** se for mexer no motor.
+  estado atual verificado, decisões arquiteturais e o raciocínio por trás delas, mapa dos
+  módulos, bugs abertos. **Comece por aqui** se for mexer no motor.
+- [`engine/docs/next_steps.md`](engine/docs/next_steps.md) — plano de execução: do estado
+  atual até o protocolo UCI, e depois as etapas de otimização.
+- [`engine/docs/roadmap-motor.md`](engine/docs/roadmap-motor.md) — as fases do motor e o
+  status de cada uma.
+- [`engine/docs/onboarding-motor.md`](engine/docs/onboarding-motor.md) — guia de contexto
+  para quem está chegando, sem exigir C.
 - [`engine/docs/arquitetura-xadrez.md`](engine/docs/arquitetura-xadrez.md) — desenho do
-  sistema completo.
+  sistema completo (motor, IA, interface).
 - [`engine/docs/fen.md`](engine/docs/fen.md) — notas sobre o formato FEN e a indexação
   do tabuleiro.
-- [`engine/docs/refs.md`](engine/docs/refs.md) e
-  [`engine/docs/biblioteca-referencias-chess-engine.md`](engine/docs/biblioteca-referencias-chess-engine.md)
+- [`engine/docs/biblioteca-referencias-chess-engine.md`](engine/docs/biblioteca-referencias-chess-engine.md)
   — referências usadas.
 
 ## Convenções

@@ -1,3 +1,7 @@
+Resultados do teste Perft da engine
+
+Posicao inicial (rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1)
+
 Perft result [depth: 0]: 1
 Perft result [depth: 1]: 20
 Perft result [depth: 2]: 400
@@ -5,4 +9,27 @@ Perft result [depth: 3]: 8,902
 Perft result [depth: 4]: 197,281
 Perft result [depth: 5]: 4,865,609
 Perft result [depth: 6]: 119,060,324
-Perft result [depth: 7]: 3,195,905,546
+Perft result [depth: 7]: 3,195,901,860
+
+Correcao em 2026-10-04: a profundidade 7 estava registrada como 3,195,905,546
+(3,686 nos a mais), numero de antes da correcao do roque saindo de xeque /
+atraves de casa atacada. Com o commit 1582162 o motor da o valor de referencia,
+3,195,901,860 (243.5 s em -O2 -DNDEBUG).
+
+
+As seis posicoes da Chess Programming Wiki (Perft Results), commit 1582162,
+perft() do proprio motor com generate_legal_moves, -O2 -DNDEBUG:
+
+Posicao     Prof.  Nos              Esperado         Tempo
+Inicial     6      119,060,324      119,060,324      9.2 s
+Kiwipete    5      193,690,690      193,690,690      13.8 s
+Posicao 3   7      178,633,661      178,633,661      15.8 s
+Posicao 4   5      15,833,292       15,833,292       1.2 s
+Posicao 5   5      89,941,194       89,941,194       6.9 s
+Posicao 6   5      164,075,551      164,075,551      11.7 s
+
+Kiwipete:  r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1
+Posicao 3: 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1
+Posicao 4: r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1
+Posicao 5: rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
+Posicao 6: r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10

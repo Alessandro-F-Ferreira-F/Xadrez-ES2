@@ -43,7 +43,8 @@ all:
 
 release:
 	@mkdir -p build
-	$(CC) -O3 $(SRC) -o $(BIN)
+	$(CC) -O2 -DNDEBUG -flto $(SRC) -o $(BIN)
+	
 debug:
 	@$(MKDIR_BUILD)
 	$(CC) $(DBGFLAGS) $(SRC) -o $(BIN)

@@ -7,6 +7,26 @@ precisa escrever**. Sem corpos de função — só o desenho.
 O REPL **não** é o protocolo stdin/stdout do cliente gráfico. É uma bancada de testes para
 exercitar FEN, geração de lances, make/unmake e perft à mão.
 
+> **Estado em 4 de outubro de 2026.** O que existe hoje em `src/main.c` não é este desenho: é
+> um **menu numérico** (`ui()`, 13 opções). Ele cobre boa parte dos comandos da §2 por outro
+> caminho:
+>
+> | Comando deste guia | No menu de hoje |
+> |---|---|
+> | `fen <fen>` | opção 1 |
+> | `move <uci>` / `undo` | opções 2 / 3 (desfaz só o último lance) |
+> | `new` | opção 4 |
+> | `moves` | opção 6 (todos) e 5 (de uma casa) — já **legais**, não pseudo-legais |
+> | `perft <n>` / `divide <n>` | opções 10 / 13 (por make/unmake, não copy-make — e está provado correto) |
+> | `roundtrip` | opção 12 (o teste de `test/test.c`, sobre 18 FENs fixas) |
+> | `check` | não existe |
+> | — | opção 7 (editar casa) e 11 (casa atacada?), que este guia não previa |
+>
+> O desenho por comandos continua sendo o alvo quando o menu sair do default: o
+> `next_steps.md` (Etapa 10.5) move a bancada para um `repl.c`, chamado por
+> `./main.out repl`, porque o default do binário passa a ser o protocolo UCI. As §1–§5 e §8
+> abaixo continuam válidas para esse momento; a §6 e a §7 foram atualizadas.
+
 ---
 
 ## 1. Ideia central: o REPL como verificador
@@ -234,23 +254,36 @@ Se imprimir prompt sem `\n`, dê `fflush(stdout)` antes de ler.
 
 ## 6. Armadilhas da engine que o REPL encontra
 
-Estado medido em 2026-09-30. Nenhuma é bug do REPL; são o que ele existe para mostrar.
+**Estado medido em 2026-10-04.** As quatro armadilhas medidas em 30/09 (`unmake_move`
+incompleto, sem filtro de legalidade, cavalo ausente, perft que não batia) **foram todas
+resolvidas** — o motor gera, aplica, desfaz e filtra lances corretamente, e o perft bate nas
+seis posições de referência (`project_context.md` §2). O que sobra para o REPL encontrar:
 
-1. **`init_square_tables()` precisa ser chamada na `main`, antes de tudo.** Nenhum outro lugar
-   chama. Sem ela, `SQ_TO_EDGE`, `KNIGHT_TARGETS` e afins são zeros e a geração devolve lixo
-   sem aviso.
-2. **`unmake_move` só trata `MV_QUIET`** e nem esse restaura `side_to_move`, `fullmove_number`,
-   `halfmove_clock`, `ep_square` nem `castling_rights`. O parâmetro `u` ainda não é usado
-   (warning `-Wunused-parameter`). Faltam captura, promoção, roque e en passant.
-3. **Não existe filtro de legalidade** (nem `is_square_attacked`). O gerador é pseudo-legal.
-   Consequências: `perft` **não** bate com as tabelas oficiais assim que aparece xeque; e
-   capturas de rei precisam ser tratadas no REPL (§2.1).
-4. **Cavalo não gerado.** A posição inicial dá 16 lances em vez de 20; o Kiwipete dá 37 em vez
-   de 48. Serve como teste de aceitação quando o cavalo entrar.
+1. **`init_square_tables()` precisa ser chamada na `main`, antes de tudo.** Continua valendo:
+   nenhum outro lugar chama, e sem ela `SQ_TO_EDGE`, `KNIGHT_ATTACKS` e `PAWN_ATTACKS` são
+   zeros e a geração devolve lixo sem aviso.
+2. **FEN com o lado que não joga em xeque é aceita** (`project_context.md` Bug #1) — e o
+   filtro aceita a captura do rei nela, porque capturar o rei não deixa o rei de quem joga em
+   xeque. O lance seguinte derruba o processo num `assert`. O REPL deve continuar recusando
+   captura de rei (§2.1) até o `fen_parse` rejeitar essa posição.
+3. **Editar casa sem validar a coordenada escreve fora do tabuleiro**, e editar o rei sem
+   atualizar `king_square` faz o gerador partir da casa errada (Bug #2, opção 7 do menu atual).
+   Um comando de edição no REPL novo precisa das duas coisas.
+4. **`read_word` em fim de entrada** devolve a palavra anterior de novo, com sucesso (Bug #3).
+   Um REPL alimentado por pipe (`printf ... | ./build/main.out`) entraria em laço. Use
+   `read_line` e trate o retorno `0`.
+5. **`is_square_attacked(b, sq, side)` recebe a cor do dono da casa**, não do atacante. Um
+   comando "esta casa está atacada?" precisa dizer isso ao usuário.
 
 ---
 
 ## 7. Onde colocar: `main.c` ou `cli.c`
+
+*Atualização de 04/10:* o esboço `src/cli.c` não existe mais; a bancada virou o menu numérico
+de `main.c`. A decisão abaixo continua de pé e ficou mais urgente: quando o protocolo UCI
+entrar, ele é o default do binário, e o menu precisa sair de `main.c` — `next_steps.md` Etapa
+10.5 recomenda `repl.c`, levando junto `read_coord`, `wait_enter` e `read_move` de `utils.c`
+(o que também conserta o `make test`, Bug #4). O texto original:
 
 Hoje existe um esboço seu em `src/cli.c` (struct `Session` + protótipos `cmd_*` sem definição)
 e o Makefile compila `src/*.c`, então ele gera 14 warnings `-Wunused-function`. Duas opções:

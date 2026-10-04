@@ -4,8 +4,10 @@
 > Não é preciso saber C para ler este documento — nenhuma linha de código é exigida.
 > Tempo estimado de leitura: 20–25 minutos.
 >
-> Estado descrito: **5 de setembro de 2026**.
-> Documentos relacionados: `roadmap-motor.md` (o que vem a seguir),
+> Escrito em **5 de setembro de 2026**. As §1–§5 (conceitos e decisões) continuam valendo como
+> estão; as §6–§9 e a §11 foram atualizadas para o estado de **4 de outubro de 2026**.
+> Documentos relacionados: `next_steps.md` (o que vem a seguir, em detalhe),
+> `roadmap-motor.md` (as fases e o status de cada uma),
 > `project_context.md` (estado técnico detalhado, esse sim exige C),
 > `arquitetura-xadrez.md` e `descricao-projeto-xadrez.md` (o sistema completo).
 
@@ -468,53 +470,53 @@ que acabou de gerar) e a camada de protocolo (que valida antes).
 
 ## 6. Estado atual, honestamente
 
-**O projeto tem ~750 linhas de C em 5 módulos.** O leitor de FEN é a parte madura;
-a geração de lances mal começou.
+*Atualizado em 4 de outubro de 2026. O detalhe técnico, bug a bug, está no
+`project_context.md`.*
+
+**O motor tem ~3 000 linhas de C em 12 módulos, e as regras do xadrez estão prontas e
+provadas.** Ele sabe todos os lances de qualquer posição — inclusive roque, en passant e
+promoção —, sabe aplicá-los e desfazê-los, e sabe descartar os que deixariam o próprio rei em
+xeque. E a prova não é "testamos algumas posições": é o **perft** (§4.5) batendo exatamente
+com os números publicados em seis posições de referência — na posição inicial, até 7 lances
+de profundidade, são 3 195 901 860 posições contadas sem errar uma.
 
 ### Funciona e está verificado
 
 | Área | Estado |
 |---|---|
-| Leitura de FEN | Valida e constrói o tabuleiro numa passada só. Rejeita posições ilegais (peão na última fileira, rei duplicado, fileira incompleta, contagem de peças) |
-| Indexação a1 = 0 | Convertida e verificada casa a casa |
-| Escrita de FEN | Emite o campo das peças corretamente |
-| Tabela de distâncias até a borda | Verificada casa a casa contra valores calculados à mão |
-| Conversão de coordenadas | `e2` ↔ índice 12, nos dois sentidos |
+| Leitura e escrita de FEN | Os seis campos, com validação completa. Rejeita posições impossíveis (peão na última fileira, rei duplicado, fileira incompleta, roque sem a torre no lugar, en passant inconsistente) |
+| Geração de lances | Todas as peças, roque, en passant, promoção nas quatro peças |
+| Aplicar e desfazer lance | Completo e testado em mais de 11 milhões de posições, sem uma falha |
+| Legalidade | O motor descarta os lances que deixam o próprio rei em xeque, inclusive as regras especiais do roque (não rocar em xeque, não passar por casa atacada) |
+| Perft | Exato nas seis posições da Chess Programming Wiki. Os números estão em `docs/perft_results.txt` |
+| Menu de teste | 13 opções: carregar FEN, jogar e desfazer lances, listar lances legais, rodar perft e o teste de aplicar/desfazer |
 
 ### Incompleto ou ausente
 
 | Área | Estado |
 |---|---|
-| Estrutura da posição | Faltam os campos de roque, en passant e contadores |
-| Leitura de FEN | Lê os campos 3 a 6 e os **descarta** |
-| Geração de lances | Só peão, e só o avanço simples. Sem captura, avanço duplo, en passant ou promoção |
-| Torre, bispo, dama | Função existe vazia |
-| Cavalo e rei | Não existem |
-| Vez de jogar | A geração **ignora de quem é a vez** e produz lances das duas cores |
-| Aplicar lance | Move a peça e nada mais |
-| Desfazer lance | Não existe. **Sem ele não há busca, logo não há IA** |
-| Legalidade | Não existe. Todo lance gerado é pseudo-legal |
-| Perft | Não existe. **Nada da geração está validado ainda** |
-| Protocolo | Não existe. A interação é um menu de teste provisório |
-| Testes automatizados | Nenhum |
+| Protocolo | **Não existe ainda.** O motor é um menu interativo; ele ainda não responde aos comandos que a interface manda. É o próximo grande passo |
+| Fim de partida | O motor sabe que não há lances, mas ainda não tem uma função que diga "mate", "afogamento" ou "empate" |
+| Empates por regra | Nenhum ainda: 50 lances, material insuficiente, repetição |
+| Ligação com a IA | A IA existe em `IA/` (outro membro da equipe), mas ainda não está ligada ao motor |
+| Testes automáticos no build | O teste e o perft existem, mas só rodam pelo menu; o comando `make test` está quebrado |
 
 ### A leitura honesta disso
 
-**As decisões estão maduras; a execução não começou.** Isso não é um problema de
-planejamento — é onde o projeto está no calendário. Mas tem uma consequência
-prática: **o gargalo não é decidir mais coisas, é fechar o ciclo.**
+**A parte de maior risco técnico acabou.** Regras de xadrez têm casos-limite que não
+aparecem jogando (o perft encontrou dois deles em outubro, que nenhuma partida manual teria
+mostrado). O que falta agora é **integração** — o motor falar o protocolo, a IA ligada a ele,
+a interface conversando com os dois —, que tem menos risco técnico e mais risco de
+coordenação: envolve três partes do grupo ao mesmo tempo.
 
-Há um segundo diagnóstico, registrado no `project_context.md` e que orienta a
-primeira fase do roadmap:
+O diagnóstico de setembro continua valendo, e é a pendência mais antiga:
 
-> Das últimas seis sessões de desenvolvimento, **todo bug encontrado era detectável
+> Das primeiras seis sessões de desenvolvimento, **todo bug encontrado era detectável
 > em tempo de compilação.**
 
-Seis de seis. A causa é única: o projeto compila sem otimização ligada, e o
-compilador GCC só faz a análise de fluxo de dados que alimenta seus avisos quando
-há otimização. Ou seja, os avisos que teriam apontado os bugs simplesmente não
-disparavam. A correção é uma linha no arquivo de build, e é o item de maior
-retorno de todo o roadmap.
+A causa daquela vez foi corrigida (o build passou a ligar a otimização que alimenta os avisos
+do compilador). Mas os avisos se acumularam de novo — eram 8 em setembro, são 18 hoje —, e
+aviso que aparece em todo build vira ruído que a equipe aprende a ignorar.
 
 ---
 
@@ -522,19 +524,27 @@ retorno de todo o roadmap.
 
 Se você for abrir o código, esta é a ordem que faz sentido.
 
+Os "dicionários" (declarações) ficam em `engine/include/`, e o código em `engine/src/`.
+
 | Arquivo | O que faz | Ler se... |
 |---|---|---|
-| `src/types.h` | O vocabulário do projeto: as estruturas e constantes que todos os outros usam | **Comece aqui.** ~100 linhas, é o dicionário |
-| `src/board.c` | Leitura e escrita de FEN, conversão de coordenadas | Quer entender como a posição é montada |
-| `src/movegen.c` | Direções, codificação de lances, geração, aplicação | É onde o trabalho dos próximos meses acontece |
-| `src/utils.c` | Impressão do tabuleiro, leitura de entrada | Utilitários de depuração |
-| `src/log.c` | Registro de erros | Trivial |
-| `src/main.c` | Menu provisório de teste | Será substituído pela camada de protocolo |
-| `docs/` | Referências e anotações | Links para a Chess Programming Wiki |
-| `tscp183b/` | Um motor de xadrez de referência, completo, em ~2000 linhas de C legível | Quer ver como fica um motor pronto |
+| `include/types.h`, `include/piece.h` | O vocabulário: tipos básicos, cores, peças e como uma peça cabe num byte | **Comece aqui.** São curtos |
+| `include/square.h`, `src/square.c` | Geometria: coordenadas (`e2` ↔ 12), direções, distância até a borda, saltos do cavalo | Quer entender como o motor "anda" no tabuleiro |
+| `include/board.h`, `src/board.c` | A estrutura da posição e a checagem de consistência dela | Quer ver o que uma posição guarda |
+| `src/fen.c` | Leitura e escrita de FEN — o módulo mais maduro, ver `docs/fen.md` | Quer entender como a posição é montada a partir de texto |
+| `include/move.h`, `src/move.c` | Como um lance cabe em 16 bits, e a lista de lances | Quer entender a codificação de lance |
+| `src/movegen.c` | Geração de lances, ataque a uma casa, filtro de legalidade | É o coração das regras, e o mais difícil |
+| `src/makemove.c` | Aplicar e desfazer um lance | Quer entender como a busca "experimenta" lances |
+| `src/main.c` | Perft e o menu de teste | Será substituído pela camada de protocolo |
+| `test/test.c` | O teste de aplicar e desfazer lances sobre 18 posições | Quer acrescentar posições de teste (§9.1) |
+| `src/io.c`, `src/utils.c`, `src/log.c` | Leitura de entrada, utilitários, registro de erros | Utilitários |
+| `docs/` | Este guia, o roadmap, o contexto técnico, as referências | — |
 
-**Se você quer aprender C junto:** `log.c` (5 linhas) → `utils.c` → `types.h` →
-`board.c`. O `movegen.c` é o mais difícil e deve ser o último.
+Fora de `engine/`: `IA/` (a busca e a avaliação, em C) e `interface/` (o cliente gráfico, em
+C++ com SFML).
+
+**Se você quer aprender C junto:** `log.c` → `piece.c` → `square.c` → `board.c` → `fen.c`.
+`movegen.c` e `makemove.c` são os mais difíceis e devem ser os últimos.
 
 ---
 
@@ -548,9 +558,22 @@ make
 make run
 ```
 
-Hoje isso abre um menu provisório de teste que carrega uma posição fixa, imprime
-o tabuleiro e aceita um lance digitado. A partir da Fase 6a do roadmap, isso será
-substituído pelo protocolo de verdade, e você poderá fazer:
+Hoje isso abre um menu de teste (no Windows: `mingw32-make all` e `mingw32-make run`; o
+binário é `build/main.exe`). As opções mais úteis para quem está chegando:
+
+| Opção | O que faz |
+|---|---|
+| 1 | Carrega uma posição em FEN |
+| 2 / 3 | Joga um lance (`e2e4`, `e7e8q`) / desfaz o último |
+| 4 | Volta à posição inicial (o menu abre numa posição de teste, não na inicial) |
+| 6 | Lista todos os lances legais |
+| 10 | Perft até a profundidade escolhida |
+| 12 | Roda o teste de aplicar e desfazer lances |
+| 13 | Perft "divide" — o formato para comparar com o Stockfish (§9.2) |
+
+`make debug` compila a versão com detectores de erro de memória ligados — é a que vale
+usar para testar. Quando o protocolo existir (`next_steps.md` Etapa 10), o default passa a
+ser ele, e você poderá fazer:
 
 ```bash
 ./build/main.out
@@ -559,15 +582,16 @@ position startpos
 go movetime 1000
 ```
 
-**Comando útil:** `make context` gera um arquivo único com todas as decisões e
-interfaces do projeto, pronto para colar numa conversa ou consultar offline.
-
 ---
 
 ## 9. Como contribuir a partir de hoje
 
 Há trabalho real e valioso que **não exige escrever C**. Estes itens não são
 tarefas inventadas para ocupar gente — cada um destrava ou acelera algo concreto.
+
+**Situação em 04/10:** o 9.2 foi feito (e rendeu: a comparação com o Stockfish achou dois
+bugs); o 9.1 está pela metade; o 9.3 e o 9.5 viraram urgentes, porque o protocolo é o próximo
+passo; o 9.6 já tem a primeira medição. Detalhe em cada item.
 
 ### 9.1 Construir o corpus de posições de teste ⭐
 
@@ -584,6 +608,12 @@ a promover **capturando**; finais com poucas peças; posições de mate e de afo
 
 **Habilidade necessária:** saber xadrez e saber ler FEN (§4.2). Zero C.
 
+**Situação em 04/10:** existe um corpus de 18 posições em `engine/test/test.c` (vetor
+`TEST_FENS`). Faltam as seis posições de referência do perft (estão em
+`docs/perft_results.txt`) e, principalmente, **posições de fim de partida** — mates,
+afogamentos, empates por material insuficiente — que vão ser o teste da próxima etapa do
+motor (`next_steps.md` Etapa 9). Esse é o pedaço mais útil para contribuir agora.
+
 ### 9.2 Verificação cruzada de perft com o Stockfish ⭐
 
 **O que:** instalar o Stockfish, rodar `go perft N` nas posições do corpus, e
@@ -594,6 +624,13 @@ oráculo confiável para comparar. Ter esses números já tabelados economiza ho
 fase mais difícil do projeto (Fase 6b).
 
 **Habilidade necessária:** linha de comando. Zero C.
+
+**Situação em 04/10: feito, e funcionou como prometido.** A posição 5 da tabela de
+referência divergia por alguns milhares de nós na profundidade 5; comparando lance a lance
+com o Stockfish (opção 13 do menu, que imprime no mesmo formato), a divergência foi isolada
+até duas posições específicas, e saíram dois bugs: o roque permitido saindo de xeque ou
+passando por casa atacada, e um erro de borda do tabuleiro na detecção de ataque do rei.
+Os dois estão corrigidos, e as seis posições batem.
 
 ### 9.3 Teste exploratório do protocolo
 
@@ -638,6 +675,12 @@ Agregado da disciplina, e é evidência objetiva de progresso na apresentação.
 
 **Habilidade necessária:** planilha.
 
+**Situação em 04/10:** primeira medição feita — o perft roda a **~12 milhões de posições
+por segundo** na compilação normal otimizada, e a ~19 milhões com uma opção de compilação a
+mais (`-flto`). A fase de otimização planejada em `next_steps.md` (Parte II, depois do
+protocolo) é exatamente uma sequência de etapas medidas por esse número; registrar cada
+medição numa planilha, com data e commit, é a contribuição.
+
 ---
 
 ## 10. Como isso se conecta com a disciplina
@@ -669,9 +712,15 @@ visibilidade do progresso e é uma decisão de gestão defensável na apresenta�
 
 ---
 
-## 11. Uma decisão em aberto que afeta a equipe inteira
+## 11. Uma decisão que afetava a equipe inteira — fechada
 
-Os documentos do projeto divergem sobre um ponto, e vale resolver em grupo:
+**Situação em 04/10:** decidida no `arquitetura-xadrez.md` (§8, 13/09): **o cliente fala
+direto com o motor**, rodando-o como subprocesso, sem backend no meio. A consequência da
+tabela abaixo se confirmou — o protocolo vai ter um comando para listar os lances legais
+(`legalmoves`), que a interface usa para destacar casas. A interface (`interface/`) já
+implementa a parte de iniciar o motor. O texto abaixo fica como registro de como estava.
+
+Os documentos do projeto divergiam sobre um ponto:
 
 - O `arquitetura-xadrez.md` estabelece como princípio central que **o cliente nunca
   fala diretamente com o motor** — sempre através de um backend em Node/TypeScript.

@@ -1,598 +1,791 @@
-# Próximos Passos — de `unmake_move` até o protocolo
+# Próximos Passos — do filtro de legalidade ao UCI, e depois a otimização
 
 > Guia de implementação e arquitetura. **Documento vivo**: cada etapa tem critério de saída
 > objetivo; marque conforme avança e registre aqui o que mudou de opinião no caminho.
 >
-> Estado base: **16 de setembro de 2026** (commit `f79d50a` + árvore de trabalho).
-> Contexto e estado bug-a-bug: `project_context.md`. Fases de longo prazo: `roadmap-motor.md`.
+> Estado base: **4 de outubro de 2026** (commit `1582162`).
+> Contexto e estado bug-a-bug: `project_context.md` (os números de bug citados aqui são os
+> de lá). Fases de longo prazo: `roadmap-motor.md`.
 >
-> **Esta é a terceira versão deste documento.** A anterior (10/09) foi escrita contra o
-> `movegen.c` monolítico e planejava um `make_move` que não existia. Ele existe agora, está
-> verificado, e o plano de lá foi cumprido quase linha a linha — inclusive as duas armadilhas
-> (en passant e `CASTLE_MASK` no destino). O que não foi cumprido é o espelho.
->
-> Escopo deste documento: `unmake_move`, o teste-portão, o cavalo, a limpeza do build, e o
-> caminho até o UCI mínimo. **O filtro de legalidade fica de fora de propósito** — ele depende
-> de tudo isto estar correto primeiro.
+> **Esta é a quarta versão deste documento.** A terceira (16/09) planejava sete etapas, de
+> `unmake_move` até o UCI. Quatro estão cumpridas e provadas — inclusive a mais delicada, o
+> filtro de legalidade, que bate o perft nas seis posições de referência. As outras três
+> estão abertas, e uma delas (o teste-portão) está "quase": o código existe, só não está
+> ligado ao build. A §2 é a prestação de contas; as Etapas 8 a 12 são o que falta até o
+> motor falar o protocolo; a **Parte II** (novidade desta versão) são as etapas de
+> otimização, que só começam **depois** do UCI.
 
 ---
 
-## 1. Estado em 2026-09-16
-
-O que mudou desde a revisão de 13/09 do `project_context.md`:
+## 1. Estado em 2026-10-04
 
 | Área | Estado |
 |---|---|
-| `make_move` | ✅ **Completo e verificado.** Undo, captura, roque, en passant, promoção, `castle_mask` por origem **e** destino, relógios, `king_square` |
-| `board_check_invariants` | ✅ Implementada — 4 das 6 checagens planejadas |
-| `board_find_king` | ✅ Implementada |
-| Rei | ✅ Gerado pelas 8 direções de `SQ_TO_EDGE`, como decidido |
-| Roque | ✅ Gerado (direito + casas vazias). Xeque e casa atacada ficam para o filtro, de propósito |
-| Peão | ✅ Completo: push, duplo aninhado, captura, promoção nas 4 peças, en passant. Sem o parâmetro `side` |
-| `generate_all_moves` | ✅ Entrada única |
-| REPL de `main.c` | ✅ Consertado — usa o índice de `movelist_find` e aplica o lance real |
-| Predicados de `MoveType` | ✅ Roque e EP comparam por igualdade, não por máscara |
-| **`unmake_move`** | ❌ **Sem corpo.** Erro de link, reproduzido |
-| **Cavalo** | ❌ Não gerado. Posição inicial dá 16 lances, não 20 |
-| `is_square_attacked`, legalidade, perft, UCI | ❌ Não existem |
-| Testes automatizados | ❌ Não existem. `test/test.c` é um REPL manual sem assertions |
+| Geração pseudo-legal | ✅ Completa: peão, cavalo, bispo/torre/dama, rei, roque |
+| `make_move` / `unmake_move` | ✅ Completos. `king_square` incremental |
+| `is_square_attacked` | ✅ Busca reversa, com o *wraparound* do rei corrigido |
+| `generate_legal_moves` | ✅ Aplica-e-testa + as duas regras extras do roque |
+| Perft | ✅ No motor (`main.c`), menu opções 10 e 13. **Seis posições exatas**, posição inicial até a profundidade 7 |
+| Teste de make/unmake | 🔶 `test/test.c` verde (18 FENs), mas só pelo menu: `make test` não linka (Bug #4) |
+| `board_check_invariants` | 🔶 4 das 6 checagens (Bug #7) |
+| Build | 🔶 18 avisos, zero erros. As quatro flags do `CLAUDE.md` §7 continuam fora |
+| Fim de partida, empates | ⬜ Não há `in_check` nem função de estado da partida |
+| UCI | ⬜ Só o menu interativo |
+| IA | ⬜ Existe em `IA/` (minimax + alfa-beta + avaliação), mas não está ligada ao binário |
 
-Build atual: **8 avisos**, zero erros. Três deles são bugs reais (`project_context.md` §5).
-
----
-
-## 2. A etapa 1 é `unmake_move`, e não há discussão
-
-Tudo o que vem depois — filtro de legalidade, perft, busca, e o próprio teste que prova que
-`make_move` continua certo amanhã — passa por ela. Hoje `makemove.c:130` é:
-
-```c
-void unmake_move(Board *b, Move move, const Undo *u);
-```
-
-Uma declaração repetida, terminada em `;`. O compilador não reclama (é uma redeclaração
-válida) e o link só quebra se alguém chamar. Ninguém chama. Por isso o build passa.
-
-### 2.1 A ordem, que é o espelho da de `make_move`
-
-```
-1. inverter side_to_move                                       ← PRIMEIRO
-2. decodificar o lance (from, to, type)
-3. desfazer o caso especial:
-     promoção → array[from] recebe um PEÃO, não a peça promovida
-     roque    → devolver a torre para a casa de origem
-     ep       → recolocar o peão adversário em to - PAWN_PUSH[side]
-4. mover a peça de volta: array[from] = array[to]
-5. restaurar a casa de destino:
-     ep       → array[to] = EMPTY   (a captura não estava lá)
-     senão    → array[to] = u->captured
-6. restaurar do Undo: castling_rights, ep_square, halfmove_clock
-7. fullmove_number: -1 se quem tinha jogado era BLACK
-8. king_square, se a peça era rei (inclui o roque)
-```
-
-**O passo 1 vem primeiro, e é a assimetria que importa.** Todo o resto depende de saber de
-quem era a vez: de que lado o peão veio, onde estava o peão capturado no en passant, qual
-torre volta no roque. Fazer por último significa calcular tudo com a cor errada — e o
-sintoma disso não é um crash, é um perft errado três níveis abaixo.
-
-### 2.2 Armadilha — en passant, e por que o `Undo` sozinho não basta
-
-```
-Peão branco em e5, pretas acabaram de jogar d7-d5.  ep_square = d6.
-
-  Lance:           e5xd6 en passant
-  Peça capturada:  o peão preto em d5, não em d6
-  Casa a limpar:   ep_square - PAWN_PUSH[WHITE]  =  d6 - 8  =  d5
-```
-
-`make_move` já faz isso certo (verificado: `e5f6` na FEN de teste devolve o tabuleiro
-correto). O que `unmake_move` encontra é a consequência: **`u->captured` vale `EMPTY`**,
-porque a casa de destino estava vazia quando o `Undo` foi gravado. O peão capturado não pode
-ser restaurado a partir do `Undo`.
-
-Ele tem de ser **deduzido**: `MV_EP_CAPTURE` já diz que é um peão, e `side` já diz de que
-cor. Não é defeito do `Undo` — é precisamente o motivo pelo qual o lance volta como parâmetro
-em vez de morar dentro do `Undo`. Se você se pegar querendo adicionar um campo ao `Undo` para
-resolver isso, a resposta é: o `MoveType` já é esse campo.
-
-No `unmake`, restaurar a peça em `to` faz **um peão sumir e outro aparecer** — e o tabuleiro
-continua com o número certo de peças, então nenhuma checagem de contagem pega. Quem pega é o
-round-trip de FEN (§3).
-
-### 2.3 Armadilha — promoção
-
-O que volta para `array[from]` é um **peão**, não a peça promovida. Parece óbvio escrito
-assim, e é o erro mais comum aqui, porque o passo 4 ("mover a peça de volta") lê
-`array[to]` — que é a dama.
-
-E o caso duplo: `MV_PROMO_CAP_*` é promoção **e** captura. Os dois tratamentos se aplicam.
-
-### 2.4 Armadilha — roque
-
-`make_move` move o rei pelo caminho normal e a torre pelo `switch (to)`. `unmake_move` tem de
-desfazer os dois. As quatro casas são as mesmas quatro (`SQ_C1`, `SQ_G1`, `SQ_C8`, `SQ_G8`),
-e a torre volta para `SQ_A1`/`SQ_H1`/`SQ_A8`/`SQ_H8`.
-
-Os direitos de roque **não** precisam ser recalculados: eles vêm do `Undo`. É exatamente o
-que o `Undo` existe para guardar, porque são irrecuperáveis do tabuleiro pós-lance.
-
-### 2.5 Enquanto estiver no arquivo, três coisas baratas
-
-Regra acordada no `CLAUDE.md` §3: nada de passe de refatoração separado; cada limpeza entra
-quando o arquivo já vai ser aberto. `makemove.c` vai ser aberto agora.
-
-- **`king_square` por varredura completa** (`makemove.c:72-73`). `make_move` chama
-  `board_find_king` **duas vezes por lance** — 128 leituras por nó de busca, para um campo
-  que existe justamente para evitar varredura. Atualizar só quando `PIECE_TYPE(p) == KING`.
-  Não é otimização prematura: é o cache voltar a ser cache.
-- **`fill_sq(b, "d1", …)`** (`makemove.c:87`). Parsing de string no caminho mais quente do
-  motor, com o `bool` de retorno descartado. Acrescente `SQ_D1`, `SQ_F1`, `SQ_D8`, `SQ_F8` ao
-  enum de `square.h` e escreva direto em `b->array[…]`.
-- **`check_rook_squares` mente no nome** (`makemove.c:8`): ela também trata `SQ_E1`/`SQ_E8`,
-  que são casas de rei. `update_castle_rights_for_square` ou a tabela `CASTLE_MASK[64]` que o
-  plano de 10/09 sugeria — a tabela faz as duas metades (origem e destino) caírem na mesma
-  linha, e é difícil lembrar de uma e esquecer da outra.
-
-### Critério de saída
-
-`unmake_move` linka e desfaz um lance simples. Isso é só o pré-requisito da Etapa 2, que é o
-portão de verdade.
+Linha de base de desempenho (perft sem *bulk counting*, `-O2 -DNDEBUG`): **12,2 Mnós/s**;
+com `-flto`, **19,0**. Perfil e números em `project_context.md` §2 — eles são o ponto de
+partida da Parte II.
 
 ---
 
-## 3. Etapa 2 — O teste-portão 🚧
+## 2. Prestação de contas — as sete etapas de 16/09
 
-**Esforço:** 1 sessão. **É o item de maior retorno do projeto inteiro, e já era antes.**
+| Etapa de 16/09 | Critério de saída de então | Resultado |
+|---|---|---|
+| 1 — `unmake_move` | Linka e desfaz um lance simples | ✅ **Muito além:** desfaz todos os tipos de lance, provado em 11 milhões de round-trips sob ASan/UBSan (`project_context.md` §2) |
+| 2 — Teste-portão 🚧 | `./main.out test` verde em ~30 posições, invariantes passando | 🔶 `run_make_unmake_tests()` existe e está verde em 18 posições — mas não é subcomando, não checa invariantes, e `make test` não linka. Continua como **Etapa 8** |
+| 3 — Cavalo | Soma = 336; inicial gera 20; Kiwipete gera 48 | ✅ Medido em 01/10 (soma 336), e o perft de hoje o cobre por completo |
+| 4 — Build | `make` com zero avisos e três flags novas | ⬜ Foi na direção contrária: 8 → 18 avisos. Continua como **Etapa 11** |
+| 5 — Invariantes | As 6 checagens de `guides.md` | ⬜ Continua em 4. Vira **Etapa 12** |
+| 6 — Legalidade 🚧 | `perft(1)` = 20, `perft(2)` = 400, Kiwipete `perft(1)` = 48 | ✅ **Muito além:** as seis posições da CPW exatas até a profundidade 5–7 |
+| 7 — UCI | Partida inteira contra Cute Chess/Arena sem travar | ⬜ Vira **Etapa 10**, depois do fim de partida (Etapa 9), que o `go` precisa |
 
-### 3.1 O teste
+### O que mudou de opinião no caminho
 
-```
-para cada FEN do corpus:
-    fen_parse(fen, &b)
-    assert(board_check_invariants(&b))
-    fen_antes = fen_write(&b)
+- **`perft divide` + Stockfish funcionou exatamente como previsto**, e vale registrar como:
+  a posição 5 divergia na profundidade 5 (89 949 152 contra 89 941 194); a bissecção
+  (`perft_divide` no formato do Stockfish + um script local de comparação) desceu até duas
+  folhas e achou **dois** bugs numa sessão — roque saindo de xeque / através de casa atacada,
+  e o *wraparound* do rei em `is_square_attacked`. A lição que fica: **o portão é as seis
+  posições, não uma.** A posição 5 sozinha escondia o segundo bug; a posição 3 o mostra na
+  profundidade 1.
+- **A divisão do roque ficou como decidida**: o gerador verifica direito e casas vazias; o
+  filtro verifica xeque e casa atravessada. Ninguém reimplementou metade nos dois lugares.
+- **`is_square_attacked` saiu com a cor do defensor, não do atacante** (`(b, sq, side)` com
+  `side` = dono da casa). Diverge do plano (`by`), funciona — o perft prova —, mas é uma
+  armadilha para o próximo chamador. Ver Etapa 9 e `project_context.md` §3.
+- **O cache de `king_square` voltou a ser cache**, como §2.5 de 16/09 pedia. Os outros dois
+  itens baratos daquela seção (`fill_sq` com string no `make_move`, `check_rook_squares` que
+  mente no nome) continuam — agora têm custo medido e entram na etapa O2.
 
-    generate_all_moves(&b, &lista)
-    para cada lance m da lista:
-        Undo u;
-        make_move(&b, m, &u)
-        unmake_move(&b, m, &u)
-        assert(fen_write(&b) == fen_antes)
-        assert(board_check_invariants(&b))
-```
+---
 
-~30 posições × ~35 lances = **~1000 verificações**, e roda em milissegundos. Ele pega
-praticamente todo bug de make/unmake — incluindo §2.2, §2.3 e §2.4 — **antes** que o perft
-precise entrar em cena.
+# Parte I — até o motor falar o protocolo
 
-E o motivo pelo qual ele funciona tão bem é que **o round-trip da FEN já está verificado**:
-você está comparando contra um serializador em que confia. Foi essa maturidade do módulo
-`fen` que permitiu mover o teste de corpus da Fase 1 para cá, no `roadmap-motor.md` — ele
-não desapareceu, ele virou o oráculo deste teste.
+## 3. Etapa 8 — O portão dentro do repositório 🚧
 
-### 3.2 Onde ele mora
+**Esforço:** 1 sessão. **É o item de maior retorno da lista, pela terceira versão seguida.**
+A diferença é que agora o código já existe: o perft está em `main.c`, o teste em
+`test/test.c`, e os números esperados estão no `project_context.md` §2. Falta ligar.
 
-Subcomando do binário, como decidido em 10/09:
+### 8.1 Por que agora, e não depois do UCI
 
-```
-./build/main.out            REPL (o de hoje)
-./build/main.out test       este teste
-./build/main.out perft N    contagem, quando existir
-```
+Os números que provam que o motor está certo existem hoje em dois lugares: um documento e um
+harness descartável. Nenhum dos dois roda quando alguém faz um commit. A Etapa 10 (UCI) vai
+mexer em `main.c` inteiro, a Etapa 11 em vários arquivos, e a Parte II inteira mexe no código
+mais quente — cada uma delas é uma chance de quebrar a geração em silêncio. O portão precisa
+existir **antes** delas.
 
-Sem framework, sem infraestrutura nova: assertions e um contador de passa/falha. E `make`
-roda `test` — um portão que ninguém executa não é portão.
+### 8.2 `make test` voltar a linkar (Bug #4)
 
-**Nota sobre `test/test.c`:** ele existe e o Makefile tem um alvo `test`, mas hoje é um
-segundo REPL manual (lê lance do stdin, imprime o tabuleiro, nenhuma assertion). Ou ele vira
-este teste, ou vira `repl.c` e o teste nasce em outro arquivo. O que não pode continuar é
-um alvo chamado `test` que não testa — é pior que não ter, porque parece cobertura.
+O alvo filtra `src/io.c` para fora, mas `utils.c` passou a depender dele (`read_move`,
+`read_coord` e `wait_enter` chamam `read_word`/`read_line`). Duas saídas:
 
-### 3.3 O corpus
+1. Parar de filtrar `io.c`. Uma linha.
+2. Reconhecer a causa: essas três funções **são código do REPL**, não utilitários. Elas e o
+   menu vão para um `repl.c` (que a Etapa 10 já pede, ver 10.5), e `utils.c` volta a não
+   depender de entrada.
 
-Num `.c` próprio, como `const char *CORPUS[]`. **Não** um arquivo texto lido em runtime: sem
-I/O, sem caminho relativo, sem caso de erro para tratar, e ele compila junto.
+**Recomendação: a 2**, junto com a Etapa 10. Até lá, a 1 destrava o portão hoje.
 
-Comece com estas, que já cobrem os caminhos que existem hoje:
+### 8.3 `perft` sai de `main.c`
 
 ```c
-"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"              /* inicial       */
-"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"  /* Kiwipete      */
-"8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1"                             /* Perft pos 3   */
-"r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"      /* Perft pos 4   */
-"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"                                  /* 4 roques vivos*/
-"r3k2r/8/8/8/8/8/8/R3K2R b kq - 0 1"                                    /* roque parcial */
-"rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3"         /* en passant    */
-"rn5k/1P2P3/8/8/8/8/8/7K w - - 0 1"                                     /* promoção x2   */
+/* perft.h */
+u64  perft(Board *b, int depth);
+u64  perft_divide(Board *b, int depth, FILE *out);   /* formato do Stockfish */
+bool perft_suite(int max_depth);                     /* as seis posicoes, valores esperados */
 ```
 
-As quatro primeiras são as posições de referência dos *Perft Results* — usá-las aqui
-significa que, quando o perft chegar, o corpus já é o certo.
+Três consumidores vão precisar disto, e `main.c` não tem header: o subcomando
+`./main.out perft`, o comando de depuração `perft N` do UCI (Etapa 10), e o `bench` da etapa
+O1. Junto: os `printf` de `u64` passam a usar `PRIu64` (Bug #6) — o grupo compila no Windows,
+onde `%lu` tem 32 bits e a profundidade 7 (3,2 bilhões) não cabe.
 
-### 3.4 Um cuidado no `board_check_invariants` antes de rodar 1000 vezes
+### 8.4 O corpus de referência, com os números
 
-`fail_msg` acumula num log global que **nunca é zerado** (`utils.c:14`). Em ~1000 iterações
-ele bate no teto de 128 e passa a emitir `LOG_ERROR("too many fail messages")` por cima da
-saída do teste. Ou o log ganha um `fail_log_reset()`, ou o teste chama `print_fail_log()` e
-para na primeira falha. A segunda opção é melhor: numa suíte de round-trip, a **primeira**
-falha é a informativa; as 999 seguintes são consequência.
+As seis posições da [CPW — Perft Results](https://www.chessprogramming.org/Perft_Results),
+num `const` dentro de `perft.c` (não arquivo lido em runtime — a decisão de 16/09 vale):
+
+| Posição | FEN | d1 | d2 | d3 | d4 | d5 |
+|---|---|---|---|---|---|---|
+| Inicial | `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1` | 20 | 400 | 8 902 | 197 281 | 4 865 609 |
+| Kiwipete | `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1` | 48 | 2 039 | 97 862 | 4 085 603 | 193 690 690 |
+| Posição 3 | `8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1` | 14 | 191 | 2 812 | 43 238 | 674 624 |
+| Posição 4 | `r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1` | 6 | 264 | 9 467 | 422 333 | 15 833 292 |
+| Posição 5 | `rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8` | 44 | 1 486 | 62 379 | 2 103 487 | 89 941 194 |
+| Posição 6 | `r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10` | 46 | 2 079 | 89 890 | 3 894 594 | 164 075 551 |
+
+**Profundidade 4 nas seis** são ~10,7 milhões de nós: ~1 s, tanto em `-O2` quanto no `make`
+padrão. É o tamanho certo para um portão que todo mundo roda. A profundidade 5 (~470 milhões,
+~40 s) fica para antes de PR que toque `movegen.c` ou `makemove.c`.
+
+### 8.5 O teste de round-trip ganha os invariantes
+
+`test.c` compara FEN antes/depois, e isso pega quase tudo — mas não pega cache
+dessincronizado que o `fen_write` não serializa (`king_square`). Chamar
+`board_check_invariants` depois do `make` e depois do `unmake` custa uma linha cada, e foi o
+que o harness de 04/10 fez em 11 milhões de nós. Parar na **primeira** falha e chamar
+`print_fail_log()` — numa suíte de round-trip, a primeira falha é a informativa; e o log
+global não tem reset (Bug #7).
+
+### 8.6 `main()` olha `argv`
+
+```
+./main.out              menu (hoje)  →  laço UCI (a partir da Etapa 10)
+./main.out test         round-trip + invariantes + perft_suite(4)
+./main.out perft N      perft da posição inicial (ou de uma FEN dada)
+./main.out divide N     perft_divide, para comparar com o Stockfish
+```
+
+E `make test` passa a ser `./build/main.out test` — um alvo, um binário, sem segundo `main`
+sob `#ifdef`.
 
 ### Critério de saída 🚧
 
-`./build/main.out test` verde nas ~30 posições, com invariantes passando. **Não avance sem
-isso** — e depois de cada etapa seguinte, rode de novo. De portão único ele vira teste de
-regressão permanente.
+`make test` verde em menos de 5 s, cobrindo round-trip + invariantes nas 18 FENs atuais e
+`perft_suite(4)` nas seis posições. E a regra que isso impõe, daqui para frente: **todo PR
+que toca `movegen.c`, `makemove.c`, `board.c` ou `square.c` roda `make test` antes**.
 
 ---
 
-## 4. Etapa 3 — Cavalo
+## 4. Etapa 9 — Fim de partida, e o contrato com a IA
 
-**Esforço:** meia sessão. Trivial, e é a última peça que falta para o gerador ficar completo.
+**Esforço:** 1 sessão. Precede o UCI porque o `go` precisa saber se há partida para jogar, e
+porque a IA (`IA/header/contrato.h`) já pede três funções que o motor não tem.
 
-`KNIGHT_TARGETS[64][8]` já está **declarada e alocada** em `square.c:15` — e zerada, porque
-`init_square_tables()` só popula `SQ_TO_EDGE` e `PAWN_ATTACKS`.
+### 9.1 O que a IA espera, e o que o motor tem
 
-### 4.1 Construir a tabela iterando rank/file, não índice de casa
-
-Para cada `(rank, file)` e cada um dos 8 deltas `(dr, df)`, testar
-`0 <= rank+dr < 8 && 0 <= file+df < 8` e **só então** calcular `SQ_AT(r, f)`. A função
-`offset_square` em `square.c:23` já faz exatamente isso e já é usada por
-`init_pawn_attacks` — reaproveite, não escreva uma segunda.
-
-A forma rank/file torna o wraparound **impossível por construção**. Testar
-`abs(FILE_OF(a) - FILE_OF(b)) > 2` em runtime também funciona, mas conviveria com
-`SQ_TO_EDGE` no mesmo arquivo, e aí o gerador passa a ter duas formas de estar errado na
-borda.
-
-Guarde `KNIGHT_COUNT[64]` junto, ou preencha os slots vazios com `SQ_NONE` como
-`PAWN_ATTACKS` faz — o importante é escolher **uma** convenção e ser consistente com a que
-já existe no arquivo.
-
-### 4.2 `KING_TARGETS` deve ser apagada
-
-Ela está alocada (`square.c:16`), zerada, e `generate_king_moves` **não a usa** — usa
-`SQ_TO_EDGE`, que foi a decisão de 10/09 e é a certa. Tabela alocada que ninguém preenche e
-ninguém lê é um convite para alguém preenchê-la e criar o segundo mecanismo de borda que a
-decisão evitou de propósito.
-
-### 4.3 Verificação
-
-| Verificação | Esperado |
-|---|---|
-| Cavalo em a1 | 2 destinos |
-| Cavalo em b1 | 3 destinos |
-| Cavalo em c3 | 8 destinos |
-| Cavalo em h8 | 2 destinos |
-| Soma sobre as 64 casas | **336** |
-
-A soma é a forma mais barata de verificar a tabela inteira de uma vez.
-
-### Critério de saída
-
-`generate_all_moves` na posição inicial devolve **20** (hoje devolve 16). Kiwipete devolve
-**48** (hoje devolve 37). Nessas duas posições as contagens pseudo-legais coincidem com as
-legais, então elas servem de checagem antecipada antes do filtro existir.
-
-**E rode o teste da Etapa 2 de novo.** Agora ele exercita caminhos de `make_move` que não
-existiam quando passou.
-
----
-
-## 5. Etapa 4 — Fechar o build
-
-**Esforço:** meia sessão. Pode ser feita a qualquer momento, e três dos oito avisos **são
-bugs**.
-
-### 5.1 Os oito avisos
-
-| Aviso | Onde | O que fazer |
+| `IA/header/contrato.h` | No motor hoje | Falta |
 |---|---|---|
-| `-Wmissing-prototypes` × 5 | `ui`, `print_move`, `check_pawn_promotion`, `genenare_moves_from_direction`, `check_allowed_castles` | Cada uma é **ou** helper interno que devia ser `static`, **ou** API que devia estar no header. A flag não conserta; ela força a decisão, que hoje está sendo tomada por omissão |
-| `-Wenum-conversion` | `move.c:112` | `promotion_type = EMPTY;` atribui `PieceType` a `MoveType`. Funciona porque os dois zeros coincidem — que é exatamente a confusão que matou o `enum Promotion` antigo. Use `MV_QUIET` |
-| `useless storage class` | `movegen.c:159` | `static const enum {LEFT, RIGHT};` → `enum { LEFT, RIGHT };` |
-| `-Wunused-const-variable` | `square.c:8` | `DIR_CHARMAP` sobrou de uma função de debug que não existe mais. Apagar |
+| `void gerarLancesLegais(Board *b, MoveList *lista)` | `generate_legal_moves` — **mesma forma** | Só o nome |
+| `bool emXeque(const Board *b)` | `is_square_attacked` (com o rei do lado a jogar) | Um `in_check` de uma linha |
+| `int testeEmpateRegra(const Board *b)` | `halfmove_clock` existe; o resto não | 50 lances, material insuficiente, repetição |
 
-Enquanto estiver em `movegen.c`, o typo `genenare_moves_from_direction` vira `generate_`.
+O próprio `contrato.h` diz que é provisório e que deve ser substituído pelos headers das
+regras quando elas existirem. Elas existem. **Recomendação: a IA chama os nomes do motor
+(`generate_legal_moves`, `in_check`, ...) e o `contrato.h` é apagado** — duas funções com
+nomes diferentes fazendo a mesma coisa é duplicação que diverge. É conversa com o responsável
+pela IA, não decisão unilateral; registre o resultado no `project_context.md` §6.
 
-### 5.2 As flags que faltam, medidas contra esta árvore
-
-| Flag | Custo hoje | Decisão |
-|---|---|---|
-| `-Wshadow` | **0** | Ligar |
-| `-Wcast-qual` | **0** | Ligar |
-| `-Wwrite-strings` | +6 | Ligar. Os seis são `fail_msg(char *)` recebendo literal — mude para `const char *` e os seis somem juntos |
-| `-Wconversion` | +8 | **Adiar.** Todos os oito são `*castling_rights &= ~(CASTLE_*)` em `u8` (`makemove.c:12-27`), benignos. Ligar agora significaria silenciá-los com cast, e essa é a flag que historicamente mais pagou aqui — não vale gastá-la em ruído. Ligue junto com a tabela `CASTLE_MASK[64]` do §2.5, que resolve os oito de uma vez |
-
-Mover também `-Wframe-larger-than=16384` de `DBGFLAGS` para `CFLAGS`.
-
-### Critério de saída
-
-`make` limpo, zero avisos, com `-Wshadow -Wcast-qual -Wwrite-strings` somadas ao conjunto
-atual. `gcc -std=c11 -fsyntax-only -x c src/<cada>.h` passa nos 11 headers.
-
----
-
-## 6. Etapa 5 — Completar `board_check_invariants`
-
-**Esforço:** uma hora. Ela hoje cobre 4 das 6 checagens de `docs/guides.md`.
-
-Existem:
-
-- nenhum código de peça inválido
-- exatamente um rei de cada cor
-- `king_square[cor]` bate com a varredura do zero
-- nenhum peão na 1ª ou 8ª fileira
-
-Faltam:
-
-- **`ep_square`, se definido, na fileira coerente com `side_to_move`** — fileira 6 (índice 5)
-  quando são as brancas a jogar, fileira 3 (índice 2) quando são as pretas, com o peão
-  adversário na casa imediatamente atrás.
-- **Direitos de roque coerentes com rei e torres nas casas de origem.** Esta **já está
-  escrita**: `castling_matches_board`, hoje `static` em `fen.c:385`. Expor é a maior parte do
-  trabalho — é a mesma verificação que `fen_parse` faz na entrada, e usá-la também na saída de
-  `make_move` é o que fecha o ciclo que a decisão "FEN inconsistente é rejeitada, não
-  corrigida" abriu de propósito (`docs/fen.md`).
-
-O retorno é desproporcional e já foi medido em outros projetos: praticamente todo bug de
-make/unmake se manifesta como quebra de invariante **uma ou duas jogadas antes** de causar
-sintoma visível. A diferença entre depurar na causa e depurar no sintoma, dentro de uma
-árvore de profundidade 6, é de horas.
-
----
-
-## 7. Etapa 6 — Filtro de legalidade 🚧
-
-**Esforço:** 1–2 sessões. Só comece com a Etapa 2 verde e a Etapa 3 fechada.
-
-### 7.1 `is_square_attacked(const Board *b, int sq, Color by)`
-
-Busca **reversa**: em vez de gerar todos os lances do adversário e ver se algum chega em
-`sq`, pergunte de `sq` para fora — "andando como torre a partir daqui, encontro uma torre ou
-dama inimiga antes de encontrar qualquer outra coisa?". Mesma pergunta para bispo/dama, para
-cavalo (`KNIGHT_TARGETS`, que a Etapa 3 acabou de popular), para rei, e para peão.
-
-É aqui que `PAWN_ATTACKS` se paga pela segunda vez: "de que casas um peão branco ataca `sq`?"
-é a consulta **invertida** de "que casas um peão branco em `sq` ataca". Ter a tabela torna a
-inversão um índice de cor, em vez de um raciocínio refeito toda vez.
-
-### 7.2 O `const` é a metade do par
+### 9.2 `in_check` e o parâmetro de `is_square_attacked`
 
 ```c
-int generate_pseudo_legal(const Board *b, MoveList *out);  /* const  */
-int generate_legal       (Board *b,       MoveList *out);  /* NAO const */
+bool in_check(const Board *b);   /* o rei do lado a jogar esta atacado? */
 ```
 
-O filtro **não pode** ser `const`, porque ele muta o tabuleiro para descobrir: aplica o
-lance, pergunta se o próprio rei ficou atacado, desfaz. Isso não é defeito da assinatura, é
-a natureza do filtro — e é a razão pela qual `unmake_move` vinha antes de tudo.
+É uma linha sobre `is_square_attacked(b, b->king_square[side], side)` — e é aqui que a
+armadilha do `project_context.md` §3 morde: `side` é o **dono** da casa, não o atacante.
+Antes de escrever o `in_check`, renomeie o parâmetro de `is_square_attacked` para `defender`
+(ou `us`) e ponha um comentário no header. O `in_check`, o `fen_parse` (9.4) e a IA vão
+chamá-la; um deles vai passar o atacante por hábito.
 
-### 7.3 O bug que esta etapa vai acordar, e que já está reproduzido
+### 9.3 Estado da partida
 
-`generate_king_moves` (`movegen.c:191`) lê `SQ_TO_EDGE[b->king_square[side]][dir]` **sem
-checar `SQ_NONE`**. Reproduzido com ASan hoje:
-
-```
-FEN "R6k/8/8/8/8/8/8/K7 w - - 0 1"
-  gerador emite a8h8 (captura do rei — pseudo-legal, e legítimo nesta camada)
-  make_move grava king_square[BLACK] = -1
-  generate_all_moves seguinte:
-    movegen.c:191 runtime error: index -1 out of bounds for type 'int [64][8]'
-    AddressSanitizer: global-buffer-overflow
+```c
+typedef enum {
+    GAME_ONGOING, GAME_CHECKMATE, GAME_STALEMATE,
+    GAME_DRAW_50, GAME_DRAW_MATERIAL, GAME_DRAW_REPETITION
+} GameStatus;
 ```
 
-Hoje o sintoma é silencioso, porque o vizinho na memória é `KNIGHT_TARGETS`, que está zerada
-— o `continue` da linha seguinte salva por acidente. **Isso deixa de valer no instante em que
-a Etapa 3 popular `KNIGHT_TARGETS`**, e o filtro de legalidade é justamente o código que
-aplica lances de captura de rei aos milhares.
+| Estado | Regra | Nota |
+|---|---|---|
+| Mate | Lista legal vazia **e** `in_check` | Tem precedência sobre o empate dos 50 lances, se os dois acontecem no mesmo lance |
+| Afogamento | Lista legal vazia **sem** xeque | — |
+| 50 lances | `halfmove_clock >= 100` | O campo já existe e já é mantido por make/unmake |
+| Material insuficiente | K×K, K+B×K, K+N×K, K+B×K+B com bispos na mesma cor | O conjunto clássico; não tente cobrir toda "posição morta" da FIDE |
+| Repetição tripla | A mesma posição (peças, lado, roque, en passant) três vezes | Precisa de histórico — 9.5 |
 
-Duas saídas, e elas não são equivalentes:
+`generate_legal_moves` não é `const` (o filtro aplica e desfaz), então a função de estado
+também não pode ser. Não é defeito da assinatura; é o mesmo motivo de 16/09.
 
-1. O filtro nunca deixa a posição chegar nesse estado — mas isso é uma pré-condição
-   documentada, e pré-condição documentada é a mesma categoria de "armadilha lembrada" que
-   este projeto já decidiu não aceitar.
-2. `generate_king_moves` verifica `SQ_NONE` e retorna sem gerar nada. Duas linhas, e o bug
-   fica **inexprimível**.
+### 9.4 `fen_parse` rejeita o lado que não joga em xeque (Bug #1)
 
-Faça as duas, e ponha o `assert` também.
+É o último caminho de crash por entrada externa: a FEN ilegal entra, o filtro aceita a
+captura do rei (ela não deixa o rei de **quem joga** em xeque), e a próxima geração aborta
+em `movegen.c:309`. Com `is_square_attacked` existindo, a correção é uma checagem a mais no
+fim do `fen_parse`.
 
-### 7.4 O que o filtro ganha de graça
+**O cuidado é de dependência.** `is_square_attacked` mora em `movegen.c`; fazer `fen.c`
+incluir `movegen.h` liga o parser ao gerador inteiro. A recomendação é um módulo
+`attack.h/c`, que só depende de `board.h` e `square.h`, com `is_square_attacked` e `in_check`
+— usado por `movegen.c`, `fen.c`, pela função de estado e pela IA. É a mesma regra do §9.2
+abaixo: a função mora no módulo cujas dependências ela realmente tem.
 
-Xeque, mate e afogamento saem do mesmo mecanismo: `in_check(b, side)` é
-`is_square_attacked(b, b->king_square[side], !side)`; mate é xeque com zero lances legais;
-afogamento é zero lances legais sem xeque. Nenhum dos três precisa de código próprio.
+### 9.5 Histórico para repetição
 
-E é aqui — não antes — que entram as três condições de roque que `check_castle_side`
-deliberadamente **não** verifica: rei não está em xeque, não atravessa casa atacada, não
-chega em casa atacada. Elas estão documentadas como fora do gerador no `project_context.md`
-§3 exatamente para ninguém reimplementar metade nos dois lugares.
+A decisão de 10/09 continua: `Undo` não é histórico, e a pilha de recursão não guarda a
+partida. Quem guarda é a camada de protocolo — o `Game` que a Etapa 10 cria ao processar
+`position ... moves`. O que ele precisa guardar são **chaves de posição**, não `Undo`s.
 
-### Critério de saída 🚧
+Dois detalhes que encurtam o trabalho:
 
-`perft(1)` = 20 e `perft(2)` = 400 na posição inicial; `perft(1)` = 48 na Kiwipete. E o teste
-da Etapa 2 de novo.
+- Só é preciso olhar para trás até o último lance irreversível (captura ou lance de peão) —
+  e isso é exatamente o `halfmove_clock`. A janela é pequena.
+- A chave pode ser, por enquanto, os quatro primeiros campos da FEN (peças, lado, roque, en
+  passant). É lento e trivialmente correto, e uma partida tem no máximo `MAX_GAME_PLY`
+  posições. O Zobrist (etapa O5) substitui isso quando a busca precisar de repetição dentro
+  da árvore — e aí o `fen_write` vira o oráculo do hash, do mesmo jeito que foi oráculo do
+  make/unmake.
+
+### Critério de saída
+
+Um caso de teste para cada estado, no `make test`: o mate do pastor ou o mate do louco
+(mate), uma posição conhecida de afogamento, K×K, `halfmove_clock = 100`, e uma repetição
+por sequência de lances (`g1f3 g8f6 f3g1 f6g8` duas vezes a partir da inicial). E
+`R6k/8/8/8/8/8/8/K7 w - - 0 1` **rejeitada** pelo `fen_parse`.
 
 ---
 
-## 8. Etapa 7 — UCI mínimo
+## 5. Etapa 10 — UCI mínimo 🚧
 
-**Esforço:** 1 sessão. **Pode ser feita em paralelo com tudo acima** — é o que desbloqueia a
-equipe do cliente, que hoje não tem alvo de integração.
+**Esforço:** 1–2 sessões. É o que a equipe da interface espera: o `EngineBridge` de
+`interface/` já faz o spawn e escreve no stdin do motor; falta o motor responder.
 
-### 8.1 A linha mais importante do arquivo
+### 10.1 A linha mais importante do arquivo
 
 ```c
 setvbuf(stdout, NULL, _IOLBF, 0);
 ```
 
-Quando a stdout é um terminal, a libc usa buffer de linha e cada `printf` sai na hora. Quando
-é um **pipe** — exatamente o caso do cliente rodando o motor como subprocesso — ela troca
-para buffer de bloco de 4 KB. A resposta fica presa, o cliente espera para sempre, e **não há
-sintoma para depurar**: o motor está vivo, correto, e mudo. Se aparecer na apresentação, não
-tem depuração possível ao vivo.
+Quando a stdout é um terminal, a libc usa buffer de linha. Quando é um **pipe** — exatamente
+o caso da interface rodando o motor como subprocesso — ela troca para buffer de bloco de
+4 KB. A resposta fica presa, a interface espera para sempre, e **não há sintoma para
+depurar**: o motor está vivo, correto, e mudo.
 
-### 8.2 Leitura de linha
+### 10.2 Leitura de linha: `io.c`, depois de dois consertos
 
-- Buffer de **8192**. `position startpos moves …` passa de 1 KB em partida longa.
-- `line[strcspn(line, "\r\n")] = '\0'` trata `\n` e `\r\n` de uma vez — a spec avisa que o
-  terminador varia por sistema, e a equipe do cliente pode estar no Windows. (`utils.c` já
-  usa esse idioma em `get_fen`; reaproveite.)
+`read_line` já trata o que importa (linha longa, `\r` do Windows, última linha sem `\n`) e é
+a base certa. Mas antes:
 
-### 8.3 Conjunto mínimo de comandos
+- **Bug #3 (EOF em `read_word`)**: quando a interface fecha o pipe, `read_line` devolve `0`.
+  O laço UCI tem de **terminar** nesse caso. Com o bug, quem lê por `read_word` recebe a
+  palavra anterior de novo, com sucesso — o motor repetiria o último comando para sempre. Use
+  `read_line` direto no laço e trate o `0`.
+- **Bug #5 (`join_args` sem espaço)**: se for montar a FEN de `position fen ...` juntando
+  palavras, ela sai sem separadores. A alternativa mais simples é não juntar: a FEN é o
+  trecho da linha entre `fen ` e ` moves` (ou o fim).
+- Buffer: `LINE_CAP` é 4096. `position startpos moves ...` com 200 lances tem ~1 000 bytes;
+  cabe, mas meça antes de assumir — e `read_line` devolve `-1` se não couber, que tem de virar
+  erro visível, não comando truncado.
 
-| Comando | Resposta |
-|---|---|
-| `uci` | `id name …`, `id author …`, `uciok` |
-| `isready` | `readyok` |
-| `position startpos [moves …]` | — |
-| `position fen <FEN> [moves …]` | — |
-| `d` | tabuleiro + FEN *(não-UCI, depuração)* |
-| `perft N` | contagem *(não-UCI, depuração)* |
-| `quit` | encerra |
-| desconhecido | **ignora em silêncio** (a spec manda) |
+### 10.3 Conjunto mínimo de comandos
 
-`go` fica para depois, junto com a IA.
+| Comando | Resposta | Fonte |
+|---|---|---|
+| `uci` | `id name …`, `id author …`, `uciok` | spec UCI |
+| `isready` | `readyok` | spec UCI |
+| `ucinewgame` | — (zera o histórico) | spec UCI |
+| `position startpos [moves …]` | — | spec UCI |
+| `position fen <FEN> [moves …]` | — | spec UCI |
+| `go depth N` / `go movetime N` | `bestmove <lance>` | spec UCI; chama a IA |
+| `legalmoves` | `moves e2e4 g1f3 …` | **não-UCI**, `arquitetura-xadrez.md` §3 — a interface destaca lances com ele |
+| `d` | tabuleiro + FEN | não-UCI, depuração |
+| `perft N` | contagem, formato do Stockfish | não-UCI, depuração (Etapa 8) |
+| `quit` | encerra | spec UCI |
+| desconhecido | **ignora em silêncio** | a spec manda |
 
-`position … moves` é o consumidor natural de `movelist_find`: os lances chegam em notação de
-coordenada (`e2e4`, `e7e8q`) e é o **gerador** que sabe se `e5d6` é captura comum ou en
-passant, porque foi ele que marcou a flag. Suporte o sufixo `moves` desde já — ele depende só
-do `make_move`, que já está pronto, e é o que permite plugar o motor no Cute Chess ou Arena.
+`position … moves` é o consumidor natural de `movelist_find` sobre a lista **legal**: os
+lances chegam em coordenada (`e2e4`, `e7e8q`) e é o gerador que sabe se `e5d6` é captura
+comum ou en passant. Lance inválido no meio da lista → pare de aplicar e reporte (`info
+string`), não aplique metade.
 
-### 8.4 `main.c` encolhe
+### 10.4 `go`: o ponto de contato com a IA
+
+- `escolherJogada(board, variante, randomizador)` (`IA/src/ia.c`) **não recebe profundidade
+  nem tempo** — o limite é a constante `PROF_MAX = 9000` em `ia.h`. `go depth N` precisa de
+  um parâmetro; `go movetime N` precisa de aprofundamento iterativo com relógio (que é também
+  a primeira etapa de O4). Acordar com o responsável pela IA antes de escrever o `go`.
+- Até a IA estar ligada, o `go` pode sortear um elemento de `generate_legal_moves` — é o que
+  a IA aleatória morta de `main.c:315-393` tentava ser, agora sem o contorno de captura de rei.
+- **Antes de imprimir `bestmove`, conferir que o lance está na lista legal**, também no build
+  de release. Custa uma varredura e garante que o motor **nunca** devolve lance ilegal —
+  requisito funcional RF-M3.
+- Sem lance legal: `bestmove (none)` (o que a spec e as GUIs aceitam). Como sinalizar **qual**
+  fim de partida (mate, afogamento, empate por regra) é decisão com a equipe da interface — a
+  `arquitetura-xadrez.md` §4 fala em "algum sinal de fim de partida no protocolo". Sugestão:
+  um comando não-UCI `status` que devolve o `GameStatus` da Etapa 9.
+
+### 10.5 `main.c` encolhe
 
 ```
-./main.out            laço UCI  (o default, porque é o que o cliente executa)
-./main.out test       o teste da Etapa 2
-./main.out perft N    contagem
-./main.out repl       o menu interativo de hoje
+./main.out              laço UCI  (o default, porque é o que a interface executa)
+./main.out repl         o menu interativo de hoje
+./main.out test         Etapa 8
+./main.out perft N      Etapa 8
 ```
 
-O menu atual é genuinamente útil para depurar à mão — mas não pode mais ser o default, porque
-o default é o que o cliente vai executar. Mova para `repl.c`. E a FEN de partida sai do
-`#define` hardcoded em `main.c:95`.
+O menu é genuinamente útil para depurar à mão — mas não pode mais ser o default. Mova-o para
+`repl.c`, junto com `read_coord`, `wait_enter` e `read_move` (8.2). E a FEN de partida deixa
+de ser a posição 5 da CPW (`main.c:289`), sobra da bissecção.
 
-### 8.5 Dívidas conscientes — anotar, não deixar implícitas
+### 10.6 Dívidas conscientes — anotar, não deixar implícitas
 
 - A spec exige processar stdin **enquanto pensa**, para atender `stop`. Um laço bloqueante
-  não faz isso. Para busca rasa é irrelevante; resolve-se depois com thread de input.
-- **Divergência a resolver com a equipe**: `arquitetura-xadrez.md` diz que o cliente nunca
-  fala direto com o motor; o cliente C++ em `interface/` roda o motor como subprocesso. Isso
-  decide se o protocolo precisa de `legalmoves` (para a UI destacar lances) ou se outra
-  camada monta isso. Conversa de 15 minutos que evita implementar um comando que ninguém
-  chama — ou descobrir na integração que falta um.
+  não faz isso. Para `go depth` raso é irrelevante; resolve-se depois com thread de leitura.
+  Anote no header do módulo UCI.
+- O lado da interface também precisa ler sem bloquear (`readCommand` ainda é `TODO` no
+  `EngineBridge`, e o ramo Windows também) — `arquitetura-xadrez.md` §3 já registra.
+
+### Critério de saída 🚧
+
+1. Por pipe, sem terminal: `printf 'uci\nisready\nposition startpos moves e2e4 e7e5\ngo depth 2\nquit\n' | ./build/main.out`
+   responde `uciok`, `readyok`, um `bestmove` legal, e **termina**.
+2. Fechar o stdin no meio (EOF) encerra o motor, em vez de repetir comando.
+3. Uma partida inteira contra a interface (quando o `readCommand` existir) ou contra o Cute
+   Chess/Arena, até mate ou empate, sem travar e sem lance ilegal.
+
+---
+
+## 6. Etapa 11 — Fechar o build
+
+**Esforço:** meia sessão. Pode entrar a qualquer momento — mas **antes da Parte II**: a
+otimização vai mexer no código mais quente, e um aviso novo no meio de 18 velhos não é
+notado.
+
+### 11.1 Os 18 avisos de hoje
+
+| Aviso | Onde | O que fazer |
+|---|---|---|
+| `-Wmissing-prototypes` × 8 | `genenare_moves_from_direction`, `generate_knight_moves`, `check_allowed_castles` (`movegen.c`); `print_move` (`move.c`); `string_to_cstr_static`, `string_split_next` (`io.c`); `perft`, `perft_divide` (`main.c`) | Cada uma é **ou** helper que devia ser `static`, **ou** API que devia estar no header. `generate_knight_moves` vai para `movegen.h`; `perft*` saem com a Etapa 8 |
+| `-Wdiscarded-qualifiers` × 2 | `io.c:112`, `io.c:131` | `const char *p = line;` |
+| variável não usada × 2 | `main.c:50` (`i`), `main.c:76` (`result_list`) | Apagar |
+| `-Wpedantic` | `main.c:223` | Declaração logo depois de `case 10:` — C11 não permite (Bug #6). Bloco `{ }` no `case` |
+| `-Wunused-function` | `main.c:368` (`ai_game`) | A IA aleatória: vira o `go` provisório (10.4) ou sai |
+| `-Wenum-conversion` | `move.c:112` | `MV_QUIET` no lugar de `EMPTY` (Bug #8) |
+| `-Wunused-but-set-variable` | `movegen.c:130` (`piece_to`) | Apagar (Bug #9) |
+| "useless storage class" | `movegen.c:192` | `enum { LEFT, RIGHT };` |
+| `-Wunused-const-variable` | `square.c:8` (`DIR_CHARMAP`) | Apagar |
+
+Enquanto estiver em `movegen.c`, o typo `genenare_` vira `generate_`.
+
+### 11.2 As flags que faltam, medidas contra esta árvore
+
+| Flag | Custo hoje | Decisão |
+|---|---|---|
+| `-Wshadow` | +1 | Ligar. É o `i` morto de `perft` — some com 11.1 |
+| `-Wcast-qual` | **0** | Ligar |
+| `-Wwrite-strings` | +6 | Ligar. `fail_msg(const char *)` fecha os seis de uma vez |
+| `-Wconversion` | +11 | Ligar **junto com a tabela `CASTLE_MASK[64]`** da etapa O2: ela resolve 6 dos 11 (os `&= ~(CASTLE_*)` em `u8`). Dois dos outros são o Bug #2 (`main.c:213/215`) — a flag apontando o bug antes de alguém achá-lo, como em setembro |
+
+Mover também `-Wframe-larger-than=16384` de `DBGFLAGS` para `CFLAGS`, e pôr o `$(WARN)` no
+alvo `release`, que hoje compila sem aviso nenhum.
 
 ### Critério de saída
 
-O cliente (ou Cute Chess/Arena) joga uma partida inteira contra o motor sem travar. Antes de
-emitir `bestmove`, verificar que o lance está na lista legal: custa uma varredura e garante
-que o motor **nunca** devolve lance ilegal, que é requisito funcional do projeto.
+`make`, `make debug` e `make release` sem avisos, com as quatro flags somadas.
 
 ---
 
-## 9. Boas práticas para este projeto
+## 7. Etapa 12 — Completar `board_check_invariants`
 
-### 9.1 Onde vive uma variável global
+**Esforço:** uma hora. Cobre 4 das 6 checagens de `docs/guides.md`. Faltam:
+
+- **`ep_square`, se definido, na fileira coerente com `side_to_move`** — fileira 6 (índice 5)
+  com as brancas a jogar, fileira 3 (índice 2) com as pretas, e o peão adversário logo atrás.
+- **Direitos de roque coerentes com rei e torres nas casas de origem.** Já está escrita:
+  `castling_matches_board`, `static` em `fen.c:385`. Expor é a maior parte do trabalho — é a
+  mesma verificação que `fen_parse` faz na entrada, e usá-la na saída de `make_move` fecha o
+  ciclo que a decisão "FEN inconsistente é rejeitada, não corrigida" abriu de propósito.
+
+E `fail_msg` ganha `const char *` e um `fail_log_reset()` (Bug #7).
+
+---
+
+# Parte II — Otimização, depois do UCI
+
+## 8. Por que depois, e as regras desta fase
+
+A ordem do `CLAUDE.md` §4 é: correção das regras, protocolo, uma IA qualquer, e **só então**
+força e desempenho. A primeira está cumprida; as outras duas são a Parte I. Otimizar antes
+delas é gastar tempo num motor que ainda não joga uma partida — e é mexer no código mais
+delicado (make/unmake, filtro) sem ter um portão automático que avise quando quebrar.
+
+A partir do UCI funcionando, a otimização deixa de ser prematura. As regras:
+
+1. **Medir antes, medir depois, sempre no mesmo build e com o mesmo comando** (`bench`, etapa
+   O1). Otimização sem número não entra.
+2. **Uma otimização por commit**, com o número antes/depois na mensagem. Commit que otimiza e
+   muda comportamento junto não é bissetável.
+3. **O portão continua sendo o perft das seis posições.** Toda etapa abaixo termina com
+   `make test` verde e com o perft profundo (d5) exato antes de PR. Otimização que muda uma
+   contagem de perft não é otimização, é bug.
+4. **Medir com `-O2 -DNDEBUG`**, não com o `make` padrão (`-Og`), que mede o depurador.
+5. **Registrar** cada medição numa tabela (em `docs/perft_results.txt`, ou num
+   `docs/benchmarks.md`). Vira material da Análise de Valor Agregado e da apresentação.
+
+### 8.1 A linha de base (04/10)
+
+Perft sem *bulk counting* (o filtro de legalidade roda até a última folha), nas seis posições
+em profundidade 4–6 (inicial d5, Kiwipete d4, posição 3 d6, posições 4–6 d4) — 26,4 milhões de
+folhas:
+
+| Build | Mnós/s |
+|---|---|
+| `-Og -g` (`make`) | 10,5 |
+| `-O2 -DNDEBUG` | 12,2 |
+| `-O3` (`make release`) — com ou sem `NDEBUG`, igual | 14,4 |
+| `-O2 -DNDEBUG -flto` | **19,0** |
+
+Perfil (`gprof`, posição inicial prof. 6 + Kiwipete prof. 5, 312 milhões de folhas):
+
+| Onde | Fatia | Chamadas por folha |
+|---|---|---|
+| Acessores de lance (`move_to`, `move_from`, `move_is_castle`, `move_is_promotion`, `move_type`, `move_is_ep_capture`) | ~28% | ~30 |
+| `is_square_attacked` | ~26% | ~1,09 |
+| `make_move` + `unmake_move` | ~23% | ~2,07 pares |
+| Geração (peão, deslizantes, cavalo) | ~12% | — |
+| `check_rook_squares`, `movelist_add`, `board_find_king` | ~6% | — |
+
+Duas leituras. Primeira: quase um terço do tempo é chamada de função de uma linha que o
+compilador não consegue expandir, porque mora em outro arquivo — o `-flto` prova o tamanho
+disso (+57%). Segunda: cada folha custa **dois** pares make/unmake e um teste de ataque — um
+par no filtro de legalidade e outro no laço de quem chamou. As etapas O2 e O3 atacam
+exatamente essas duas coisas, nessa ordem, porque a primeira é mecânica e a segunda mexe em
+regra.
+
+Nota sobre o que este número mede: perft conta folhas de geração, não nós de busca. A busca
+da IA tem o mesmo custo por nó (gera legais, aplica, desfaz), mais a avaliação — então O1–O3
+aceleram a IA também, mas o ganho dela se mede com outro número (O4).
+
+---
+
+## 9. Etapa O1 — Medir direito
+
+**Esforço:** meia sessão. Custo zero no motor; é a fundação das outras cinco.
+
+- **Alvo `release` de verdade**: `$(STD) $(WARN) -O2 -DNDEBUG -flto`. O `-flto` sozinho já
+  rendeu +57% medidos; os avisos voltam a valer também nele. `-march=native` **não** por
+  padrão: o binário roda nas máquinas do grupo e na apresentação, e um binário compilado para
+  o processador de um aluno pode não rodar no de outro.
+- **Subcomando `./main.out bench`**: `perft_suite` em profundidade fixa (a da linha de base
+  do §8.1: inicial d5, Kiwipete d4, posição 3 d6, posições 4–6 d4 — 26,4 milhões de nós, ~2 s) com
+  nós, tempo e Mnós/s por posição e no total. Mais tarde, um segundo bloco para a busca
+  (posições fixas, profundidade fixa → nós, tempo, lance escolhido — ver O4).
+- **Perfil reproduzível**: `gprof` está instalado (`-pg`, rodar, `gprof -b -p`). O `perf` não
+  está no WSL desta máquina. Registre o comando junto com a tabela, para o próximo perfil ser
+  comparável com este.
+
+### Critério de saída
+
+`make release` sem avisos e com o perft das seis posições exato; `./main.out bench`
+existindo; a linha de base registrada com data e commit.
+
+---
+
+## 10. Etapa O2 — Tirar o custo evitável do caminho quente
+
+**Esforço:** 1 sessão. **Mesmo algoritmo**, menos trabalho por lance. Em ordem de peso
+medido:
+
+1. **Acessores de lance como `static inline` em `move.h`** — `encode_move`, `move_from`,
+   `move_to`, `move_type` e os predicados. É o item de ~28%. Não quebra o encapsulamento que
+   tornou a troca de `u32` para `u16` barata em setembro: o formato continua tocado num lugar
+   só — só que esse lugar passa a ser o header. Por que explicitar em vez de depender do
+   `-flto`: o `make` e o `make debug` não usam LTO, e a IA (outro diretório, outro build)
+   também chama esses acessores.
+2. **`CASTLE_MASK[64]`** no lugar das duas chamadas de `check_rook_squares` por lance:
+
+   ```c
+   b->castling_rights &= CASTLE_MASK[from] & CASTLE_MASK[to];
+   ```
+
+   Uma tabela com `0xF` em tudo, menos nas seis casas que importam. Faz as duas metades
+   (origem e destino) caírem na mesma linha — é difícil lembrar de uma e esquecer da outra —,
+   tira um `switch` do caminho quente e fecha 6 dos 11 avisos de `-Wconversion` (Etapa 11).
+3. **Torre do roque por índice**, não por `fill_sq(b, "d1", ...)`: `CASTLE_POSITIONS` já tem
+   as casas como números, e o `unmake_move` já a usa. As duas metades ficam simétricas.
+4. **`check_allowed_castles` lê `b->king_square`** em vez de varrer o tabuleiro com
+   `board_find_king` (~1,7%). O cache agora é confiável — os invariantes provam —, e isso
+   elimina o último lugar com dois mecanismos para achar o rei.
+5. **Uma passada de geração em vez de três.** Hoje peão, deslizantes e cavalo varrem as 64
+   casas cada um (o rei usa o cache). Um laço só, `if (!is_own(b, sq)) continue;` uma vez, e
+   `switch (PIECE_TYPE(p))` despachando — é o "P1" do plano de 10/09. Bônus: devolve o
+   `const Board *` que a geração perdeu.
+6. **Perft com *bulk counting***: na profundidade 1, devolver `list.count` em vez de aplicar e
+   desfazer cada lance. **Só vale porque a lista é legal** (com lista pseudo-legal seria
+   errado). Corta o segundo par make/unmake por folha — mas só no perft, não na busca. Vale
+   pelo portão: a Etapa 8 e o perft d5 de antes de PR ficam ~2× mais rápidos.
+
+### Critério de saída
+
+Perft das seis posições exato depois de **cada** item; ganho de cada um medido no `bench` e
+registrado. Meta para medir (não promessa): o build **sem** LTO alcançar ou passar os
+19 Mnós/s que o `-flto` já mostra que existem.
+
+---
+
+## 11. Etapa O3 — Um filtro de legalidade mais barato
+
+**Esforço:** 1–2 sessões. É a primeira otimização que **mexe em regra**, e por isso vem
+depois das mecânicas.
+
+### 11.1 O custo de hoje
+
+Todo lance pseudo-legal paga `make_move` + `is_square_attacked` + `unmake_move` para
+descobrir se é legal — perto de metade do tempo do perfil. Mas na maioria das posições, a maioria dos
+lances **não tem como** deixar o próprio rei em xeque: se o lado a jogar não está em xeque e a
+peça que se move não está cravada, o lance é legal por construção.
+
+### 11.2 A ideia (CPW: *Pin*, *Legal Move Generation*)
+
+Uma vez por nó, antes de testar qualquer lance:
+
+1. `in_check` (já vai existir, Etapa 9).
+2. **Peças cravadas**: de cada uma das 8 direções a partir do próprio rei, andar até a
+   primeira peça; se for própria, continuar até a seguinte; se essa for um deslizante inimigo
+   do tipo certo para a direção (torre/dama nas ortogonais, bispo/dama nas diagonais), a
+   primeira está cravada. Os mesmos raios de `SQ_TO_EDGE` que `is_square_attacked` já percorre.
+
+Depois, só passam pelo aplica-e-testa:
+
+| Lance | Por quê |
+|---|---|
+| Lance do rei | A casa de destino pode estar atacada |
+| Lance de peça cravada | Pode sair da linha da cravada (andar **ao longo** dela é legal) |
+| En passant | Tira **dois** peões da mesma fileira de uma vez — a cravada horizontal que a posição 3 testa |
+| Qualquer lance, se em xeque | Simplificação deliberada: gerar só evasões é mais rápido e muito mais código |
+
+Todo o resto entra direto na lista legal.
+
+### 11.3 Trade-off, honestamente
+
+Mais código e mais casos de borda num lugar que hoje é simples e está provado. O que torna o
+risco aceitável é que o perft das seis posições cobre exatamente esses casos: Kiwipete tem
+cravadas, a posição 4 começa em xeque, a posição 3 tem o en passant horizontal. **Se o
+cronograma apertar, esta é a etapa a pular** — O2 e O4 rendem mais por hora de trabalho.
+
+### Critério de saída
+
+Perft exato nas seis posições até d5; chamadas de `is_square_attacked` por folha caindo de
+~1,09 (medir com `gprof`); ganho registrado no `bench`.
+
+---
+
+## 12. Etapa O4 — Busca: ordenação e poda (com o responsável pela IA)
+
+**Esforço:** 2–4 sessões, incrementais. **O código é de `IA/`**; o motor fornece a
+infraestrutura (lista legal, make/unmake, `in_check`, estado da partida). Decidam juntos a
+divisão — este documento descreve o que entra e em que ordem, não quem escreve.
+
+O ganho aqui é de outra natureza. O1–O3 aceleram cada nó por uma constante (2×, 3×). Ordenar
+bem os lances muda **quantos nós** o alfa-beta visita: com ordenação perfeita ele visita da
+ordem de 2·b^(d/2) nós em vez de b^d — numa posição de meio-jogo (b ≈ 35), na profundidade
+6, é a diferença entre ~1,8 bilhão e ~85 mil folhas. Nenhum ganho de Mnós/s chega perto disso.
+
+Em ordem de retorno:
+
+1. **Aprofundamento iterativo com relógio.** Profundidade 1, 2, 3… até o tempo acabar; devolve
+   o melhor lance da última iteração completa. É **obrigatório** para o `go movetime` (Etapa
+   10.4) e é o que dá o melhor lance da iteração anterior para ordenar a próxima.
+2. **Ordenação de lances**: o melhor da iteração anterior primeiro; depois capturas por
+   **MVV-LVA** (vítima mais valiosa, atacante menos valioso); promoções; depois *killer moves*
+   (dois lances quietos que causaram corte em cada profundidade) e *history heuristic*. O
+   placar de ordenação mora **na busca**, num array paralelo `int score[MAX_MOVES]` — não
+   dentro de `Move`, que continua um `u16` (decisão "Move sem score" do `project_context.md`
+   §6).
+3. **Busca de quiescência**: nas folhas, continuar só com capturas até a posição ficar quieta,
+   com *stand-pat*. É o maior salto de **força** por linha escrita (roadmap Fase 7, v5) —
+   sem ela o motor para no meio de uma troca e avalia uma posição que qualquer humano vê como
+   perdida.
+4. Só então, se sobrar: **PVS** (*Principal Variation Search*), janelas de aspiração,
+   **null-move pruning** (desligar em finais com poucas peças — zugzwang) e **LMR** (*Late Move
+   Reductions*). Cada um medido isoladamente.
+
+**O teste de regressão que já existe e ninguém usa:** a IA tem `VARIANTE_MINIMAX` e
+`VARIANTE_ALFA_BETA`. Com o sorteio desligado e a mesma profundidade, as duas **têm de devolver
+o mesmo placar** — alfa-beta poda sem mudar o resultado do minimax. Rode isso a cada mudança
+de ordenação; se divergir, a poda está errada. (Os itens do passo 4 mudam o resultado de
+propósito — a partir deles, a métrica passa a ser só força e profundidade.)
+
+### Critério de saída
+
+No bloco de busca do `bench` (posições fixas): **nós visitados até a profundidade N**
+(ordenação boa = menos nós) e **profundidade alcançada em tempo fixo**, antes e depois de
+cada item; alfa-beta == minimax no placar até o passo 3.
+
+---
+
+## 13. Etapa O5 — Zobrist e tabela de transposição
+
+**Esforço:** 2 sessões. Só depois de O4 — a tabela de transposição rende pouco sem
+aprofundamento iterativo e ordenação.
+
+### 13.1 Zobrist primeiro, e primeiro como depurador
+
+Uma chave aleatória de 64 bits por (peça, casa), mais lado a jogar, direitos de roque (16) e
+coluna do en passant (8). O hash da posição é o XOR das chaves presentes, atualizado
+incrementalmente em `make_move`/`unmake_move`.
+
+O uso que vale **antes** de qualquer tabela, já registrado no `roadmap-motor.md` §3.5:
+
+```c
+assert(b->hash == hash_from_scratch(b));   /* no fim de make e de unmake, em debug */
+```
+
+É um resumo de 64 bits de *tudo* que `make_move` deveria ter alterado. Rodado sob o perft
+das seis posições, dispara no lance exato em que alguém esquecer de atualizar uma peça, um
+direito de roque ou a casa de en passant.
+
+Com o hash: a repetição da Etapa 9.5 troca as chaves de FEN pelo hash (e a busca ganha
+detecção de repetição dentro da árvore, juntando a pilha da busca com o histórico do `Game`).
+
+### 13.2 A tabela
+
+Array de tamanho potência de 2, indexado pelos bits baixos do hash; entrada com chave,
+profundidade, placar, tipo de limite (exato / inferior / superior) e melhor lance. Consulta
+para corte e, principalmente, para **ordenação**: o lance da tabela vai primeiro.
+
+As três armadilhas clássicas:
+
+- **Placar de mate depende da distância à raiz**: ajuste pelo *ply* ao gravar e ao ler, senão
+  o motor "acha" mates mais curtos ou mais longos do que são.
+- **Colisão de chave**: o lance que vem da tabela pode não existir na posição atual. Confira
+  que ele está na lista legal antes de usar. (A conferência do `bestmove` contra a lista legal
+  da Etapa 10.4 continua sendo a última rede.)
+- **Repetição e tabela não se entendem perfeitamente** (*graph history interaction*). Para um
+  motor deste porte, aceite o erro e registre como dívida consciente.
+
+### Critério de saída
+
+O `assert` do hash verde no perft das seis posições até d5; nós até profundidade fixa caindo
+no `bench` de busca; nenhum lance ilegal saindo da tabela (o `assert` do `bestmove` nunca
+dispara).
+
+---
+
+## 14. Etapa O6 — Representação: provavelmente não
+
+**Recomendação explícita: não migrar para bitboards dentro do prazo deste projeto.**
+
+| Opção | O que custa | O que ganha |
+|---|---|---|
+| Piece lists | Manter lista + mailbox sincronizadas em make/unmake | Já medido em setembro: para varrer, **perdeu** (12,3 ns contra 9,5 ns). Para gerar por tipo de peça pode ser diferente — medir antes de discutir |
+| 0x88 / 10×12 | Trocar o mecanismo de borda | Nada que importe sobre o `SQ_TO_EDGE`, que já não testa borda em runtime |
+| Bitboards (+ *magic bitboards*) | Reescrever geração, ataque e make/unmake — **o núcleo inteiro que está provado** —, e revalidar o perft do zero | O caminho canônico dos motores fortes |
+
+Só reabrir com O1–O5 feitos **e** com um perfil mostrando que a geração (não a busca, não a
+avaliação) é o gargalo da IA. Se reabrir, o perft das seis posições é exatamente o que torna
+a migração segura — a mesma bateria que provou o mailbox prova o substituto.
+
+---
+
+## 15. Boas práticas para este projeto
+
+### 15.1 Onde vive uma variável global
 
 | Categoria | Onde | Exemplo |
 |---|---|---|
-| Tabela read-only depois do init | `static` no `.c` dono, ou `extern` no header dele; escrita **só** pela função de init | `SQ_TO_EDGE`, `KNIGHT_TARGETS` |
+| Tabela read-only depois do init | `static` no `.c` dono, ou `extern` no header dele; escrita **só** pela função de init | `SQ_TO_EDGE`, `KNIGHT_ATTACKS`, futuramente `CASTLE_MASK` e as chaves Zobrist |
 | Estado mutável | **Nunca global.** Mora numa struct passada por ponteiro | `Board`, `Game` |
 | Constante | `static const` no `.c`, ou macro no header | `DIR_OFFSET`, `PAWN_PUSH` |
 
-O `FailLog` de `utils.c` é a exceção que entrou nesta janela, e ela foi paga: por ser global
-e não ter reset, ele vira ruído dentro do teste da Etapa 2 (§3.4). Não é motivo para
-reescrevê-lo agora — é motivo para saber que a regra existe porque casos assim aparecem.
+E se não é `static`, tem de estar num header: `PIECE_CHAR` e `KNIGHT_VECTORS` estão fora dos
+dois.
 
-### 9.2 Onde vive um tipo
+### 15.2 Onde vive uma função
 
-No header do **módulo dono dos seus invariantes**. Se um módulo não pode quebrar o invariante,
-não devia ver o tipo. `types.h` é para vocabulário que todo mundo precisa de verdade — e é
-incluído por todo `.c`, então cada edição nele recompila o projeto inteiro.
+No módulo **cujas dependências ela realmente tem**. `is_square_attacked` depende só do
+tabuleiro e da geometria, e por isso não devia morar no gerador (Etapa 9.4). `perft` é usada
+por três camadas, e por isso não pode morar em `main.c` (Etapa 8.3).
 
-### 9.3 Toda função não exportada é `static`
+### 15.3 Toda função não exportada é `static`
 
-E a flag força a escolha, em vez de confiar na memória. Hoje cinco funções têm linkage
-externo por omissão — nenhuma delas de propósito (§5.1).
+E a flag força a escolha, em vez de confiar na memória. Hoje são oito com linkage externo por
+omissão (Etapa 11.1).
 
-### 9.4 Assert como executável, não como comentário
+### 15.4 Assert como executável, não como comentário
 
 Todo campo denormalizado merece um assert que o recalcula do zero e compara.
-`board_check_invariants` já é isso para `king_square`, e é por isso que ela vale o que vale.
-Se o Zobrist entrar, `assert(b->hash == compute_hash_from_scratch(b))` no fim de make/unmake
-é o detector de bug mais sensível que existe para esta fase: um resumo de 64 bits de *tudo*
-que `make_move` deveria ter alterado, disparando no lance exato em vez de três níveis de
-busca depois.
+`board_check_invariants` é isso para `king_square`; o hash Zobrist (O5) vai ser isso para a
+posição inteira.
 
-### 9.5 A regra de ouro daqui
+### 15.5 A regra de ouro daqui
 
-**Se o bug é detectável em compilação, ligue a flag em vez de lembrar dele.** Continua
-valendo, e continua sendo confirmada: três dos oito avisos de hoje são bugs reais, e os seis
-avisos de `-Wwrite-strings` apontam para um único defeito de assinatura.
+**Se o bug é detectável em compilação, ligue a flag em vez de lembrar dele.** Continua sendo
+confirmada: dos 11 avisos que `-Wconversion` daria hoje, dois são o Bug #2.
 
-Corolário: **nenhum sanitizer pega leitura de memória não inicializada.** ASan pega
-fora-dos-limites e use-after-free (foi ele que pegou o §7.3); UBSan pega UB aritmético. Quem
-pegaria memória não inicializada é o MemorySanitizer, que é só do clang e exige recompilar a
-libc. O aviso do compilador é a única defesa.
+Corolário: **nenhum sanitizer pega leitura de memória não inicializada** — o Bug #3 é
+exatamente isso, e passou por ASan e UBSan. O aviso do compilador (e um teste que exercite
+EOF) é a defesa.
 
-### 9.6 `LOG_ERROR` não é tratamento de erro
+### 15.6 `LOG_ERROR` não é tratamento de erro
 
-Logar e seguir é **pior** do que não logar: dá a impressão de que o caso foi tratado. A
-regra: logar **e** devolver status. `movelist_add` é o caso atual (§5, Bug #14) — e o acordo
-já era `assert`.
+Logar e seguir é pior do que não logar: dá a impressão de que o caso foi tratado. Logar **e**
+devolver status. `movelist_add` é o caso atual (Bug #13).
 
-### 9.7 Uma função, uma camada
+### 15.7 Otimização é commit com número
 
-A camada é: protocolo valida, núcleo confia. `make_move` cumpre isso hoje — ele não valida, e
-é por isso que ele pode ser chamado pelo filtro de legalidade com um lance que captura o rei.
-Toda vez que uma função do núcleo sentir vontade de validar a entrada, a pergunta certa é
-"quem deveria ter validado isso antes?".
+Uma por commit, com antes/depois do `bench` na mensagem e o perft exato. Uma otimização que
+não aparece no `bench` sai — complexidade sem ganho medido é custo puro num código que outras
+pessoas vão ler.
 
-### 9.8 Commits
+### 15.8 Commits
 
-Pequenos, um por etapa, em português (convenção do grupo). **Refatoração que move código
-nunca muda comportamento no mesmo commit** — um commit que faz as duas coisas não é revisável
-nem bissetável, e perft existe para bissetar.
+Pequenos, um por etapa, em português (convenção do grupo), em PR. **Refatoração que move
+código nunca muda comportamento no mesmo commit** — um commit que faz as duas coisas não é
+revisável nem bissetável, e perft existe para bissetar.
 
 ---
 
-## 10. Ordem, portões e progresso
+## 16. Ordem, portões e progresso
 
 ```
-1 ─── 2 🚧 ─── 3 ─── 5 ─── 6 🚧 ─── (IA)
-unmake  teste   cavalo inv.  legalidade
-              │
-              4 (build)  ─── pode entrar em qualquer ponto
-              7 (UCI)    ─── pode ir em paralelo, e deve
+Parte I                                              Parte II (depois do UCI)
+8 🚧 ─── 9 ─── 10 🚧 UCI ─────────────────────────── O1 ─── O2 ─── O3 ─── O4 ─── O5 ─── (O6)
+portão  fim de                                      medir  caminho filtro busca  Zobrist  repr.
+        partida                                            quente  barato       + TT
+  │
+  11 (build) ─── antes da Parte II, em qualquer ponto
+  12 (invariantes) ─── em qualquer ponto
 ```
 
 | Etapa | Critério de saída | Feito |
 |---|---|---|
-| 1 — `unmake_move` | Linka e desfaz um lance simples | ☐ |
-| 2 — Teste-portão 🚧 | `./main.out test` verde em ~30 posições, invariantes passando | ☐ |
-| 3 — Cavalo | Soma de destinos = 336; inicial gera 20; Kiwipete gera 48 | ☐ |
-| 4 — Build | `make` com zero avisos e três flags novas | ☐ |
-| 5 — Invariantes | As 6 checagens de `guides.md` | ☐ |
-| 6 — Legalidade 🚧 | `perft(1)` = 20, `perft(2)` = 400, Kiwipete `perft(1)` = 48 | ☐ |
-| 7 — UCI | Partida inteira contra Cute Chess/Arena sem travar | ☐ |
+| 1 — `unmake_move` (16/09) | Desfaz um lance simples | ☑ |
+| 3 — Cavalo (16/09) | Soma 336; inicial 20; Kiwipete 48 | ☑ |
+| 6 — Legalidade (16/09) 🚧 | perft(1)/perft(2) da inicial; Kiwipete perft(1) | ☑ (seis posições, d5–d7) |
+| **8 — Portão no repositório** 🚧 | `make test` verde em < 5 s: round-trip + invariantes + `perft_suite(4)` | ☐ (o teste existe; o alvo não linka) |
+| **9 — Fim de partida e contrato com a IA** | Um teste por estado; FEN com o lado que não joga em xeque rejeitada | ☐ |
+| **10 — UCI** 🚧 | Pipe responde e termina; EOF encerra; partida inteira sem lance ilegal | ☐ |
+| **11 — Build** | Zero avisos em `make`/`debug`/`release`, com as quatro flags | ☐ |
+| **12 — Invariantes** | As 6 checagens de `guides.md` | ☐ |
+| O1 — Medir | `release` com avisos e `-flto`; `bench`; linha de base registrada | ☐ |
+| O2 — Caminho quente | Perft exato item a item; ganho medido de cada um | ☐ |
+| O3 — Filtro barato | Perft exato; menos `is_square_attacked` por folha | ☐ |
+| O4 — Busca | Menos nós até prof. N; mais profundidade em tempo fixo; alfa-beta == minimax | ☐ |
+| O5 — Zobrist + TT | `assert` do hash verde no perft; nenhum lance ilegal da tabela | ☐ |
+| O6 — Representação | Só com O1–O5 feitos e perfil apontando a geração | — |
 
-**A Etapa 2 é portão duplo:** passa uma vez no fim de 1, e volta a rodar como regressão
-depois de 3 e de 6 — quando há cavalo e filtro para exercitar, ela testa muito mais do que
-testava. É o que vai dizer qual commit quebrou a geração quando mais gente estiver em
-`movegen.c`.
-
-Depois da Etapa 6, o próximo documento é sobre perft e busca. **Nada de avaliação ou IA antes
-do perft bater.**
+**A Etapa 8 é portão permanente:** depois dela, toda etapa — da Parte I e da Parte II — termina
+com `make test` verde. É o que vai dizer qual commit quebrou a geração quando mais gente
+estiver mexendo, e é o que torna a Parte II segura.
 
 ---
 
-## 11. Referências para estas etapas
+## 17. Referências para estas etapas
 
-- **Chess Programming Wiki** — *Unmake Move* e *Make Move* (Etapa 1), *Knight Pattern*
-  (Etapa 3), *Square Attacked By* e *Legal Move* (Etapa 6), *Perft* e *Perft Results*
-- **TSCP** — `makemove`/`takeback` em mailbox legível, e é *agora* a hora de ler. Note que
-  ele usa o desenho **oposto** ao nosso (pilha global `hist_dat`); vale justamente pelo
-  contraste
-- **Especificação UCI** (Stefan Meyer-Kahlen) — ~6 páginas, ler inteira antes da Etapa 7
-- `man gcc`, *Options to Request or Suppress Warnings* — em especial a nota sob
-  `-Wmaybe-uninitialized` sobre a dependência do nível de otimização
+- **Chess Programming Wiki** — Parte I: *Perft Results*, *Checkmate*, *Stalemate*,
+  *Fifty-move Rule*, *Repetitions*, *Material* (insuficiente), *UCI*. Parte II: *Pin*, *Legal
+  Move Generation*, *Move Ordering*, *MVV-LVA*, *Killer Heuristic*, *History Heuristic*,
+  *Iterative Deepening*, *Quiescence Search*, *Principal Variation Search*, *Aspiration
+  Windows*, *Null Move Pruning*, *Late Move Reductions*, *Zobrist Hashing*, *Transposition
+  Table*, *Bitboards* (para a O6, se chegar lá)
+- **Especificação UCI** (Stefan Meyer-Kahlen) — ~6 páginas, ler inteira antes da Etapa 10
+- **Bruce Moreland's Programming Topics** — a melhor explicação curta de alfa-beta,
+  ordenação, quiescência e tabela de transposição; boa leitura para quem for fazer a O4/O5
+- **TSCP** — busca com quiescência e ordenação simples em C legível, mailbox como o nosso
+- `man gcc` — *Options to Request or Suppress Warnings* (Etapa 11) e *Optimize Options*
+  (`-flto`, O1); `gprof` (O1)

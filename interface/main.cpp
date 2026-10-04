@@ -10,8 +10,7 @@ int main()
 
     ChessBoard board(BOARD_SIDE_SIZE);
 
-    // Teste simulando o comando UCI com os lances do Gambito do Rei Aceito (1. e4 e5 2. f4 exf4):
-    board.processUCICommand("position startpos moves e2e4 e7e5 f2f4 e5f4");
+    // board.processUCICommand("position startpos");
 
     while (window.isOpen())
     {

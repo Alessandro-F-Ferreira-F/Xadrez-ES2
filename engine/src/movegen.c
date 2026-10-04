@@ -2,7 +2,7 @@
 #include "../include/piece.h"
 #include "../include/square.h"
 
-#include <assert.h>
+#include "../include/assert.h"
 
 bool check_pawn_promotion(int from) {
     if ((RANK_OF(from) == 0) || (RANK_OF(from) == 7)) return true;
@@ -185,7 +185,6 @@ u8 check_allowed_castles(const Board *b) {
     Color side = b->side_to_move;
 
     int king_sq = board_find_king(b, side);
-    if (king_sq == SQ_NONE) return CASTLE_NONE;
     assert(king_sq != SQ_NONE);
 
     static const enum {LEFT, RIGHT};
@@ -212,8 +211,6 @@ u8 check_allowed_castles(const Board *b) {
 void generate_king_moves(const Board *b, MoveList *list) {
     Color side = b->side_to_move;
     int from = b->king_square[b->side_to_move];
-    if (from == SQ_NONE) return;
-
     int to;
     Move move;
 
@@ -261,74 +258,10 @@ void generate_king_moves(const Board *b, MoveList *list) {
 }
 
 
-void generate_pseudo_legal_moves(Board *b, MoveList *list) {
+void generate_all_moves(Board *b, MoveList *list) {
     movelist_clear(list);
     generate_pawn_moves(b, list);
     generate_sliding_moves(b, list);
     generate_king_moves(b, list);
     generate_knight_moves(b, list);
-}
-
-bool is_square_attacked(const Board *b, const int sq, const Color side) {
-    Piece piece;
-
-    Color opposite = side == WHITE ? BLACK : WHITE;
-
-    //peões
-    int *pawn_atk = PAWN_ATTACKS[side][sq];
-    Piece enemy = PIECE_MAKE(opposite, PAWN);
-
-    if (pawn_atk[0] != SQ_NONE && b->array[pawn_atk[0]] == enemy) return true;
-    if (pawn_atk[1] != SQ_NONE && b->array[pawn_atk[1]] == enemy) return true;
-    
-    // cavalos
-    int *knight_atk = KNIGHT_ATTACKS[sq];
-
-    for (int i = 0; i < 8; i++) {
-        int offset_sq = knight_atk[i];
-        if (offset_sq == SQ_NONE) continue;
-
-        piece = b->array[offset_sq];
-        if (PIECE_TYPE(piece) == KNIGHT) {
-            return true;
-        }
-    }
-
-    // bispos e rainhas
-    int dist_to_edge;
-    int to = sq;
-
-    for (int dir = 4; dir < 8; dir++) {
-        dist_to_edge = SQ_TO_EDGE[sq];
-        for (;dist_to_edge > 0; dist_to_edge--) {
-            to += DIR_OFFSET[dir];
-            piece = b->array[to];
-            if (PIECE_TYPE(piece) == BISHOP || PIECE_TYPE(piece) == QUEEN) return true;
-            else if (piece != NO_PIECE) break;
-        }
-    }
-
-    // torre
-    to = sq;
-    for (int dir = 0; dir < 4; dir++) {
-        dist_to_edge = SQ_TO_EDGE[sq];
-        for (;dist_to_edge > 0; dist_to_edge--) {
-            to += DIR_OFFSET[dir];
-            piece = b->array[to];
-            if (PIECE_TYPE(piece) == ROOK) return true;
-            else if (piece != NO_PIECE) break;
-        }
-    }
-
-    //king
-    to = sq;
-    for (int dir = 0; dir < 8; dir++) {
-        to += DIR_OFFSET[dir];
-        if (SQ_OFFBOARD(to)) continue;
-        piece = b->array[to];
-
-        if (PIECE_TYPE(piece) == KING) return true;
-    }
-
-    return false;
 }

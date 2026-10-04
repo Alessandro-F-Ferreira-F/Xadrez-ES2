@@ -14,7 +14,6 @@ typedef uint16_t u16;
 typedef uint8_t u8;
 
 typedef int16_t i16;
-typedef int64_t i64;
 
 #define INPUT_STR_SIZE 128
 #define MAX_FEN_STRING 256
@@ -30,7 +29,6 @@ typedef int64_t i64;
 #define MemoryZero(addr, size) memset((addr), 0x0, (size))
 #define MemoryZeroStruct(addr, st) MemoryZero((addr), sizeof(st))
 #define PrintSize(type) printf("Size of '%s': %zu bytes", #type, sizeof(type))
-#define Array_Size(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))

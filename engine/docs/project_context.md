@@ -229,6 +229,13 @@ void unmake_move(Board *b, Move move, const Undo *u);
 A pilha da recursão é a pilha de undo; não existe pilha global. O filtro de legalidade e o
 perft usam `Undo u;` local, como planejado.
 
+O histórico de uma partida, quando necessário fora da busca, é uma estrutura explícita
+`BidHistory`: mantém listas alinhadas de `Move` e `Undo`, sem snapshots do `Board`. Seu
+`bidhistory_add` reserva capacidade antes de chamar `make_move`, captura o `Undo` produzido
+por esse lance e armazena ambos no mesmo índice. `bidhistory_undo_last` usa o par mais recente
+com `unmake_move` e então reduz a contagem. O `Board` continua pertencendo ao chamador.
+Isso não muda o contrato UCI, no qual o cliente é dono do histórico da partida.
+
 ### `king_square` é cache incremental — **(04/10) voltou a ser cache**
 
 Em 01/10 `make_move`/`unmake_move` refaziam a varredura de 64 casas a cada lance. Agora só
@@ -284,7 +291,7 @@ caminho relativo, `"../include/foo.h"`), e todo header compila sozinho.
 
 | Arquivo | Papel | Linhas (.h/.c) | Nota |
 |---|---|---|---|
-| `types.h` | Typedefs de largura fixa, `MAX_*`, `MIN`/`MAX`, `MemoryZero*`, `Array_Size` | 59 / — | Ainda arrasta `ctype.h stdio.h stdlib.h string.h`. `PrintSize`, `MemoryZero*`, `Array_Size`, `MAX_SEARCH_PLY`, `MAX_GAME_PLY` sem uso |
+| `types.h` | Typedefs de largura fixa, `MAX_*`, `MIN`/`MAX`, `MemoryZero*`, `Array_Size` | 59 / — | Ainda arrasta `ctype.h stdio.h stdlib.h string.h`. `PrintSize`, `MemoryZero*`, `Array_Size` e `MAX_SEARCH_PLY` sem uso |
 | `log.h/c` | `LOG_ERROR` (sempre) / `LOG_DEBUG` (só com `-DDEBUG`) | 20 / 20 | Correto |
 | `piece.h/c` | `Color`, `PieceType`, `Piece`, macros, char ↔ peça | 42 / 27 | `PIECE_CHAR` global sem declaração em header |
 | `square.h/c` | Coordenadas, `SQ_TO_EDGE`, `DIR_OFFSET`, `PAWN_PUSH`, `PAWN_ATTACKS`, `KNIGHT_ATTACKS` | 50 / 141 | `KING_TARGETS` órfã; `KNIGHT_OFFSETS` (header) e `DIR_CHARMAP` sem uso; `KNIGHT_VECTORS` global sem declaração |
@@ -463,7 +470,7 @@ typedef int16_t i16;   typedef int64_t i64;
 #define BOARD_WIDTH    8
 #define MAX_MOVES      256
 #define MAX_SEARCH_PLY 64      /* sem uso ainda */
-#define MAX_GAME_PLY   1024    /* sem uso ainda -- historico da partida, Etapa 9/10 */
+#define MAX_GAME_PLY   1024    /* limite do historico de lances */
 #define NUM_COLORS     2
 
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))

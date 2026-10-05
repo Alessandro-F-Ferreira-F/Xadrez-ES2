@@ -34,10 +34,9 @@ exercitar FEN, geração de lances, make/unmake e perft à mão.
 O valor de um REPL de engine não está em jogar, está em **desconfiar das peças que você está
 testando**. Dois princípios orientam os comandos abaixo:
 
-1. **Guardar um snapshot do `Board` antes de cada lance jogado.** Com isso, `undo` e
-   `roundtrip` conseguem *comparar* o que `unmake_move` devolveu contra a verdade, em vez de
-   confiar nele. Se divergir, o REPL mostra as duas FENs e restaura pelo snapshot — a sessão
-   continua útil mesmo com o bug.
+1. **Guardar o par `Move`/`Undo` de cada lance em `BidHistory`.** `undo` reutiliza
+   `unmake_move` e não armazena cópias do `Board`; os testes comparam todos os campos do
+   tabuleiro antes da sequência e depois de desfazer os lances em ordem reversa.
 2. **`perft` por copy-make, não por `unmake_move`.** Copiar o `Board` a cada nó faz a contagem
    não depender da função que está em teste. Assim um bug de unmake não contamina o perft, e
    `roundtrip` isola o bug de unmake.
@@ -88,7 +87,7 @@ vale escrever o seu.
 
 **`move <uci>`** — o fluxo é: gerar a lista → `movelist_find` → pegar `list.moves[idx]` (o
 lance **gerado**, não o decodificado do texto, porque só o gerador sabe se é captura, en
-passant ou roque) → guardar snapshot → `make_move`.
+passant ou roque) → `bidhistory_add`, que aplica o lance e guarda o `Undo` correspondente.
 
 Armadilhas:
 - `move_from_str("e7e8")` devolve um lance sem promoção, que **não casa** com nenhum dos quatro
@@ -98,10 +97,12 @@ Armadilhas:
   Aplicar um deixa o tabuleiro sem rei, e aí `generate_king_moves` usa `king_square == -1` como
   índice e `check_allowed_castles` dispara o `assert`. Recuse esses lances no REPL e explique
   por quê. Some quando o filtro de legalidade existir.
-- Limite do histórico: cheque `ply < MAX_GAME_PLY` antes de empilhar.
+- `bidhistory_add` aplica o lance apenas depois de reservar espaço; o histórico é limitado
+  por `MAX_GAME_PLY`, e uma falha não modifica o tabuleiro.
 
-**`undo [n]`** — para cada lance: decrementar `ply`, chamar `unmake_move(board, move, &undo)`
-e **comparar com o snapshot**. Divergiu → `print_mismatch` e restaurar o snapshot.
+**`undo [n]`** — para cada lance, chamar `bidhistory_undo_last`; a função restaura o
+tabuleiro com o `Move`/`Undo` mais recente e remove a entrada. Não são mantidas cópias do
+tabuleiro por lance; a comparação completa de estado é responsabilidade dos testes.
 
 **`check`** — chama `board_check_invariants`. Em caso de falha, `print_fail_log()` (em
 `utils.c`) mostra os motivos. Note que o log de falhas é global e acumula entre chamadas; não
@@ -126,7 +127,8 @@ porque `unmake_move` ainda não está escrito — e vai guiando você até zerar
 
 ## 3. Funções que você precisa escrever
 
-Todas `static` (nenhuma é exportada). Assinaturas sugeridas:
+Os helpers do REPL são `static`; o histórico reutilizável é a exceção e é exportado por
+`include/bidhistory.h`. Assinaturas sugeridas para os helpers:
 
 ### Comparação e diagnóstico
 ```c
@@ -148,17 +150,15 @@ static void print_fen_of(const Board *b);
 ```c
 typedef struct {
     Board board;
-    Board before[MAX_GAME_PLY];   /* posição antes de cada lance */
-    Move  moves[MAX_GAME_PLY];
-    Undo  undos[MAX_GAME_PLY];
-    int   ply;
+    BidHistory history;
 } Session;
 
 static void reset_to(Session *s, const Board *b);
 static int  play_move(Session *s, const char *uci);
 ```
-`Session` tem ~110 KB: declare como `static Session session;` na `main`, não como local. Com
-ASan ligado o frame estoura o limite `-Wframe-larger-than=16384` do `make debug`.
+`BidHistory` mantém listas dinâmicas alinhadas de `Move` e `Undo`, limitadas a
+`MAX_GAME_PLY`; o `Board` fica separado. Chame `bidhistory_clear` quando uma FEN ou posição
+nova substituir o estado atual e `bidhistory_free` ao encerrar a sessão.
 
 ### Perft e teste
 ```c
@@ -301,9 +301,9 @@ e o Makefile compila `src/*.c`, então ele gera 14 warnings `-Wunused-function`.
 1. Laço de leitura + `dispatch` + `quit` + `help`. Teste: `printf 'help\nq\n' | ./build/main.out`.
 2. `init_square_tables`, `show`, `new`, `fen`. Teste: round-trip FEN → `fen` imprime a mesma string.
 3. `moves`. Teste: posição inicial; compare o número com o esperado (hoje 16; 20 com cavalo).
-4. `move` + histórico com snapshot. Teste: `e2e4`, `e7e5`, `show`.
-5. `undo` **com `board_equal`**. Vai falhar — é o ponto. Comece a implementar `unmake_move`
-   guiado pelas divergências.
+4. `move` + `BidHistory`. Teste: `e2e4`, `e7e5`, `show`.
+5. `undo` com `bidhistory_undo_last`; teste várias jogadas e compare o `Board` completo após
+   desfazer tudo em ordem reversa.
 6. `roundtrip`. Na profundidade 1, depois 2, 3, sobre FENs variadas.
 7. `perft` e `divide`. Só faz sentido comparar com tabelas oficiais depois do filtro de
    legalidade; até lá, use para comparar **dois estados do seu próprio código**.

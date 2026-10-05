@@ -12,6 +12,7 @@
 #include "../include/fen.h"
 #include "../include/square.h"
 #include "../include/makemove.h"
+#include "../include/bidhistory.h"
 #include "../include/io.h"
 #include "../include/perft.h"
 #include "../include/uci.h"
@@ -79,10 +80,10 @@ static void ui(Board *b) {
     int opt;
     char move_str[INPUT_STR_SIZE];
     Move move;
-    Move last_move = MOVE_NONE;   /* ultimo lance jogado e ainda desfazivel; Undo so guarda um */
     char fen_out[MAX_FEN_STRING];
     MoveList l = {0};
-    Undo u;
+    BidHistory history;
+    bidhistory_init(&history);
     do
     {
         clear_screen();
@@ -100,6 +101,7 @@ static void ui(Board *b) {
         printf("11 - Check square attacked\n");
         printf("12 - Run make/unmake tests\n");
         printf("13 - Perft divide\n");
+        printf("14 - Show move history\n");
 
         opt = get_int("Insert option: ");
         /* get_int devolve 0 em EOF, e 0 cai no default: sem isto o laco nunca acaba com Ctrl-D */
@@ -118,7 +120,7 @@ static void ui(Board *b) {
                 printf("FEN invalida -- tabuleiro nao alterado.\n");
                 fgetc(stdin);
             } else {
-                last_move = MOVE_NONE;   /* o Undo guardado era de outra posicao */
+                bidhistory_clear(&history);
             }
             break;
         case 2:
@@ -138,24 +140,25 @@ static void ui(Board *b) {
                 break;
             } else {
                 move = l.moves[move_i];
-                make_move(b, move, &u);
+                if (!bidhistory_add(&history, b, move)) {
+                    printf("Could not store move in history.\n");
+                    wait_enter();
+                    break;
+                }
                 clear_screen();
                 board_print(b);
-                last_move = move;
             }
             break;
         case 3:
-            if (last_move == MOVE_NONE) {
+            if (!bidhistory_undo_last(&history, b)) {
                 printf("Nothing to unmake.\n");
                 wait_enter();
                 break;
             }
-            unmake_move(b, last_move, &u);
-            last_move = MOVE_NONE;
             break;
         case 4:
             board_new(b);   /* ja comeca com board_clear */
-            last_move = MOVE_NONE;
+            bidhistory_clear(&history);
             break;
         case 5:
             printf("Insert square coord: ");
@@ -192,6 +195,7 @@ static void ui(Board *b) {
             char pc = fgetc(stdin);
             int p = piece_from_char(pc);
             b->array[edit_sq] = p;
+            bidhistory_clear(&history);
             break;   /* a tela e limpa no topo da proxima volta */
         case 8:
             break;
@@ -254,11 +258,26 @@ static void ui(Board *b) {
             wait_enter();
             break;
         }
+        case 14: {
+            printf("Move history: %d ply(s)\n", history.count);
+            if (history.count == 0) {
+                printf("No moves have been played in this position.\n");
+            } else {
+                for (int i = 0; i < history.count; i++) {
+                    char history_move[MOVE_STR_SIZE];
+                    move_to_str(history.moves[i], history_move);
+                    printf("%d. %s\n", i + 1, history_move);
+                }
+            }
+            wait_enter();
+            break;
+        }
         default:
             break;
         }
 
     } while ((ch != 'n'));
+    bidhistory_free(&history);
 }
 /*
  * Sem argumento: o laco do protocolo. E' o default porque e' o que a interface

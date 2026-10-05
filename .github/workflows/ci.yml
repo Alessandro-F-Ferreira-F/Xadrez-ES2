@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  engine:
+    name: Motor (build + testes unitarios + protocolo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        working-directory: engine
+        run: make
+
+      - name: Testes unitarios
+        working-directory: engine
+        run: make test
+
+      - name: Testes de protocolo (integracao UCI)
+        working-directory: engine
+        run: python3 test/protocol/run.py
+
+  interface:
+    name: Interface (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar SFML
+        run: sudo apt-get update && sudo apt-get install -y libsfml-dev
+
+      - name: Build
+        working-directory: interface
+        run: make

@@ -52,7 +52,7 @@ debug:
 test:
 	@$(MKDIR_BUILD)
 	$(CC) $(CFLAGS) -DMAKE_UNMAKE_TEST_STANDALONE \
-		-o $(TEST_BIN) $(filter-out src/main.c src/io.c,$(SRC))
+		-o $(TEST_BIN) $(filter-out src/main.c,$(SRC))
 	$(TEST_BIN)
 
 run: all

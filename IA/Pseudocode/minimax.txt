@@ -21,7 +21,7 @@ função minimax(estado, profundidade):
     senão se profMax <= profundidade então
         retorna avaliar(estado)
     senão 
-        listaGerada = gerarLancesLegais(estado)
+        listaGerada = generate_legal_moves(estado)
         se listaGerada == vazio então
             se emXeque(estado) então
                 se estado.side_to_move == WHITE então

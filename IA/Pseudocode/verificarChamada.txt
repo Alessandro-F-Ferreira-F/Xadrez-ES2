@@ -31,7 +31,7 @@ função verificarChamada(estado, variante, randomizador):
     se motivoEmpate != SEM_EMPATE então
         retorna RESULTADO_EMPATE_* correspondente a motivoEmpate
 
-    listaRaiz = gerarLancesLegais(estado)
+    listaRaiz = generate_legal_moves(estado)
     se listaRaiz == vazio então
         se emXeque(estado) então
             retorna RESULTADO_RAIZ_MATE

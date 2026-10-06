@@ -1,9 +1,11 @@
 #include "ia.h"
 #include "avaliar.h"
-#include "contrato.h"
+#include "pendenciasRegras.h"
 #include "makemove.h"
+#include "movegen.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 // Separação entre avaliação e mate: nenhum valor de avaliar pode ser
 // classificado como mate. Falha se PROF_MAX >= MATE - AVALIACAO_MAX (9384)
@@ -37,6 +39,10 @@ void converterScore(int32_t scoreBruto, Color lado, Play *p){
     }
 }
 
+static bool emXeque(const Board *board){
+    return is_square_attacked(board, board->king_square[board->side_to_move], board->side_to_move);
+}
+
 static int8_t verificarChamada(Board *board, int variante, int randomizador){
     if(variante != VARIANTE_MINIMAX && variante != VARIANTE_ALFA_BETA) return RESULTADO_VARIANTE_INVALIDA;
     if(randomizador != SORTEIO_LIGADO && randomizador != SORTEIO_DESLIGADO) return RESULTADO_RANDOMIZADOR_INVALIDO;
@@ -44,14 +50,12 @@ static int8_t verificarChamada(Board *board, int variante, int randomizador){
     int motivoEmpate = testeEmpateRegra(board);
 
     if(motivoEmpate != SEM_EMPATE){
-        if(motivoEmpate == EMPATE_50_LANCES) return RESULTADO_EMPATE_50_LANCES;
-        else if(motivoEmpate == EMPATE_MATERIAL) return RESULTADO_EMPATE_MATERIAL;
-        else if(motivoEmpate == EMPATE_REPETICAO) return RESULTADO_EMPATE_REPETICAO;
+        if(motivoEmpate == EMPATE_PROVISORIO) return RESULTADO_EMPATE_PROVISORIO;
         else return RESULTADO_ERRO_INTERNO;
     }
     MoveList listaRaiz;
 
-    gerarLancesLegais(board, &listaRaiz);
+    generate_legal_moves(board, &listaRaiz);
 
     if(listaRaiz.count == 0){
         if(emXeque(board)) return RESULTADO_RAIZ_MATE;
@@ -65,7 +69,7 @@ static int32_t minimax(Board *board, int profundidade){
     else if(PROF_MAX <= profundidade) return avaliar(board);
     else{
         MoveList listaGerada;
-        gerarLancesLegais(board, &listaGerada);
+        generate_legal_moves(board, &listaGerada);
 
         if(listaGerada.count == 0){
             if(emXeque(board)){
@@ -136,7 +140,7 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
     else if(PROF_MAX <= profundidade) return avaliar(board);
     else{
         MoveList listaGerada;
-        gerarLancesLegais(board, &listaGerada);
+        generate_legal_moves(board, &listaGerada);
 
         if(listaGerada.count == 0){
             if(emXeque(board)){

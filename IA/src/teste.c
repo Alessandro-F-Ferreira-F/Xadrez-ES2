@@ -1,6 +1,7 @@
 #include "fen.h"
 #include "avaliar.h"
 #include "ia.h"
+#include "stubs.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <inttypes.h>
@@ -71,14 +72,58 @@ static const CasoAvaliacao casosAvaliacao[] = {
     {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1",                           -900},
 };
 
+typedef struct CasoEscolherJogada{
+    const char *fen;
+    int variante;
+    int randomizador;
+    int testarEmpate;
+    int8_t resultadoEsperado;
+} CasoEscolherJogada;
+
+static const CasoEscolherJogada casosEscolherJogada[] = {
+    // Parâmetros inválidos (o stub não chega a ser consultado)
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      2,                  SORTEIO_DESLIGADO, SEM_EMPATE,        RESULTADO_VARIANTE_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   2,                 SEM_EMPATE,        RESULTADO_RANDOMIZADOR_INVALIDO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      2,                  2,                 SEM_EMPATE,        RESULTADO_VARIANTE_INVALIDA},
+
+    // Empate por regra (valor devolvido pelo stub)
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, EMPATE_PROVISORIO, RESULTADO_EMPATE_PROVISORIO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, 99,                RESULTADO_ERRO_INTERNO},
+
+    // Raiz sem lances legais (FENs reais)
+    {"rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3", VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, SEM_EMPATE,        RESULTADO_RAIZ_MATE},
+    {"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",                                VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, SEM_EMPATE,        RESULTADO_RAIZ_AFOGAMENTO},
+};
+
 
 int main(void){
+    init_square_tables();
+
+    Board board;
+    int retornoTesteEscolherJogada = 0;
+    bool parsed;
+
+    for(size_t i = 0; i < sizeof(casosEscolherJogada)/sizeof(casosEscolherJogada[0]); i ++){
+        parsed = fen_parse(casosEscolherJogada[i].fen, &board);
+
+        if(parsed){
+            varTesteEmpate = casosEscolherJogada[i].testarEmpate;
+            escolherJogada(&board, casosEscolherJogada[i].variante, casosEscolherJogada[i].randomizador);
+            printf(" % " PRId8 " % " PRId8 "\n", JOGADA.resultado, casosEscolherJogada[i].resultadoEsperado);        
+
+            if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != LANCE_NULO
+            || JOGADA.score != SCORE_INVALIDO || JOGADA.tipo != TIPO_INVALIDO) retornoTesteEscolherJogada = 1;
+        }
+        else retornoTesteEscolherJogada = 1;
+    }
+
+    // Teste dos casos da avaliação do score do tabuleiro 
+
     int retornoEvaluation = 0;
     int retornoParser = 0;
-    Board board;
     int32_t evaluation;
     bool test;
-
+    
     for(size_t i = 0; i < sizeof(casosAvaliacao)/sizeof(casosAvaliacao[0]); i ++){
         test = fen_parse(casosAvaliacao[i].fen, &board);
 
@@ -101,6 +146,8 @@ int main(void){
 
     printf("\n");
 
+    // Teste dos casos de conversão do score
+
     int retornoConversao = 0;
     Move lanceAntes = -1;
     int8_t resultadoAntes = -1;
@@ -122,7 +169,8 @@ int main(void){
     if(retornoParser) printf("Erro de parser\n");
     if(retornoEvaluation) printf("Erro de avaliaçao\n");
     if(retornoConversao) printf("erro de conversao\n");
+    if(retornoTesteEscolherJogada) printf("Erro na escolha de jogada\n");
 
-    if(retornoConversao || retornoEvaluation || retornoParser) return 1;
+    if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada) return 1;
     return 0;
 }

@@ -30,6 +30,7 @@
 // Resultado da chamada de escolherJogada (JOGADA.resultado)
 // 0: sucesso; negativos: bug; positivos: partida terminada na raiz
 // Valores de empate provisórios, a definir com a máquina de regras
+// RESULTADO_EMPATE_PROVISORIO é temporário para testes com stub, até todas as regras de empate serem implementadas
 
 #define RESULTADO_ERRO_INTERNO (-1)
 #define RESULTADO_VARIANTE_INVALIDA (-2)
@@ -37,6 +38,7 @@
 #define RESULTADO_SUCESSO 0
 #define RESULTADO_RAIZ_MATE 1
 #define RESULTADO_RAIZ_AFOGAMENTO 2
+#define RESULTADO_EMPATE_PROVISORIO 6
 #define RESULTADO_EMPATE_50_LANCES 3
 #define RESULTADO_EMPATE_REPETICAO 4
 #define RESULTADO_EMPATE_MATERIAL 5

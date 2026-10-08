@@ -11,7 +11,8 @@ Referência rápida do que o motor (`build/main.out`) aceita pela **stdin** e re
 - O motor responde **só na stdout**. A stderr é diagnóstico para humanos, em formato livre,
   e não deve ser lida pelo cliente.
 - Linha vazia é ignorada. **Comando desconhecido é ignorado em silêncio** (regra do UCI).
-  Os comandos diferenciam maiúsculas de minúsculas: `Position` não é `position`.
+  Os comandos diferenciam maiúscu### Overview
+- Criar uma interface simples para setar posições de tabuleiro rapidamente, adicionar e remover peças, fazer e desfazer lances, e imprimir informaçõeslas de minúsculas: `Position` não é `position`.
 - Uma linha pode ter até **8192 bytes** de conteúdo. Mais que isso gera
   `error line-too-long`, e o resto da linha é descartado.
 - `quit`, ou o fim da entrada (EOF), encerra o motor com código de saída 0.

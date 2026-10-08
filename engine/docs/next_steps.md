@@ -474,9 +474,10 @@ aceleram a IA também, mas o ganho dela se mede com outro número (O4).
   do §8.1: inicial d5, Kiwipete d4, posição 3 d6, posições 4–6 d4 — 26,4 milhões de nós, ~2 s) com
   nós, tempo e Mnós/s por posição e no total. Mais tarde, um segundo bloco para a busca
   (posições fixas, profundidade fixa → nós, tempo, lance escolhido — ver O4).
-- **Perfil reproduzível**: `gprof` está instalado (`-pg`, rodar, `gprof -b -p`). O `perf` não
-  está no WSL desta máquina. Registre o comando junto com a tabela, para o próximo perfil ser
-  comparável com este.
+- **Perfil reproduzível**: `gprof` está instalado; o `perf` funciona no WSL depois de instalar
+  (com uma ressalva de caminho) e sem contadores de hardware. Como medir, perfilar e gerar
+  flamegraph: **`docs/medicao-desempenho.md`**. Registre o comando junto com a tabela, para o
+  próximo perfil ser comparável com este.
 
 ### Critério de saída
 

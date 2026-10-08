@@ -45,6 +45,8 @@ static const char *const TEST_FENS[] = {
     // "dwdwqdnuiwah"
 };
 
+
+
 TEST(make_unmake) {
     const size_t fen_count = sizeof(TEST_FENS) / sizeof(TEST_FENS[0]);
 
@@ -65,11 +67,12 @@ TEST(make_unmake) {
             make_move(&board, move, &undo);
             unmake_move(&board, move, &undo);
             fen_write(&board, after);
-
-            ASSERT_EQ_STR(before, after);
+            fen_write(&board, after);           /* TEMPORÁRIO: adultera de propósito */
+            EXPECT_EQ_STR(before, after);
         }
     }
 }
+
 
 
 #ifdef MAKE_UNMAKE_TEST_STANDALONE

@@ -3,11 +3,13 @@
 
 
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 
 #define MAX_TESTS 1024
 
-
+#define TEST_PASS 0
+#define TEST_FAIL 1
 typedef void (*test_fn)(void);
 
 typedef struct TestCase {
@@ -17,20 +19,17 @@ typedef struct TestCase {
     int line;
 } TestCase;
 
-static TestCase g_tests[MAX_TESTS];
-static size_t g_ntest = 0;
 
 
-
+void test_fail(const char *file, int line, const char *msg);
 void test_register(const char *name, test_fn fn, const char *file, int line);
-
+int test_run_all(void);
 
 
 #define ASSERT(expr) \
     do { \
         if (!(expr)) { \
-            fprintf(stderr, "[ASSERT FAILED] \nexpr:(%s) \nfile: %s \nline: %d \n", \
-                    #expr, __FILE__, __LINE__); \
+            test_fail(__FILE__, __LINE__, "ASSERT( " #expr " )"); \
             return; \
         } \
     } while (0)
@@ -38,11 +37,20 @@ void test_register(const char *name, test_fn fn, const char *file, int line);
 #define ASSERT_EQ(a, b) \
     do { \
         if ((a) != (b)) { \
-            fprintf(stderr, "[ASSERT EQUAL FAILED] \nexpr:(%s == %s) \nfile: %s \nline: %d \n", \
-                    #a, #b, __FILE__, __LINE__); \
+            test_fail(__FILE__, __LINE__, "ASSERT_EQ(" #a ", " #b ")"); \
+            return; \
         } \
     } while (0)
 
+#define ASSERT_EQ_STR(a, b) \
+    do { \
+        if (strcmp((a), (b)) != 0) { \
+            test_fail(__FILE__, __LINE__, "ASSERT_EQ_STR(" #a ", " #b ")"); \
+            return; \
+        } \
+    } while (0)
+
+// #define ASSERT_EQ_U64
 
 #define CONCAT_(a, b) a##b
 #define CONCAT(a, b) CONCAT_(a, b)

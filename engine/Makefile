@@ -15,7 +15,8 @@
 CC       := gcc
 STD      := -std=c11
 WARN     := -Wall -Wextra -Wpedantic -Wstrict-prototypes -Wmissing-prototypes
-SRC      := $(wildcard src/*.c) test/test.c
+SRC_MAIN      := $(wildcard src/*.c)
+SRC_TEST := test/test.c $(filter-out src/main.c, $(SRC_MAIN)) $(wildcard test/ctest/*.c)
 
 ifeq ($(OS),Windows_NT)
 BIN         := build/main.exe
@@ -37,7 +38,7 @@ DBGFLAGS := $(STD) $(WARN) -Og -g -DDEBUG -fsanitize=address,undefined \
 
 all:
 	@$(MKDIR_BUILD)
-	$(CC) $(CFLAGS) $(SRC) -o $(BIN)
+	$(CC) $(CFLAGS) $(SRC_MAIN) -o $(BIN)
 
 # -DDEBUG liga o LOG_ERROR; sem ele os erros de FEN e de lance somem.
 
@@ -51,8 +52,7 @@ debug:
 
 test:
 	@$(MKDIR_BUILD)
-	$(CC) $(CFLAGS) -DMAKE_UNMAKE_TEST_STANDALONE \
-		-o $(TEST_BIN) $(filter-out src/main.c src/io.c,$(SRC))
+	$(CC) $(CFLAGS) $(SRC_TEST) -DMAKE_UNMAKE_TEST_STANDALONE -o $(TEST_BIN) 
 	$(TEST_BIN)
 
 run: all

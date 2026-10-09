@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 199309L
 
-#include "../include/timer.h"
+#include "timer.h"
 #include <time.h>
 
 

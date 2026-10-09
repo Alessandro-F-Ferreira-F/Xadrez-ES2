@@ -4,33 +4,87 @@
 #include "../include/makemove.h"
 #include "../include/movegen.h"
 #include "../include/square.h"
-
-#include <stdio.h>
-#include <string.h>
-
+#include "../include/perft.h"
 #include "ctest/test_api.h" // API DE TESTES
 
-
-#define TEST_FEN_01 "rnb1kb1r/2ppnppp/1p1Pp3/1p6/5P2/2N5/PPP1N2P/R1BK4 w kq - 0 11"
-#define TEST_FEN_02 "rn1qkb1r/ppp2pp1/5n1B/P2pp3/6bP/2NPQ3/1PP1PPP1/R3KBNR b KQkq - 0 1"
-#define TEST_FEN_03 "rnb1kbnr/pppp3p/4pp2/6p1/2P2P2/2N1P1PB/PP1P3P/R1BK2NR w kq - 0 8"
-#define TEST_FEN_04_PAWN_CAPTURES "nqrkrbbn/p1p1pppp/8/1p1p4/2P1P3/8/PP1P1PPP/NQRKRBBN b - c3 0 1"
-#define TEST_FEN_05_PAWN_CAPTURE_OFFBOARD "rnbqkbnr/pppppppp/8/7B/8/4P3/PPPP1PPP/RNBQK1NR b KQkq - 0 1"
-#define TEST_FEN_EN_PASSANT "rnbqkbnr/pp1p1ppp/8/2pPp3/8/8/4PPPP/RNBQKBNR w KQkq - 0 1"
-#define TEST_FEN_CHECK_DETECTION "r1bqk1nr/pppp2pp/5p2/4n2B/1b1pP3/8/PP1Q1PPP/RNB1K1NR w KQkq - 0 1"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h>
 
 
+/* Profundidade máxima testada por posição (as tabelas vão além). Pode ser trocada
+   sem recompilar: PERFT_MAX_DEPTH=6 ./build/test.out */
+#define PERFT_MAX_DEPTH 5
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+static void check_perft(const char *name, const char *fen, const uint64_t *expected, int max_depth);
+
+#define PERFT_CASES(X) \
+    X(start, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", \
+      20, 400, 8902, 197281, 4865609, 119060324, 3195901860) \
+    X(kiwipete, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", \
+      48, 2039, 97862, 4085603, 193690690) \
+    X(pos3, "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", \
+      14, 191, 2812, 43238, 674624, 11030083, 178633661) \
+    X(pos4, "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", \
+      6, 264, 9467, 422333, 15833292) \
+    X(pos5, "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", \
+      44, 1486, 62379, 2103487, 89941194) \
+    X(pos6, "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", \
+      46, 2079, 89890, 3894594, 164075551)
+
+#define PERFT_TEST(id, fen, ...) \
+    TEST(perft_##id) { \
+        static const uint64_t expected[] = {1, __VA_ARGS__}; \
+        check_perft(#id, (fen), expected, (int)ARRAY_SIZE(expected) - 1); \
+    }
+
+static void check_perft(const char *name, const char *fen, const uint64_t *expected, int max_depth) {
+    Board board;
+    ASSERT_MSG(fen_parse(fen, &board), "%s: fen_parse rejeitou a FEN: %s", name, fen);
+
+    int limit = PERFT_MAX_DEPTH;
+    const char *env = getenv("PERFT_MAX_DEPTH");
+    if (env && atoi(env) > 0) limit = atoi(env);
+
+    int depth = limit < max_depth ? limit : max_depth;
+    int reached = 0;
+
+    for (int d = 1; d <= depth; d++) {
+        char before[MAX_FEN_STRING], after[MAX_FEN_STRING];
+        fen_write(&board, before);
+        uint64_t got = perft(&board, d);
+        fen_write(&board, after);
+
+        ASSERT_MSG(got == expected[d],
+                   "%s, profundidade %d: obtido %" PRIu64 ", esperado %" PRIu64 "\n\tfen: %s",
+                   name, d, got, expected[d], fen);
+        /* perft promete devolver o tabuleiro como entrou (unmake inverso de make). */
+        ASSERT_EQ_STR(before, after);
+        reached = d;
+    }
+
+    /* "Passou" sem ter testado nada é pior que falhar. */
+    ASSERT_MSG(reached > 0, "%s: nenhuma profundidade testada (limite = %d)", name, limit);
+
+    /* A linha [ RUNNING ] do runner ainda está aberta; isto completa ela. */
+    if (reached < max_depth) {
+        printf("d1..d%d (d%d+ pulado: limite de profundidade %d)  ", reached, reached + 1, limit);
+    } else {
+        printf("d1..d%d  ", reached);
+    }
+}
 
 static const char *const TEST_FENS[] = {
     START_FEN,
     "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
     "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1",
     "r3k2r/8/8/4B3/8/8/8/R3K2R w KQkq - 0 1",
-    // "rnbqkbnr/ppp1pppp/8/8/3pP3/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", //Parser da FEN dando erro
     "rnbqkbnr/ppp1p1pp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
     "8/8/8/r3pP1K/8/8/8/4k3 w - e6 0 1",
     "rnbq1bnr/ppp1pkP1/8/8/8/8/PPPP1PPP/RNBQKBNR w KQ - 0 6",
-    // "rnbq1bnr/pppp1ppp/8/8/8/8/PPP1PKp1/RNBQ1BNR b - - 0 6", Parser da FEN dando erro
     "3k3r/8/8/4N3/8/8/8/3RK2R w K - 0 1",
     "rnbqk2r/pppp1ppp/5n2/4p3/1b2P3/3P4/PPPNBPPP/R1BQK2R w KQkq - 0 5",
     "8/8/8/4N3/8/8/8/4K2k w - - 0 1",
@@ -42,9 +96,7 @@ static const char *const TEST_FENS[] = {
     "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 4 4",
     "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
     "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
-    // "dwdwqdnuiwah"
 };
-
 
 
 TEST(make_unmake) {
@@ -67,13 +119,12 @@ TEST(make_unmake) {
             make_move(&board, move, &undo);
             unmake_move(&board, move, &undo);
             fen_write(&board, after);
-            fen_write(&board, after);           /* TEMPORÁRIO: adultera de propósito */
-            EXPECT_EQ_STR(before, after);
+            EXPECT_EQ_STR(before, after);   
         }
     }
 }
 
-
+PERFT_CASES(PERFT_TEST)
 
 #ifdef MAKE_UNMAKE_TEST_STANDALONE
 int main(void) {

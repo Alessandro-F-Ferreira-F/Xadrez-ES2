@@ -23,5 +23,22 @@ personal-docs/
 
 _*
 *.py
+!agent/**/*.py
+
+# Segredos e variáveis de ambiente (NUNCA versionar)
+.env
+**/.env
+.env.*
+!.env.example
+!agent/.env.example
+
+# Ambientes virtuais Python e configurações locais de agente
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.agents/
+*.sqlite3*
+**/*.sqlite3*
 
 .gitignore

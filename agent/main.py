@@ -175,18 +175,31 @@ async def run_sprint_report(body: SprintReportRequest):
     3. Envia a resposta final via REST para o WhatsApp (no grupo 'eu' por padrão).
     """
     from orchestrator import executar_agente_github
+    from datetime import datetime
 
     load_dotenv(override=True)
 
+    data_hoje = datetime.now().strftime("%d/%m/%Y")
+
     prompt_padrao = (
-        "Olha, eu estou aqui! Sou o Agente Scrum Master do Xadrez-ES2.\n"
-        "Faça o seguinte:\n"
-        "1. Use get_file_contents para ler 'docs/sprints.md' e use list_issues (state='all') para ver o estado real das Issues.\n"
-        "2. Considerando a data atual (17/10/2026 - início da Sprint 3, logo após o fim da Sprint 2), "
-        "monte uma mensagem curta e bem formatada para WhatsApp contendo:\n"
-        "   - Resumo do fechamento da Sprint 2 e início da Sprint 3\n"
-        "   - Métricas de Burndown (pontos concluídos vs. restantes) e EVM (PV, EV e SPI)\n"
-        "   - Principais entregas pendentes da Sprint 3."
+        f"Você é o Agente Scrum Master do projeto Xadrez-ES2.\n"
+        f"Data de referência: {data_hoje}.\n\n"
+        "Siga estes passos:\n"
+        "1. Use a ferramenta get_file_contents para ler 'docs/sprints.md' e use list_issues(state='all') para verificar o status real das Issues e PRs no repositório.\n"
+        f"2. Identifique em qual Sprint estamos com base na data ({data_hoje}) e nas datas descritas na Seção 3 e 4 do documento.\n"
+        "3. Monte um relatório executivo para WhatsApp com o seguinte formato exato (sem emojis, apenas texto limpo com títulos em negrito usando asteriscos):\n\n"
+        "*STATUS DA SPRINT - XADREZ-ES2*\n"
+        f"*Data:* {data_hoje} | *Sprint Atual:* [Número/Nome da Sprint]\n\n"
+        "*ENTREGAS RECENTES:*\n"
+        "- [Liste 2 a 3 entregas principais concluídas ou adiantadas]\n\n"
+        "*FOCO ATUAL E PENDÊNCIAS:*\n"
+        "- [Liste as principais pendências da Sprint e issues em aberto]\n\n"
+        "*METRICAS AGEIS (EVM E BURNDOWN):*\n"
+        "- *Horas Planejadas (PV):* [X]h\n"
+        "- *Horas Agregadas (EV):* [Y]h\n"
+        "- *SPI (EV/PV):* [Valor, ex: 1.02]\n"
+        "- *Status de Prazo:* [No prazo / Adiantado / Atrasado]\n\n"
+        "Mantenha a mensagem direta, concisa e sem nenhum emoji."
     )
 
     try:

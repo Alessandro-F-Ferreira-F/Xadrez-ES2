@@ -9,7 +9,7 @@
 -- JOGADA é a estrutura que contém uma jogada com lance (tipo Move), score (preenchido por converterScore), tipo de score (se é mate, centipeão ou movimento inválido) e resultado da chamada (sucesso, bug ou partida terminada)
 -- JOGADA.tipo deve ser TIPO_MATE (representando xeque-mate), TIPO_CENTIPEAO (representando centipeão) ou TIPO_INVALIDO (representando movimento inválido)
 -- JOGADA.resultado recebe um dos valores RESULTADO_* definidos em verificarChamada.txt
--- O chamador de escolherJogada deve conferir JOGADA.resultado antes de usar os demais campos. Sempre que JOGADA.resultado != RESULTADO_SUCESSO, os demais campos ficam nos valores padrão (LANCE_NULO, SCORE_INVALIDO, TIPO_INVALIDO), para que toda a estrutura acompanhe o estado da jogada
+-- O chamador de escolherJogada deve conferir JOGADA.resultado antes de usar os demais campos. Sempre que JOGADA.resultado != RESULTADO_SUCESSO, os demais campos ficam nos valores padrão (MOVE_NONE, SCORE_INVALIDO, TIPO_INVALIDO), para que toda a estrutura acompanhe o estado da jogada
 -- Os valores de JOGADA são válidos após o término de uma chamada de escolherJogada(estado, variante, randomizador)
 
 VARIANTE_MINIMAX = 0
@@ -18,7 +18,7 @@ VARIANTE_ALFA_BETA = 1
 ALFA = -INFINITO
 BETA = INFINITO
 
-LANCE_NULO = 0 -- valor padrão de JOGADA.lance quando não há jogada (representa a1->a1, movimento inválido)
+-- MOVE_NONE (definido em move.h, das regras, como (Move)0) é o valor padrão de JOGADA.lance quando não há jogada (representa a1->a1, movimento inválido)
 SCORE_INVALIDO = 30000 -- valor padrão de JOGADA.score quando não há jogada. Será int32_t nesta implementação em C
 
 TIPO_INVALIDO = 0 -- valor padrão de JOGADA.tipo quando não há jogada
@@ -33,7 +33,7 @@ SORTEIO_DESLIGADO = 0
 função escolherJogada(estado, variante, randomizador):
     listaCandidatos.limpar()
     nosVisitados = 0
-    JOGADA.lance = LANCE_NULO
+    JOGADA.lance = MOVE_NONE
     JOGADA.score = SCORE_INVALIDO
     JOGADA.tipo = TIPO_INVALIDO
     JOGADA.resultado = verificarChamada(estado, variante, randomizador)
@@ -56,7 +56,7 @@ função escolherJogada(estado, variante, randomizador):
             JOGADA.lance = listaCandidatos[0]
 
     -- Bloco defensivo: com resultado == RESULTADO_SUCESSO, a raiz tem ao menos um lance e todo score está estritamente entre -INFINITO e +INFINITO, então listaCandidatos nunca fica vazia. Se ficar, é bug interno
-    se JOGADA.lance == LANCE_NULO então
+    se JOGADA.lance == MOVE_NONE então
         JOGADA.tipo = TIPO_INVALIDO
         JOGADA.score = SCORE_INVALIDO
         JOGADA.resultado = RESULTADO_ERRO_INTERNO

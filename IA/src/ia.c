@@ -242,7 +242,7 @@ void escolherJogada(Board *board, int variante, int randomizador){
     movelist_clear(&listaCandidatos);
     NOS_VISITADOS = 0;
 
-    JOGADA.lance = LANCE_NULO;
+    JOGADA.lance = MOVE_NONE;
     JOGADA.score = SCORE_INVALIDO;
     JOGADA.tipo = TIPO_INVALIDO;
     JOGADA.resultado = verificarChamada(board, variante, randomizador);
@@ -269,7 +269,7 @@ void escolherJogada(Board *board, int variante, int randomizador){
         }
     }
 
-    if(JOGADA.lance == LANCE_NULO){
+    if(JOGADA.lance == MOVE_NONE){
         JOGADA.tipo = TIPO_INVALIDO;
         JOGADA.score = SCORE_INVALIDO;
         JOGADA.resultado = RESULTADO_ERRO_INTERNO;

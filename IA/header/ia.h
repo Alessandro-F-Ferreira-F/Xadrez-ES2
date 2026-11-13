@@ -25,8 +25,6 @@
 #define SCORE_INVALIDO 30000
 #define LIMIAR_MATE (MATE - PROF_MAX)
 
-#define LANCE_NULO 0
-
 // Resultado da chamada de escolherJogada (JOGADA.resultado)
 // 0: sucesso; negativos: bug; positivos: partida terminada na raiz
 // Valores de empate provisórios, a definir com a máquina de regras
@@ -81,7 +79,7 @@ Após a chamada:
         positivo: partida já terminada na raiz (mate, afogamento ou empate
         por regra); não há lance a jogar
     se JOGADA.resultado != RESULTADO_SUCESSO, os demais campos ficam nos
-    valores padrão (LANCE_NULO, SCORE_INVALIDO, TIPO_INVALIDO)
+    valores padrão (MOVE_NONE, SCORE_INVALIDO, TIPO_INVALIDO)
 */
 
 void iniciarSorteio(unsigned int semente);

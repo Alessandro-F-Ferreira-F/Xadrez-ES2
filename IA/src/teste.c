@@ -140,7 +140,7 @@ int main(void){
             escolherJogada(&board, casosEscolherJogada[i].variante, casosEscolherJogada[i].randomizador);
             printf(" % " PRId8 " % " PRId8 "\n", JOGADA.resultado, casosEscolherJogada[i].resultadoEsperado);        
 
-            if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != LANCE_NULO
+            if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != MOVE_NONE
             || JOGADA.score != SCORE_INVALIDO || JOGADA.tipo != TIPO_INVALIDO
             || NOS_VISITADOS != 0) retornoTesteEscolherJogada = 1; // sem sucesso na verificação, a busca não roda
         }
@@ -197,7 +197,7 @@ int main(void){
         // Contagem de nós: minimax exato; alfa-beta nunca visita mais que o minimax (mesma ordem de lances)
         if(nosMinimax != nosEsperados || nosAlfaBeta > nosMinimax || nosRepetida != nosAlfaBeta) retornoNos = 1;
 
-        // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (LANCE_NULO) passariam no teste
+        // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (MOVE_NONE) passariam no teste
         if(jogadaMinimax.resultado != RESULTADO_SUCESSO || jogadaAlfaBeta.resultado != RESULTADO_SUCESSO
         || jogadaMinimax.lance != jogadaAlfaBeta.lance || jogadaMinimax.score != jogadaAlfaBeta.score
         || jogadaMinimax.tipo != jogadaAlfaBeta.tipo) retornoV1V2 = 1;

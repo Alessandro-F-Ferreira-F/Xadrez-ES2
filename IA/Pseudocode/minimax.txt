@@ -8,6 +8,8 @@
 
 -- listaCandidatos variável global que guarda a lista de lances possíveis para serem escolhidos, todos empatados no melhor valor, com base nos critérios do minimax. Preenchida apenas na raiz da árvore de busca
 
+-- nosVisitados é a variável global que conta os nós visitados pela busca (NOS_VISITADOS em C): cada entrada em minimax ou podaAlfaBeta conta um nó, inclusive a raiz. É zerada em escolherJogada
+
 -- Valores utilizados como limite para os estados intermediários (ou seja, que não são fim de partida) no retorno de avaliar explicitados em avaliar.txt
 
 -- O valor retornado em um xeque-mate passa a ser (MATE - profundidade), com sinal, sendo negativo se as brancas perdem, positivo se as pretas perdem e a inicialização será feita em + ou - INFINITO. Empate foi convencionado como 0
@@ -16,6 +18,7 @@ MATE = 19999
 INFINITO = 20000
 
 função minimax(estado, profundidade):
+    nosVisitados = nosVisitados + 1
     se testeEmpateRegra(estado) então
         retorna 0
     senão se profMax <= profundidade então

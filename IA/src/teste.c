@@ -1,8 +1,13 @@
+// MinGW: printf ANSI, para PRIu64 sem aviso do -Wpedantic (sem efeito fora do MinGW). Precisa vir antes de qualquer include
+#define __USE_MINGW_ANSI_STDIO 1
+
 #include "fen.h"
+#include "perft.h"
 #include "avaliar.h"
 #include "ia.h"
 #include "stubs.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <inttypes.h>
 
@@ -95,6 +100,29 @@ static const CasoEscolherJogada casosEscolherJogada[] = {
     {"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",                                VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, SEM_EMPATE,        RESULTADO_RAIZ_AFOGAMENTO},
 };
 
+// v1 = v2: minimax e alfa-beta devem devolver o mesmo lance, score e tipo (SORTEIO_DESLIGADO).
+// Sem esperado fixo: o esperado é o próprio minimax.
+// Válido para o PROF_MAX compilado e enquanto as duas variantes percorrerem a raiz na mesma ordem
+// (com ordenação de lances, o lance pode diferir entre candidatos empatados).
+static const char *casosV1V2[] = {
+    // Muitos lances empatados na raiz: a ordem dos candidatos importa
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+
+    // Mates em 1 e em 2, nos dois lados
+    "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
+    "r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1",
+    "6k1/8/8/8/8/8/8/RR4K1 w - - 0 1",
+    "rr4k1/8/8/8/8/8/8/6K1 b - - 0 1",
+
+    // Ganho de material, nos dois lados
+    "4k3/8/8/3q4/8/8/8/3QK3 w - - 0 1",
+    "3qk3/8/8/8/3Q4/8/8/4K3 b - - 0 1",
+
+    // Meio-jogo carregado (kiwipete)
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+};
+
 
 int main(void){
     init_square_tables();
@@ -117,7 +145,64 @@ int main(void){
         else retornoTesteEscolherJogada = 1;
     }
 
-    // Teste dos casos da avaliação do score do tabuleiro 
+    // Teste v1 = v2 (e determinismo: mesma variante duas vezes)
+
+    int retornoV1V2 = 0;
+    Play jogadaMinimax, jogadaAlfaBeta, jogadaRepetida;
+    int retornoNos = 0;
+    uint64_t totalNosMinimax = 0, totalNosAlfaBeta = 0;
+
+    varTesteEmpate = SEM_EMPATE;
+
+    for(size_t i = 0; i < sizeof(casosV1V2)/sizeof(casosV1V2[0]); i ++){
+        if(!fen_parse(casosV1V2[i], &board)){
+            retornoV1V2 = 1;
+            continue;
+        }
+        // Esperado exato do minimax: sem empate por regra, ele visita todo nó até PROF_MAX,
+        // e nós terminais não têm filhos, como no perft
+        uint64_t nosEsperados = 0;
+        for(int d = 0; d <= PROF_MAX; d ++) nosEsperados += perft(&board, d);
+
+        fen_parse(casosV1V2[i], &board);
+        escolherJogada(&board, VARIANTE_MINIMAX, SORTEIO_DESLIGADO);
+        jogadaMinimax = JOGADA;
+        uint64_t nosMinimax = NOS_VISITADOS;
+
+        fen_parse(casosV1V2[i], &board);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO);
+        jogadaAlfaBeta = JOGADA;
+        uint64_t nosAlfaBeta = NOS_VISITADOS;
+
+        fen_parse(casosV1V2[i], &board);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO);
+        jogadaRepetida = JOGADA;
+        uint64_t nosRepetida = NOS_VISITADOS;
+
+        totalNosMinimax += nosMinimax;
+        totalNosAlfaBeta += nosAlfaBeta;
+
+        printf(" %u %u % " PRId32 " % " PRId32 " %" PRIu64 " %" PRIu64 " %" PRIu64 "\n", (unsigned) jogadaMinimax.lance, (unsigned) jogadaAlfaBeta.lance,
+               jogadaMinimax.score, jogadaAlfaBeta.score, nosEsperados, nosMinimax, nosAlfaBeta);
+
+        // Contagem de nós: minimax exato; alfa-beta nunca visita mais que o minimax (mesma ordem de lances)
+        if(nosMinimax != nosEsperados || nosAlfaBeta > nosMinimax || nosRepetida != nosAlfaBeta) retornoNos = 1;
+
+        // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (LANCE_NULO) passariam no teste
+        if(jogadaMinimax.resultado != RESULTADO_SUCESSO || jogadaAlfaBeta.resultado != RESULTADO_SUCESSO
+        || jogadaMinimax.lance != jogadaAlfaBeta.lance || jogadaMinimax.score != jogadaAlfaBeta.score
+        || jogadaMinimax.tipo != jogadaAlfaBeta.tipo) retornoV1V2 = 1;
+
+        if(jogadaRepetida.resultado != jogadaAlfaBeta.resultado || jogadaRepetida.lance != jogadaAlfaBeta.lance
+        || jogadaRepetida.score != jogadaAlfaBeta.score || jogadaRepetida.tipo != jogadaAlfaBeta.tipo) retornoV1V2 = 1;
+    }
+
+    // A poda precisa podar: no total, alfa-beta visita estritamente menos nós
+    if(totalNosAlfaBeta >= totalNosMinimax) retornoNos = 1;
+
+    printf(" total: %" PRIu64 " %" PRIu64 "\n\n", totalNosMinimax, totalNosAlfaBeta);
+
+    // Teste dos casos da avaliação do score do tabuleiro
 
     int retornoEvaluation = 0;
     int retornoParser = 0;
@@ -155,7 +240,14 @@ int main(void){
     JOGADA.lance = lanceAntes;
     JOGADA.resultado = resultadoAntes;
 
+    int casosPulados = 0;
+
     for(size_t i = 0; i < sizeof(casos)/sizeof(casos[0]); i ++){
+        // Mate a p meios-lances (p = MATE - |scoreBruto|) só é classificado como mate se p <= PROF_MAX
+        if(casos[i].tipoEsperado == TIPO_MATE && MATE - abs(casos[i].scoreBruto) > PROF_MAX){
+            casosPulados ++;
+            continue;
+        }
         converterScore(casos[i].scoreBruto, casos[i].lado, &JOGADA);
         
         printf(" % " PRId32 " % " PRId8 " % " PRId32 " % " PRId8 "\n", casos[i].scoreEsperado, casos[i].tipoEsperado, JOGADA.score, JOGADA.tipo);
@@ -166,11 +258,14 @@ int main(void){
 
     }
     
+    if(casosPulados) printf("Conversao: %d caso(s) de mate pulado(s) (p > PROF_MAX = %d)\n", casosPulados, PROF_MAX);
     if(retornoParser) printf("Erro de parser\n");
     if(retornoEvaluation) printf("Erro de avaliaçao\n");
     if(retornoConversao) printf("erro de conversao\n");
     if(retornoTesteEscolherJogada) printf("Erro na escolha de jogada\n");
+    if(retornoV1V2) printf("Erro em v1 = v2\n");
+    if(retornoNos) printf("Erro na contagem de nos\n");
 
-    if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada) return 1;
+    if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada || retornoV1V2 || retornoNos) return 1;
     return 0;
 }

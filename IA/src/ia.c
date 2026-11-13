@@ -12,6 +12,7 @@
 _Static_assert(LIMIAR_MATE > AVALIACAO_MAX, "PROF_MAX grande demais: LIMIAR_MATE invade a faixa da avaliacao");
 
 Play JOGADA;
+uint64_t NOS_VISITADOS;
 static MoveList listaCandidatos;
 
 void converterScore(int32_t scoreBruto, Color lado, Play *p){
@@ -65,6 +66,8 @@ static int8_t verificarChamada(Board *board, int variante, int randomizador){
 }
 
 static int32_t minimax(Board *board, int profundidade){
+    NOS_VISITADOS ++;
+
     if(testeEmpateRegra(board)) return 0;
     else if(PROF_MAX <= profundidade) return avaliar(board);
     else{
@@ -136,6 +139,8 @@ static int32_t minimax(Board *board, int profundidade){
 }
 
 static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_t beta){
+    NOS_VISITADOS ++;
+
     if(testeEmpateRegra(board)) return 0;
     else if(PROF_MAX <= profundidade) return avaliar(board);
     else{
@@ -235,6 +240,7 @@ void iniciarSorteio(unsigned int semente){
 
 void escolherJogada(Board *board, int variante, int randomizador){
     movelist_clear(&listaCandidatos);
+    NOS_VISITADOS = 0;
 
     JOGADA.lance = LANCE_NULO;
     JOGADA.score = SCORE_INVALIDO;

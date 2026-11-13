@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 // Constantes de compilação
-#define PROF_MAX 9000
+#define PROF_MAX 4
 #define VARIANTE_MINIMAX 0
 #define VARIANTE_ALFA_BETA 1
 

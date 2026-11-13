@@ -95,4 +95,12 @@ Sem esta chamada, o sorteio repete a mesma sequência a cada execução.
 
 extern Play JOGADA;
 
+extern uint64_t NOS_VISITADOS;
+/*
+Número de nós visitados pela última chamada de escolherJogada: cada entrada
+em minimax ou podaAlfaBeta conta um nó, inclusive a raiz. Zerado no início
+de escolherJogada; fica em 0 se verificarChamada não devolver sucesso.
+Métrica de comparação entre variantes (mostra se a poda poda).
+*/
+
 #endif

@@ -136,11 +136,13 @@ int main(void){
 
         if(parsed){
             varTesteEmpate = casosEscolherJogada[i].testarEmpate;
+            NOS_VISITADOS = 1; // sentinela: só volta a 0 se escolherJogada zerar
             escolherJogada(&board, casosEscolherJogada[i].variante, casosEscolherJogada[i].randomizador);
             printf(" % " PRId8 " % " PRId8 "\n", JOGADA.resultado, casosEscolherJogada[i].resultadoEsperado);        
 
             if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != LANCE_NULO
-            || JOGADA.score != SCORE_INVALIDO || JOGADA.tipo != TIPO_INVALIDO) retornoTesteEscolherJogada = 1;
+            || JOGADA.score != SCORE_INVALIDO || JOGADA.tipo != TIPO_INVALIDO
+            || NOS_VISITADOS != 0) retornoTesteEscolherJogada = 1; // sem sucesso na verificação, a busca não roda
         }
         else retornoTesteEscolherJogada = 1;
     }
@@ -160,7 +162,14 @@ int main(void){
             continue;
         }
         // Esperado exato do minimax: sem empate por regra, ele visita todo nó até PROF_MAX,
-        // e nós terminais não têm filhos, como no perft
+        // e nós terminais não têm filhos, como no perft.
+        // O perft ignora a regra dos 50 lances; o minimax corta no empate. Para a soma valer
+        // também com a regra real, o halfmove_clock não pode chegar a 100 dentro da árvore
+        if(board.halfmove_clock + PROF_MAX >= 100){
+            printf("FEN v1 = v2 com halfmove alto demais para PROF_MAX: %s\n", casosV1V2[i]);
+            retornoNos = 1;
+            continue;
+        }
         uint64_t nosEsperados = 0;
         for(int d = 0; d <= PROF_MAX; d ++) nosEsperados += perft(&board, d);
 

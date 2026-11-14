@@ -157,6 +157,9 @@ static const CasoTempo casosTempo[] = {
     {VARIANTE_MINIMAX,   100},
 };
 
+// Sementes 1..NUM_SEMENTES no teste do sorteio
+#define NUM_SEMENTES 8
+
 
 int main(void){
     init_square_tables();
@@ -171,13 +174,14 @@ int main(void){
         if(parsed){
             varTesteEmpate = casosEscolherJogada[i].testarEmpate;
             NOS_VISITADOS = 1; // sentinela: só volta a 0 se escolherJogada zerar
+            CANDIDATOS.count = 1; // sentinela: só volta a 0 se escolherJogada esvaziar
             escolherJogada(&board, casosEscolherJogada[i].variante, casosEscolherJogada[i].randomizador,
                            casosEscolherJogada[i].profundidade, casosEscolherJogada[i].tempoMs);
             printf(" % " PRId8 " % " PRId8 "\n", JOGADA.resultado, casosEscolherJogada[i].resultadoEsperado);        
 
             if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != MOVE_NONE
             || JOGADA.score != SCORE_INVALIDO || JOGADA.tipo != TIPO_INVALIDO
-            || NOS_VISITADOS != 0) retornoTesteEscolherJogada = 1; // sem sucesso na verificação, a busca não roda
+            || NOS_VISITADOS != 0 || CANDIDATOS.count != 0) retornoTesteEscolherJogada = 1; // sem sucesso na verificação, a busca não roda
         }
         else retornoTesteEscolherJogada = 1;
     }
@@ -284,6 +288,51 @@ int main(void){
     }
     printf("\n");
 
+    // Teste do sorteio: posição inicial, com muitos candidatos empatados em cp 0.
+    // Desligado: o lance é o primeiro candidato. Ligado: o lance está entre os candidatos, o score
+    // não muda, a mesma semente repete o lance e sementes diferentes não dão sempre o mesmo lance
+
+    int retornoSorteio = 0;
+    const char *fenSorteio = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    fen_parse(fenSorteio, &board);
+    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
+    Play jogadaDesligado = JOGADA;
+    MoveList candidatosDesligado = CANDIDATOS;
+
+    // Com menos de 2 candidatos, o sorteio não teria o que sortear
+    if(jogadaDesligado.resultado != RESULTADO_SUCESSO || candidatosDesligado.count < 2
+    || jogadaDesligado.lance != candidatosDesligado.moves[0]) retornoSorteio = 1;
+
+    bool lancesDistintos = false;
+
+    for(unsigned int semente = 1; semente <= NUM_SEMENTES; semente ++){
+        iniciarSorteio(semente);
+        fen_parse(fenSorteio, &board);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_LIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
+        Play jogadaSorteada = JOGADA;
+
+        bool candidato = false;
+        for(int j = 0; j < CANDIDATOS.count; j ++){
+            if(CANDIDATOS.moves[j] == jogadaSorteada.lance) candidato = true;
+        }
+
+        iniciarSorteio(semente);
+        fen_parse(fenSorteio, &board);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_LIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
+
+        printf(" %u %d %u %u\n", semente, CANDIDATOS.count, (unsigned) jogadaSorteada.lance, (unsigned) JOGADA.lance);
+
+        if(jogadaSorteada.lance != jogadaDesligado.lance) lancesDistintos = true;
+
+        if(jogadaSorteada.resultado != RESULTADO_SUCESSO || !candidato || CANDIDATOS.count != candidatosDesligado.count
+        || jogadaSorteada.score != jogadaDesligado.score || jogadaSorteada.tipo != jogadaDesligado.tipo
+        || JOGADA.lance != jogadaSorteada.lance) retornoSorteio = 1;
+    }
+
+    if(!lancesDistintos) retornoSorteio = 1;
+    printf("\n");
+
     // Teste dos casos da avaliação do score do tabuleiro
 
     int retornoEvaluation = 0;
@@ -348,7 +397,9 @@ int main(void){
     if(retornoV1V2) printf("Erro em v1 = v2\n");
     if(retornoNos) printf("Erro na contagem de nos\n");
     if(retornoTempo) printf("Erro no limite de tempo\n");
+    if(retornoSorteio) printf("Erro no sorteio\n");
 
-    if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada || retornoV1V2 || retornoNos || retornoTempo) return 1;
+    if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada || retornoV1V2 || retornoNos || retornoTempo
+    || retornoSorteio) return 1;
     return 0;
 }

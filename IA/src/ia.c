@@ -17,12 +17,14 @@ _Static_assert(LIMIAR_MATE > AVALIACAO_MAX, "PROF_MAX grande demais: LIMIAR_MATE
 
 Play JOGADA;
 uint64_t NOS_VISITADOS;
+MoveList CANDIDATOS;
 static MoveList listaCandidatos;
 
 // Estado da iteração corrente, definido por escolherJogada antes de cada busca
 static int limiteIteracao;
 static bool relogioAtivo;
-static clock_t prazo;
+// Em int64_t: no Windows clock_t é long de 32 bits, e inicio + tempoMs pode estourar
+static int64_t prazo;
 static bool tempoEsgotado;
 
 void converterScore(int32_t scoreBruto, Color lado, Play *p){
@@ -77,10 +79,17 @@ static int8_t verificarChamada(Board *board, int variante, int randomizador, int
     return RESULTADO_SUCESSO;
 }
 
+// clock() falhando ((clock_t)-1): sem como medir o tempo, o prazo conta como passado
+static bool prazoPassou(void){
+    clock_t agora = clock();
+
+    return agora == (clock_t)-1 || (int64_t)agora >= prazo;
+}
+
 // Liga tempoEsgotado quando o prazo passa; depois de ligado, fica ligado até a próxima
 // escolherJogada. Com o relógio desligado (iteração 1 ou TEMPO_SEM_LIMITE), nunca liga
 static bool estourouTempo(void){
-    if(!tempoEsgotado && relogioAtivo && NOS_VISITADOS % INTERVALO_RELOGIO == 0 && clock() >= prazo){
+    if(!tempoEsgotado && relogioAtivo && NOS_VISITADOS % INTERVALO_RELOGIO == 0 && prazoPassou()){
         tempoEsgotado = true;
     }
     return tempoEsgotado;
@@ -261,7 +270,7 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
 }
 
 // Sorteia um índice no intervalo fechado [0, quantidade - 1].
-// Pré-condição: quantidade > 0 (escolherJogada só chama com candidatosCompletos não vazia).
+// Pré-condição: quantidade > 0 (escolherJogada só chama com CANDIDATOS não vazia).
 // Não semeia o gerador: a semente é definida uma vez, fora daqui.
 static int sorteioLance(int quantidade){
     return rand() % quantidade;
@@ -276,6 +285,7 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
     clock_t inicio = clock();
 
     movelist_clear(&listaCandidatos);
+    movelist_clear(&CANDIDATOS);
     NOS_VISITADOS = 0;
     relogioAtivo = false;
     tempoEsgotado = false;
@@ -288,19 +298,19 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
     if(JOGADA.resultado != RESULTADO_SUCESSO) return;
 
     if(tempoMs != TEMPO_SEM_LIMITE){
-        prazo = inicio + (clock_t)((int64_t)tempoMs * CLOCKS_PER_SEC / 1000);
+        // clock() falhou: sem início, o prazo conta como já passado (só a iteração 1 roda)
+        if(inicio == (clock_t)-1) prazo = INT64_MIN;
+        else prazo = (int64_t)inicio + (int64_t)tempoMs * CLOCKS_PER_SEC / 1000;
     }
 
-    // Candidatos e score da última iteração completa
-    MoveList candidatosCompletos;
-    movelist_clear(&candidatosCompletos);
+    // Score da última iteração completa (os candidatos dela ficam em CANDIDATOS)
     int32_t scoreBruto = SCORE_INVALIDO;
 
     for(limiteIteracao = 1; limiteIteracao <= profundidade; limiteIteracao ++){
         // Iteração 1 com o relógio desligado: sempre termina, para que haja lance
         relogioAtivo = (tempoMs != TEMPO_SEM_LIMITE && limiteIteracao > 1);
 
-        if(relogioAtivo && clock() >= prazo) break;
+        if(relogioAtivo && prazoPassou()) break;
 
         movelist_clear(&listaCandidatos);
         int32_t scoreIteracao = SCORE_INVALIDO;
@@ -315,25 +325,26 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
         // Iteração interrompida: candidatos e score incompletos, descartados
         if(tempoEsgotado) break;
 
-        candidatosCompletos = listaCandidatos;
+        CANDIDATOS = listaCandidatos;
         scoreBruto = scoreIteracao;
 
         // Mate achado: uma iteração mais funda não acha mate mais curto
         if(abs(scoreBruto) >= LIMIAR_MATE) break;
     }
 
-    if(candidatosCompletos.count > 0){
+    if(CANDIDATOS.count > 0){
         converterScore(scoreBruto, board->side_to_move, &JOGADA);
 
         if(randomizador == SORTEIO_LIGADO){
-            JOGADA.lance = candidatosCompletos.moves[sorteioLance(candidatosCompletos.count)];
+            JOGADA.lance = CANDIDATOS.moves[sorteioLance(CANDIDATOS.count)];
         }
         else{
-            JOGADA.lance = candidatosCompletos.moves[0];
+            JOGADA.lance = CANDIDATOS.moves[0];
         }
     }
 
     if(JOGADA.lance == MOVE_NONE){
+        movelist_clear(&CANDIDATOS);
         JOGADA.tipo = TIPO_INVALIDO;
         JOGADA.score = SCORE_INVALIDO;
         JOGADA.resultado = RESULTADO_ERRO_INTERNO;

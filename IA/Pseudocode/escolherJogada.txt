@@ -6,9 +6,11 @@
 
 -- Aprofundamento iterativo: a busca roda com limiteIteracao = 1, 2, ..., profundidade (go depth), e para antes se o prazo de tempoMs milissegundos (go movetime) passar. tempoMs = TEMPO_SEM_LIMITE desliga o relógio. O prazo conta a partir do início da chamada
 
--- Só iterações completas valem: candidatosCompletos e scoreBruto guardam o resultado da última iteração que terminou. A iteração interrompida pelo tempo é descartada (sem ordenação de lances, ela só viu parte da raiz)
+-- Só iterações completas valem: CANDIDATOS e scoreBruto guardam o resultado da última iteração que terminou. CANDIDATOS é global e pública (lida pelos testes do sorteio); listaCandidatos é a lista de trabalho da iteração corrente. A iteração interrompida pelo tempo é descartada (sem ordenação de lances, ela só viu parte da raiz)
 
 -- A iteração 1 roda com o relógio desligado (relogioAtivo falso), e por isso sempre termina: há lance mesmo com tempoMs muito pequeno. A partir da iteração 2, o relógio é conferido antes de começar cada iteração e durante a busca (ver estourouTempo em minimax.txt)
+
+-- prazoPassou() devolve verdadeiro se relógio() >= prazo ou se relógio() falhar (RELOGIO_FALHOU, (clock_t)-1 em C): sem como medir o tempo, o prazo conta como passado. Se o relógio já falha no início, prazo = -INFINITO_TEMPO (INT64_MIN em C) e só a iteração 1 roda. prazo é guardado em inteiro de 64 bits: no Windows o clock_t tem 32 bits e inicio + tempoMs poderia estourar
 
 -- Parada por mate: se uma iteração completa devolve |scoreBruto| >= LIMIAR_MATE, o aprofundamento para. Um mate em p meios-lances achado com limite D (p <= D) já é exato: um mate mais curto teria aparecido na mesma iteração, e para o lado que leva mate todas as defesas já terminam em mate dentro de D. Uma iteração mais funda não muda lance nem score
 -- Com o limite D, o nó em profundidade D devolve avaliar antes de gerar lances; por isso um mate em p meios-lances só é visto a partir da iteração p + 1
@@ -44,6 +46,7 @@ TEMPO_SEM_LIMITE = 0
 função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
     inicio = relógio()
     listaCandidatos.limpar()
+    CANDIDATOS.limpar()
     nosVisitados = 0
     relogioAtivo = falso
     tempoEsgotado = falso
@@ -56,15 +59,17 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
         retorna
 
     se tempoMs != TEMPO_SEM_LIMITE então
-        prazo = inicio + tempoMs
+        se inicio == RELOGIO_FALHOU então -- sem início, o prazo conta como já passado
+            prazo = -INFINITO_TEMPO
+        senão
+            prazo = inicio + tempoMs
 
-    candidatosCompletos = lista vazia
     scoreBruto = SCORE_INVALIDO
 
     para limiteIteracao de 1 até profundidade faça
         relogioAtivo = (tempoMs != TEMPO_SEM_LIMITE e limiteIteracao > 1)
 
-        se relogioAtivo e relógio() >= prazo então
+        se relogioAtivo e prazoPassou() então
             interromper
 
         listaCandidatos.limpar()
@@ -77,22 +82,23 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
         se tempoEsgotado então -- iteração incompleta: descartada
             interromper
 
-        candidatosCompletos = listaCandidatos
+        CANDIDATOS = listaCandidatos
         scoreBruto = scoreIteracao
 
         se |scoreBruto| >= LIMIAR_MATE então -- mate achado: ver comentário no topo
             interromper
 
-    se candidatosCompletos != lista vazia então:
+    se CANDIDATOS != lista vazia então:
         converterScore(scoreBruto, estado.side_to_move, JOGADA) -- ver converterScore.txt
 
         se randomizador == SORTEIO_LIGADO então
-            JOGADA.lance = candidatosCompletos[random(0, tamanho(candidatosCompletos) - 1)] -- Supõe intervalo fechado nos dois extremos
+            JOGADA.lance = CANDIDATOS[random(0, tamanho(CANDIDATOS) - 1)] -- Supõe intervalo fechado nos dois extremos
         senão:
-            JOGADA.lance = candidatosCompletos[0]
+            JOGADA.lance = CANDIDATOS[0]
 
-    -- Bloco defensivo: com resultado == RESULTADO_SUCESSO, a raiz tem ao menos um lance, a iteração 1 sempre termina e todo score está estritamente entre -INFINITO e +INFINITO, então candidatosCompletos nunca fica vazia. Se ficar, é bug interno
+    -- Bloco defensivo: com resultado == RESULTADO_SUCESSO, a raiz tem ao menos um lance, a iteração 1 sempre termina e todo score está estritamente entre -INFINITO e +INFINITO, então CANDIDATOS nunca fica vazia. Se ficar, é bug interno
     se JOGADA.lance == MOVE_NONE então
+        CANDIDATOS.limpar()
         JOGADA.tipo = TIPO_INVALIDO
         JOGADA.score = SCORE_INVALIDO
         JOGADA.resultado = RESULTADO_ERRO_INTERNO

@@ -10,7 +10,7 @@
 
 -- tempoEsgotado é a variável global (booleana) que indica que o prazo da chamada passou. É desligada em escolherJogada e, depois de ligada, fica ligada até a próxima chamada
 
--- estourouTempo() liga tempoEsgotado se o prazo passou e devolve tempoEsgotado. O relógio só é consultado a cada INTERVALO_RELOGIO nós, e nunca na iteração 1 nem sem limite de tempo (ver escolherJogada.txt)
+-- estourouTempo() liga tempoEsgotado se prazoPassou() (ver escolherJogada.txt) e devolve tempoEsgotado. O relógio só é consultado a cada INTERVALO_RELOGIO nós, e nunca na iteração 1 nem sem limite de tempo (ver escolherJogada.txt)
 
 -- Com tempo esgotado, o nó devolve 0 sem buscar, e o laço devolve 0 logo após desfazer o lance: o valor é descartado pela chamadora, e o estado volta intacto
 

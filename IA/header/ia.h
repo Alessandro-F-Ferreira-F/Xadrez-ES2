@@ -81,6 +81,7 @@ Aprofundamento iterativo: busca com limite 1, 2, ..., profundidade
 uma iteração completa achar mate (para qualquer lado).
     profundidade: 1 <= profundidade <= PROF_MAX
     tempoMs: em milissegundos, >= 0; TEMPO_SEM_LIMITE (0) desliga o relógio
+    se clock() falhar, o prazo conta como passado: só a iteração 1 roda
 A iteração interrompida pelo tempo é descartada: lance e score vêm da
 última iteração completa. A iteração 1 sempre termina, mesmo com o tempo
 esgotado, para que haja lance.
@@ -106,6 +107,14 @@ Sem esta chamada, o sorteio repete a mesma sequência a cada execução.
 */
 
 extern Play JOGADA;
+
+extern MoveList CANDIDATOS;
+/*
+Lances da raiz empatados no melhor valor na última iteração completa da última
+chamada de escolherJogada, na ordem do gerador. JOGADA.lance é CANDIDATOS.moves[0]
+com SORTEIO_DESLIGADO, ou um deles sorteado com SORTEIO_LIGADO.
+Esvaziada no início de escolherJogada; fica vazia se JOGADA.resultado != RESULTADO_SUCESSO.
+*/
 
 extern uint64_t NOS_VISITADOS;
 /*

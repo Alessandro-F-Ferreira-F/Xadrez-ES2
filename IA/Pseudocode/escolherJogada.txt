@@ -40,7 +40,8 @@ TIPO_INVALIDO = 0 -- valor padrão de JOGADA.tipo quando não há jogada
 TIPO_CENTIPEAO = 1
 TIPO_MATE = -1
 
-LIMIAR_MATE = MATE - profMax
+PROF_LIMITE = 2 * profMax -- ver minimax.txt
+LIMIAR_MATE = MATE - PROF_LIMITE
 
 SORTEIO_LIGADO = 1
 SORTEIO_DESLIGADO = 0

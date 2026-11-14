@@ -10,9 +10,12 @@
 #include <stdbool.h>
 
 // Constantes de compilação
-// PROF_MAX: teto do parâmetro profundidade de escolherJogada (go depth) e da
-// classificação de mate (LIMIAR_MATE); não é a profundidade usada na busca
+// PROF_MAX: teto do parâmetro profundidade de escolherJogada (go depth); não é
+// a profundidade usada na busca
 #define PROF_MAX 64
+// PROF_LIMITE: teto absoluto de profundidade de qualquer nó, inclusive além do
+// limite da iteração (quiescência); define a classificação de mate (LIMIAR_MATE)
+#define PROF_LIMITE (2 * PROF_MAX)
 #define TEMPO_SEM_LIMITE 0
 #define VARIANTE_MINIMAX 0
 #define VARIANTE_ALFA_BETA 1
@@ -27,7 +30,7 @@
 #define MATE 19999
 #define INFINITO 20000
 #define SCORE_INVALIDO 30000
-#define LIMIAR_MATE (MATE - PROF_MAX)
+#define LIMIAR_MATE (MATE - PROF_LIMITE)
 
 // Resultado da chamada de escolherJogada (JOGADA.resultado)
 // 0: sucesso; negativos: bug; positivos: partida terminada na raiz

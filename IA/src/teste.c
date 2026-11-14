@@ -497,8 +497,8 @@ int main(void){
     int casosPulados = 0;
 
     for(size_t i = 0; i < sizeof(casos)/sizeof(casos[0]); i ++){
-        // Mate a p meios-lances (p = MATE - |scoreBruto|) só é classificado como mate se p <= PROF_MAX
-        if(casos[i].tipoEsperado == TIPO_MATE && MATE - abs(casos[i].scoreBruto) > PROF_MAX){
+        // Mate a p meios-lances (p = MATE - |scoreBruto|) só é classificado como mate se p <= PROF_LIMITE
+        if(casos[i].tipoEsperado == TIPO_MATE && MATE - abs(casos[i].scoreBruto) > PROF_LIMITE){
             casosPulados ++;
             continue;
         }
@@ -512,7 +512,7 @@ int main(void){
 
     }
     
-    if(casosPulados) printf("Conversao: %d caso(s) de mate pulado(s) (p > PROF_MAX = %d)\n", casosPulados, PROF_MAX);
+    if(casosPulados) printf("Conversao: %d caso(s) de mate pulado(s) (p > PROF_LIMITE = %d)\n", casosPulados, PROF_LIMITE);
     if(retornoParser) printf("Erro de parser\n");
     if(retornoEvaluation) printf("Erro de avaliaçao\n");
     if(retornoConversao) printf("erro de conversao\n");

@@ -10,8 +10,8 @@
 #include <time.h>
 
 // Separação entre avaliação e mate: nenhum valor de avaliar pode ser
-// classificado como mate. Falha se PROF_MAX >= MATE - AVALIACAO_MAX (9384)
-_Static_assert(LIMIAR_MATE > AVALIACAO_MAX, "PROF_MAX grande demais: LIMIAR_MATE invade a faixa da avaliacao");
+// classificado como mate. Falha se PROF_LIMITE >= MATE - AVALIACAO_MAX (9384)
+_Static_assert(LIMIAR_MATE > AVALIACAO_MAX, "PROF_LIMITE grande demais: LIMIAR_MATE invade a faixa da avaliacao");
 
 // O relógio é consultado a cada INTERVALO_RELOGIO nós (potência de 2)
 #define INTERVALO_RELOGIO 1024

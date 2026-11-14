@@ -1,0 +1,30 @@
+-- Ordenação MVV-LVA (Most Valuable Victim, Least Valuable Attacker): capturas primeiro, da vítima mais valiosa para a menos valiosa; entre vítimas iguais, do atacante menos valioso para o mais valioso. Com os melhores lances primeiro, a poda alfa-beta corta mais cedo. Usada só em podaAlfaBeta: o minimax visita a árvore inteira em qualquer ordem e continua na ordem do gerador, como referência (v1)
+
+-- tipo(peça) é PIECE_TYPE: PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6. O rei nunca é vítima de lance legal
+
+-- notaMVVLVA: captura vale 8 * tipo(vítima) - tipo(atacante), entre 2 (peão capturado pelo rei) e 39 (dama capturada por peão). Como 8 * tipo(vítima) cresce de 8 em 8 e tipo(atacante) vai de 1 a 6, a vítima sempre domina e o atacante só desempata. Lance sem captura (inclusive promoção sem captura) vale 0, abaixo de toda captura
+
+-- En passant: a casa de destino está vazia; a vítima é o peão capturado. Promoção com captura: o atacante é o peão (a peça na origem antes do lance)
+
+-- LanceOrdenado é o registro {lance, nota}. listaOrdenada é local ao nó, como listaGerada
+
+-- Ordenação estável (inserção): um lance só passa à frente de nota estritamente menor, então lances de mesma nota (inclusive todos os de nota 0) ficam na ordem do gerador. A ordem resultante é determinística e previsível nos testes
+
+função notaMVVLVA(estado, lance):
+    se não move_is_capture(lance) então
+        retorna 0
+    se move_is_ep_capture(lance) então
+        vitima = PAWN
+    senão
+        vitima = tipo(estado.array[move_to(lance)])
+    atacante = tipo(estado.array[move_from(lance)])
+    retorna 8 * vitima - atacante
+
+função ordenarLances(estado, listaGerada, listaOrdenada):
+    para i = 0 ... listaGerada.count - 1 faça
+        atual = {listaGerada[i], notaMVVLVA(estado, listaGerada[i])}
+        j = i
+        enquanto j > 0 e listaOrdenada[j - 1].nota < atual.nota faça
+            listaOrdenada[j] = listaOrdenada[j - 1]
+            j = j - 1
+        listaOrdenada[j] = atual

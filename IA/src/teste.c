@@ -4,6 +4,7 @@
 #include "fen.h"
 #include "perft.h"
 #include "avaliar.h"
+#include "ordenar.h"
 #include "ia.h"
 #include "stubs.h"
 #include "movegen.h"
@@ -113,11 +114,11 @@ static const CasoEscolherJogada casosEscolherJogada[] = {
     {"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",                                VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RAIZ_AFOGAMENTO},
 };
 
-// v1 = v2: minimax e alfa-beta devem devolver o mesmo lance, score, tipo e CANDIDATOS (SORTEIO_DESLIGADO).
-// Sem esperado fixo: o esperado é o próprio minimax.
+// v1 = v2: minimax e alfa-beta devem devolver o mesmo score, tipo e conjunto de CANDIDATOS (SORTEIO_DESLIGADO),
+// e o lance do alfa-beta deve estar entre os candidatos do minimax. Sem esperado fixo: o esperado é o próprio minimax.
 // CANDIDATOS coincide porque os filhos da raiz são buscados com janela completa (valores exatos, não limites).
-// Válido para PROF_TESTE sem limite de tempo e enquanto as duas variantes percorrerem a raiz na mesma ordem
-// (com ordenação de lances, o lance e a ordem de CANDIDATOS podem diferir; o conjunto não).
+// Só o conjunto: o alfa-beta percorre a raiz em MVV-LVA e o minimax na ordem do gerador, então a ordem de
+// CANDIDATOS e o lance (CANDIDATOS.moves[0]) podem diferir. Válido para PROF_TESTE sem limite de tempo.
 // iteracoes: última iteração que deve rodar. Sem mate, PROF_TESTE; com mate em p meios-lances,
 // a busca para na iteração p + 1, a primeira que o vê
 typedef struct CasoV1V2{
@@ -169,6 +170,27 @@ static bool mesmosCandidatos(const MoveList *a, const MoveList *b){
     }
     return true;
 }
+
+static bool contemLance(const MoveList *lista, Move lance){
+    for(int i = 0; i < lista->count; i ++){
+        if(lista->moves[i] == lance) return true;
+    }
+    return false;
+}
+
+// Mesmos lances, em qualquer ordem (listas sem repetição, como as do gerador)
+static bool mesmoConjunto(const MoveList *a, const MoveList *b){
+    if(a->count != b->count) return false;
+    for(int i = 0; i < a->count; i ++){
+        if(!contemLance(b, a->moves[i])) return false;
+    }
+    return true;
+}
+
+// Ordenação MVV-LVA: uma captura de cada nota, todas distintas, incluindo en passant (d6)
+static const char *fenOrdenacao = "7k/8/8/q2pP1r1/1P6/1n3N2/2B5/3QK3 w - d6 0 1";
+// Capturas na ordem esperada: PxD (39), CxT (30), BxC (13), PxP e.p. (7), DxP (3)
+static const char *capturasOrdenacao[] = {"b4a5", "f3g5", "c2b3", "e5d6", "d1d5"};
 
 int main(void){
     init_square_tables();
@@ -248,13 +270,15 @@ int main(void){
         printf(" %u %u % " PRId32 " % " PRId32 " %" PRIu64 " %" PRIu64 " %" PRIu64 "\n", (unsigned) jogadaMinimax.lance, (unsigned) jogadaAlfaBeta.lance,
                jogadaMinimax.score, jogadaAlfaBeta.score, nosEsperados, nosMinimax, nosAlfaBeta);
 
-        // Contagem de nós: minimax exato; alfa-beta nunca visita mais que o minimax (mesma ordem de lances)
+        // Contagem de nós: minimax exato; alfa-beta nunca visita mais que o minimax (a poda percorre um
+        // subconjunto da árvore, em qualquer ordem de lances)
         if(nosMinimax != nosEsperados || nosAlfaBeta > nosMinimax || nosRepetida != nosAlfaBeta) retornoNos = 1;
 
         // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (MOVE_NONE) passariam no teste
         if(jogadaMinimax.resultado != RESULTADO_SUCESSO || jogadaAlfaBeta.resultado != RESULTADO_SUCESSO
-        || jogadaMinimax.lance != jogadaAlfaBeta.lance || jogadaMinimax.score != jogadaAlfaBeta.score
-        || jogadaMinimax.tipo != jogadaAlfaBeta.tipo || !mesmosCandidatos(&candidatosMinimax, &candidatosAlfaBeta)) retornoV1V2 = 1;
+        || jogadaMinimax.score != jogadaAlfaBeta.score || jogadaMinimax.tipo != jogadaAlfaBeta.tipo
+        || !mesmoConjunto(&candidatosMinimax, &candidatosAlfaBeta)
+        || !contemLance(&candidatosMinimax, jogadaAlfaBeta.lance)) retornoV1V2 = 1;
 
         if(jogadaRepetida.resultado != jogadaAlfaBeta.resultado || jogadaRepetida.lance != jogadaAlfaBeta.lance
         || jogadaRepetida.score != jogadaAlfaBeta.score || jogadaRepetida.tipo != jogadaAlfaBeta.tipo
@@ -350,6 +374,37 @@ int main(void){
     if(!lancesDistintos) retornoSorteio = 1;
     printf("\n");
 
+    // Teste da ordenação MVV-LVA: as capturas primeiro, na ordem esperada; depois os demais lances,
+    // na ordem do gerador (ordenação estável)
+
+    int retornoOrdenacao = 0;
+    int numCapturas = (int)(sizeof(capturasOrdenacao)/sizeof(capturasOrdenacao[0]));
+    LanceOrdenado ordenados[MAX_MOVES];
+    char textoLance[MOVE_STR_SIZE];
+
+    if(!fen_parse(fenOrdenacao, &board)) retornoOrdenacao = 1;
+    else{
+        generate_legal_moves(&board, &lancesRaiz);
+        ordenarLances(&board, &lancesRaiz, ordenados);
+
+        for(int i = 0; i < numCapturas && i < lancesRaiz.count; i ++){
+            move_to_str(ordenados[i].lance, textoLance);
+            printf(" %s %s %" PRId16 "\n", capturasOrdenacao[i], textoLance, ordenados[i].nota);
+
+            if(strcmp(textoLance, capturasOrdenacao[i]) != 0) retornoOrdenacao = 1;
+        }
+
+        int k = numCapturas;
+        for(int j = 0; j < lancesRaiz.count; j ++){
+            if(move_is_capture(lancesRaiz.moves[j])) continue;
+            if(k >= lancesRaiz.count || ordenados[k].lance != lancesRaiz.moves[j] || ordenados[k].nota != 0) retornoOrdenacao = 1;
+            k ++;
+        }
+        // k == count: as capturas esperadas são todas as capturas, e nenhum lance some ou repete
+        if(k != lancesRaiz.count) retornoOrdenacao = 1;
+    }
+    printf("\n");
+
     // Teste dos casos da avaliação do score do tabuleiro
 
     int retornoEvaluation = 0;
@@ -415,8 +470,9 @@ int main(void){
     if(retornoNos) printf("Erro na contagem de nos\n");
     if(retornoTempo) printf("Erro no limite de tempo\n");
     if(retornoSorteio) printf("Erro no sorteio\n");
+    if(retornoOrdenacao) printf("Erro na ordenacao\n");
 
     if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada || retornoV1V2 || retornoNos || retornoTempo
-    || retornoSorteio) return 1;
+    || retornoSorteio || retornoOrdenacao) return 1;
     return 0;
 }

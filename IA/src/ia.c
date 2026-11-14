@@ -1,5 +1,6 @@
 #include "ia.h"
 #include "avaliar.h"
+#include "ordenar.h"
 #include "pendenciasRegras.h"
 #include "makemove.h"
 #include "movegen.h"
@@ -195,15 +196,20 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
             else return 0;
         }
         else{
+            // MVV-LVA: capturas primeiro, para cortar mais cedo
+            LanceOrdenado listaOrdenada[MAX_MOVES];
+            ordenarLances(board, &listaGerada, listaOrdenada);
+
             if(board->side_to_move == WHITE){
                 int32_t melhor = -INFINITO;
             
                 for(int i = 0; i < listaGerada.count; i ++){
+                    Move lance = listaOrdenada[i].lance;
                     Undo undo;
 
-                    make_move(board, listaGerada.moves[i] ,&undo);
+                    make_move(board, lance, &undo);
                     int32_t atual = podaAlfaBeta(board, profundidade + 1, alfa, beta);
-                    unmake_move(board, listaGerada.moves[i], &undo);
+                    unmake_move(board, lance, &undo);
 
                     if(tempoEsgotado) return 0;
 
@@ -216,11 +222,11 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
 
                         if(profundidade == 0){
                             movelist_clear(&listaCandidatos);
-                            movelist_add(&listaCandidatos, listaGerada.moves[i]);
+                            movelist_add(&listaCandidatos, lance);
                         }
                     }
                     else if(atual == melhor && profundidade == 0){
-                        movelist_add(&listaCandidatos, listaGerada.moves[i]);
+                        movelist_add(&listaCandidatos, lance);
                     }
 
                     if(alfa >= beta){
@@ -234,11 +240,12 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
                 int32_t melhor = INFINITO;
 
                 for(int i = 0; i < listaGerada.count; i ++){
+                    Move lance = listaOrdenada[i].lance;
                     Undo undo;
 
-                    make_move(board, listaGerada.moves[i], &undo);
+                    make_move(board, lance, &undo);
                     int32_t atual = podaAlfaBeta(board, profundidade + 1, alfa, beta);
-                    unmake_move(board, listaGerada.moves[i], &undo);
+                    unmake_move(board, lance, &undo);
 
                     if(tempoEsgotado) return 0;
 
@@ -251,11 +258,11 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
 
                         if(profundidade == 0){
                             movelist_clear(&listaCandidatos);
-                            movelist_add(&listaCandidatos, listaGerada.moves[i]);
+                            movelist_add(&listaCandidatos, lance);
                         }
                     }
                     else if(atual == melhor && profundidade == 0){
-                        movelist_add(&listaCandidatos, listaGerada.moves[i]);
+                        movelist_add(&listaCandidatos, lance);
                     }
 
                     if(alfa >= beta){

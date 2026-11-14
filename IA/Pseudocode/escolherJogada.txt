@@ -6,7 +6,11 @@
 
 -- Aprofundamento iterativo: a busca roda com limiteIteracao = 1, 2, ..., profundidade (go depth), e para antes se o prazo de tempoMs milissegundos (go movetime) passar. tempoMs = TEMPO_SEM_LIMITE desliga o relógio. O prazo conta a partir do início da chamada
 
--- Só iterações completas valem: CANDIDATOS e scoreBruto guardam o resultado da última iteração que terminou. CANDIDATOS é global e pública (lida pelos testes do sorteio); listaCandidatos é a lista de trabalho da iteração corrente. Durante a iteração D, CANDIDATOS[0] é o melhor lance da iteração D - 1, que o alfa-beta percorre primeiro na raiz (ver alfa-beta.txt). A iteração interrompida pelo tempo é descartada (ela só viu parte da raiz)
+-- CANDIDATOS e scoreBruto guardam o resultado da última iteração aproveitada. CANDIDATOS é global e pública (lida pelos testes do sorteio); listaCandidatos é a lista de trabalho da iteração corrente. Durante a iteração D, CANDIDATOS[0] é o melhor lance da iteração D - 1, que o alfa-beta percorre primeiro na raiz (ver alfa-beta.txt)
+
+-- Iteração interrompida pelo tempo (ela só viu parte da raiz): no alfa-beta, se ao menos o primeiro filho da raiz (o melhor lance da iteração D - 1) completou, a parcial substitui a iteração D - 1: listaCandidatos e scoreParcial (ver alfa-beta.txt) só recebem filhos completos, todos com valor exato na profundidade D. Saber que o primeiro filho completou é listaCandidatos != lista vazia: só filho completo entra nela, e o primeiro filho completo sempre entra. Empates entre os filhos ainda não buscados ficam de fora, então a parcial pode ter menos candidatos que a iteração completa teria. No minimax (sem o melhor anterior primeiro), ou sem filho completo, a iteração é descartada
+
+-- PROF_ALCANCADA e PARCIAL_USADA são públicas, só instrumentação: o limite da iteração aproveitada e se ela foi parcial. Ficam em 0 e falso se JOGADA.resultado != RESULTADO_SUCESSO
 
 -- A iteração 1 roda com o relógio desligado (relogioAtivo falso), e por isso sempre termina: há lance mesmo com tempoMs muito pequeno. A partir da iteração 2, o relógio é conferido antes de começar cada iteração e durante a busca (ver estourouTempo em minimax.txt)
 
@@ -48,6 +52,8 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
     listaCandidatos.limpar()
     CANDIDATOS.limpar()
     nosVisitados = 0
+    PROF_ALCANCADA = 0
+    PARCIAL_USADA = falso
     relogioAtivo = falso
     tempoEsgotado = falso
     JOGADA.lance = MOVE_NONE
@@ -73,17 +79,24 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
             interromper
 
         listaCandidatos.limpar()
+        scoreParcial = SCORE_INVALIDO
         scoreIteracao = SCORE_INVALIDO
         se variante == VARIANTE_MINIMAX então
             scoreIteracao = minimax(estado, 0)
         senão se variante == VARIANTE_ALFA_BETA então
             scoreIteracao = podaAlfaBeta(estado, 0, ALFA, BETA)
 
-        se tempoEsgotado então -- iteração incompleta: descartada
+        se tempoEsgotado então -- iteração incompleta: ver comentário no topo
+            se variante == VARIANTE_ALFA_BETA e listaCandidatos != lista vazia então
+                CANDIDATOS = listaCandidatos
+                scoreBruto = scoreParcial
+                PROF_ALCANCADA = limiteIteracao
+                PARCIAL_USADA = verdadeiro
             interromper
 
         CANDIDATOS = listaCandidatos
         scoreBruto = scoreIteracao
+        PROF_ALCANCADA = limiteIteracao
 
         se |scoreBruto| >= LIMIAR_MATE então -- mate achado: ver comentário no topo
             interromper
@@ -99,6 +112,8 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
     -- Bloco defensivo: com resultado == RESULTADO_SUCESSO, a raiz tem ao menos um lance, a iteração 1 sempre termina e todo score está estritamente entre -INFINITO e +INFINITO, então CANDIDATOS nunca fica vazia. Se ficar, é bug interno
     se JOGADA.lance == MOVE_NONE então
         CANDIDATOS.limpar()
+        PROF_ALCANCADA = 0
+        PARCIAL_USADA = falso
         JOGADA.tipo = TIPO_INVALIDO
         JOGADA.score = SCORE_INVALIDO
         JOGADA.resultado = RESULTADO_ERRO_INTERNO

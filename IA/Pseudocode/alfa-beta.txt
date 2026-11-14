@@ -8,6 +8,8 @@
 
 -- Na raiz, o melhor lance da iteração anterior (CANDIDATOS[0], ver escolherJogada.txt) vem antes de todos: é o mais provável de continuar melhor, e com ele primeiro a poda corta mais cedo nos irmãos. CANDIDATOS guarda a última iteração completa e está vazia na iteração 1; nesse caso, e fora da raiz, primeiro = MOVE_NONE
 
+-- Na raiz, scoreParcial acompanha melhor (gravado junto com listaCandidatos). Com o tempo esgotado a raiz devolve 0 e melhor se perde; scoreParcial guarda o valor dos filhos que completaram, para escolherJogada aproveitar a iteração parcial (ver escolherJogada.txt). É estado da iteração, como listaCandidatos, e começa cada iteração em SCORE_INVALIDO
+
 função podaAlfaBeta(estado, profundidade, alfa, beta):
     nosVisitados = nosVisitados + 1
     se estourouTempo() então
@@ -47,6 +49,7 @@ função podaAlfaBeta(estado, profundidade, alfa, beta):
                         se profundidade == 0 então
                             listaCandidatos.limpar()
                             listaCandidatos.adiciona(lance)
+                            scoreParcial = melhor
                     senão se atual == melhor e profundidade == 0 então:
                         listaCandidatos.adiciona(lance)
                     
@@ -70,6 +73,7 @@ função podaAlfaBeta(estado, profundidade, alfa, beta):
                         se profundidade == 0 então
                             listaCandidatos.limpar()
                             listaCandidatos.adiciona(lance)
+                            scoreParcial = melhor
                     senão se atual == melhor e profundidade == 0 então:
                         listaCandidatos.adiciona(lance)
                     

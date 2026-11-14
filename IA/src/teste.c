@@ -206,13 +206,16 @@ int main(void){
             varTesteEmpate = casosEscolherJogada[i].testarEmpate;
             NOS_VISITADOS = 1; // sentinela: só volta a 0 se escolherJogada zerar
             CANDIDATOS.count = 1; // sentinela: só volta a 0 se escolherJogada esvaziar
+            PROF_ALCANCADA = 1; // sentinelas: só voltam a 0 e falso se escolherJogada zerar
+            PARCIAL_USADA = true;
             escolherJogada(&board, casosEscolherJogada[i].variante, casosEscolherJogada[i].randomizador,
                            casosEscolherJogada[i].profundidade, casosEscolherJogada[i].tempoMs);
             printf(" % " PRId8 " % " PRId8 "\n", JOGADA.resultado, casosEscolherJogada[i].resultadoEsperado);        
 
             if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != MOVE_NONE
             || JOGADA.score != SCORE_INVALIDO || JOGADA.tipo != TIPO_INVALIDO
-            || NOS_VISITADOS != 0 || CANDIDATOS.count != 0) retornoTesteEscolherJogada = 1; // sem sucesso na verificação, a busca não roda
+            || NOS_VISITADOS != 0 || CANDIDATOS.count != 0
+            || PROF_ALCANCADA != 0 || PARCIAL_USADA) retornoTesteEscolherJogada = 1; // sem sucesso na verificação, a busca não roda
         }
         else retornoTesteEscolherJogada = 1;
     }
@@ -251,12 +254,15 @@ int main(void){
         jogadaMinimax = JOGADA;
         candidatosMinimax = CANDIDATOS;
         uint64_t nosMinimax = NOS_VISITADOS;
+        // Sem limite de tempo: a última iteração rodada é completa
+        if(PROF_ALCANCADA != casosV1V2[i].iteracoes || PARCIAL_USADA) retornoV1V2 = 1;
 
         fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaAlfaBeta = JOGADA;
         candidatosAlfaBeta = CANDIDATOS;
         uint64_t nosAlfaBeta = NOS_VISITADOS;
+        if(PROF_ALCANCADA != casosV1V2[i].iteracoes || PARCIAL_USADA) retornoV1V2 = 1;
 
         fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
@@ -319,9 +325,19 @@ int main(void){
             if(lancesRaiz.moves[j] == JOGADA.lance) lanceLegal = true;
         }
 
-        printf(" %d %d %ld %u %" PRIu64 "\n", casosTempo[i].variante, casosTempo[i].tempoMs, gastoMs, (unsigned) JOGADA.lance, NOS_VISITADOS);
+        // A iteração aproveitada pode ser parcial (alfa-beta): os candidatos dela ainda têm de ser legais
+        bool candidatosLegais = CANDIDATOS.count > 0;
+        for(int j = 0; j < CANDIDATOS.count; j ++){
+            if(!contemLance(&lancesRaiz, CANDIDATOS.moves[j])) candidatosLegais = false;
+        }
+
+        // PROF_ALCANCADA e PARCIAL_USADA são medição: dependem do relógio, só se confere o que vale sempre
+        printf(" %d %d %ld %u %" PRIu64 " %d %d\n", casosTempo[i].variante, casosTempo[i].tempoMs, gastoMs, (unsigned) JOGADA.lance,
+               NOS_VISITADOS, PROF_ALCANCADA, (int) PARCIAL_USADA);
 
         if(JOGADA.resultado != RESULTADO_SUCESSO || !lanceLegal || strcmp(fenAntes, fenDepois) != 0
+        || !candidatosLegais || !contemLance(&CANDIDATOS, JOGADA.lance)
+        || PROF_ALCANCADA < 1 || (casosTempo[i].variante == VARIANTE_MINIMAX && PARCIAL_USADA)
         || NOS_VISITADOS < nosIteracao1 || gastoMs > casosTempo[i].tempoMs + FOLGA_TEMPO_MS) retornoTempo = 1;
     }
     printf("\n");

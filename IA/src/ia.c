@@ -19,7 +19,11 @@ _Static_assert(LIMIAR_MATE > AVALIACAO_MAX, "PROF_MAX grande demais: LIMIAR_MATE
 Play JOGADA;
 uint64_t NOS_VISITADOS;
 MoveList CANDIDATOS;
+int PROF_ALCANCADA;
+bool PARCIAL_USADA;
 static MoveList listaCandidatos;
+// Melhor valor entre os filhos da raiz já completos na iteração corrente (só alfa-beta)
+static int32_t scoreParcial;
 
 // Estado da iteração corrente, definido por escolherJogada antes de cada busca
 static int limiteIteracao;
@@ -224,9 +228,12 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
                             alfa = melhor;
                         }
 
+                        // scoreParcial acompanha melhor: se o tempo acabar no meio da raiz,
+                        // escolherJogada aproveita os filhos que completaram
                         if(profundidade == 0){
                             movelist_clear(&listaCandidatos);
                             movelist_add(&listaCandidatos, lance);
+                            scoreParcial = melhor;
                         }
                     }
                     else if(atual == melhor && profundidade == 0){
@@ -263,6 +270,7 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
                         if(profundidade == 0){
                             movelist_clear(&listaCandidatos);
                             movelist_add(&listaCandidatos, lance);
+                            scoreParcial = melhor;
                         }
                     }
                     else if(atual == melhor && profundidade == 0){
@@ -298,6 +306,8 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
     movelist_clear(&listaCandidatos);
     movelist_clear(&CANDIDATOS);
     NOS_VISITADOS = 0;
+    PROF_ALCANCADA = 0;
+    PARCIAL_USADA = false;
     relogioAtivo = false;
     tempoEsgotado = false;
 
@@ -314,7 +324,7 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
         else prazo = (int64_t)inicio + (int64_t)tempoMs * CLOCKS_PER_SEC / 1000;
     }
 
-    // Score da última iteração completa (os candidatos dela ficam em CANDIDATOS)
+    // Score da última iteração aproveitada (os candidatos dela ficam em CANDIDATOS)
     int32_t scoreBruto = SCORE_INVALIDO;
 
     for(limiteIteracao = 1; limiteIteracao <= profundidade; limiteIteracao ++){
@@ -324,6 +334,7 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
         if(relogioAtivo && prazoPassou()) break;
 
         movelist_clear(&listaCandidatos);
+        scoreParcial = SCORE_INVALIDO;
         int32_t scoreIteracao = SCORE_INVALIDO;
 
         if(variante == VARIANTE_MINIMAX){
@@ -333,11 +344,23 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
             scoreIteracao = podaAlfaBeta(board, 0, -INFINITO, INFINITO);
         }
 
-        // Iteração interrompida: candidatos e score incompletos, descartados
-        if(tempoEsgotado) break;
+        // Iteração interrompida. No alfa-beta, o primeiro filho da raiz é o melhor da iteração
+        // anterior; se ao menos ele completou (só filho completo entra em listaCandidatos), os
+        // filhos completos têm valor exato nesta profundidade e substituem a iteração anterior.
+        // No minimax, ou sem filho completo, a iteração é descartada
+        if(tempoEsgotado){
+            if(variante == VARIANTE_ALFA_BETA && listaCandidatos.count > 0){
+                CANDIDATOS = listaCandidatos;
+                scoreBruto = scoreParcial;
+                PROF_ALCANCADA = limiteIteracao;
+                PARCIAL_USADA = true;
+            }
+            break;
+        }
 
         CANDIDATOS = listaCandidatos;
         scoreBruto = scoreIteracao;
+        PROF_ALCANCADA = limiteIteracao;
 
         // Mate achado: uma iteração mais funda não acha mate mais curto
         if(abs(scoreBruto) >= LIMIAR_MATE) break;
@@ -356,6 +379,8 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
 
     if(JOGADA.lance == MOVE_NONE){
         movelist_clear(&CANDIDATOS);
+        PROF_ALCANCADA = 0;
+        PARCIAL_USADA = false;
         JOGADA.tipo = TIPO_INVALIDO;
         JOGADA.score = SCORE_INVALIDO;
         JOGADA.resultado = RESULTADO_ERRO_INTERNO;

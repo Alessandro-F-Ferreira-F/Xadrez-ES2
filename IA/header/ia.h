@@ -7,6 +7,7 @@
 
 // include para a estrutura
 #include <stdint.h>
+#include <stdbool.h>
 
 // Constantes de compilação
 // PROF_MAX: teto do parâmetro profundidade de escolherJogada (go depth) e da
@@ -82,7 +83,10 @@ uma iteração completa achar mate (para qualquer lado).
     profundidade: 1 <= profundidade <= PROF_MAX
     tempoMs: em milissegundos, >= 0; TEMPO_SEM_LIMITE (0) desliga o relógio
     se clock() falhar, o prazo conta como passado: só a iteração 1 roda
-A iteração interrompida pelo tempo é descartada: lance e score vêm da
+Iteração interrompida pelo tempo: no alfa-beta, se ao menos o primeiro filho
+da raiz (o melhor lance da iteração anterior) completou, lance e score vêm dos
+filhos que completaram (parcial; empates entre os filhos não buscados ficam de
+fora); senão, e sempre no minimax, ela é descartada e lance e score vêm da
 última iteração completa. A iteração 1 sempre termina, mesmo com o tempo
 esgotado, para que haja lance.
 
@@ -110,8 +114,9 @@ extern Play JOGADA;
 
 extern MoveList CANDIDATOS;
 /*
-Lances da raiz empatados no melhor valor na última iteração completa da última
-chamada de escolherJogada, na ordem em que a busca percorreu a raiz (minimax: a do
+Lances da raiz empatados no melhor valor na última iteração aproveitada (completa
+ou, no alfa-beta, parcial; ver escolherJogada) da última chamada de escolherJogada,
+na ordem em que a busca percorreu a raiz (minimax: a do
 gerador; alfa-beta: o melhor lance da iteração anterior primeiro, depois MVV-LVA,
 ver ordenar.h). JOGADA.lance é CANDIDATOS.moves[0]
 com SORTEIO_DESLIGADO, ou um deles sorteado com SORTEIO_LIGADO.
@@ -124,6 +129,17 @@ Número de nós visitados pela última chamada de escolherJogada: cada entrada
 em minimax ou podaAlfaBeta conta um nó, inclusive a raiz, somando todas as
 iterações (também a interrompida). Zerado no início de escolherJogada; fica em 0 se verificarChamada não devolver sucesso.
 Métrica de comparação entre variantes (mostra se a poda poda).
+*/
+
+extern int PROF_ALCANCADA;
+extern bool PARCIAL_USADA;
+/*
+Instrumentação da última chamada de escolherJogada:
+    PROF_ALCANCADA: limite da iteração aproveitada (a que gerou JOGADA)
+    PARCIAL_USADA: verdadeiro se essa iteração foi interrompida pelo tempo e
+    aproveitada parcialmente (só alfa-beta)
+Zeradas (0 e falso) no início de escolherJogada; ficam assim se
+JOGADA.resultado != RESULTADO_SUCESSO.
 */
 
 #endif

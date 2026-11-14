@@ -112,7 +112,8 @@ extern MoveList CANDIDATOS;
 /*
 Lances da raiz empatados no melhor valor na última iteração completa da última
 chamada de escolherJogada, na ordem em que a busca percorreu a raiz (minimax: a do
-gerador; alfa-beta: MVV-LVA, ver ordenar.h). JOGADA.lance é CANDIDATOS.moves[0]
+gerador; alfa-beta: o melhor lance da iteração anterior primeiro, depois MVV-LVA,
+ver ordenar.h). JOGADA.lance é CANDIDATOS.moves[0]
 com SORTEIO_DESLIGADO, ou um deles sorteado com SORTEIO_LIGADO.
 Esvaziada no início de escolherJogada; fica vazia se JOGADA.resultado != RESULTADO_SUCESSO.
 */

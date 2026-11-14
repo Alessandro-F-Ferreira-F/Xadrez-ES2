@@ -374,8 +374,10 @@ int main(void){
     if(!lancesDistintos) retornoSorteio = 1;
     printf("\n");
 
-    // Teste da ordenação MVV-LVA: as capturas primeiro, na ordem esperada; depois os demais lances,
-    // na ordem do gerador (ordenação estável)
+    // Teste da ordenação MVV-LVA: o lance primeiro (se houver) à frente, com NOTA_PRIMEIRO; depois as capturas,
+    // na ordem esperada; depois os demais lances, na ordem do gerador (ordenação estável).
+    // Casos de primeiro: nenhum (MOVE_NONE), o último lance sem captura do gerador (o que mais anda até a
+    // frente) e a captura de menor nota (sai do meio das capturas)
 
     int retornoOrdenacao = 0;
     int numCapturas = (int)(sizeof(capturasOrdenacao)/sizeof(capturasOrdenacao[0]));
@@ -385,25 +387,58 @@ int main(void){
     if(!fen_parse(fenOrdenacao, &board)) retornoOrdenacao = 1;
     else{
         generate_legal_moves(&board, &lancesRaiz);
-        ordenarLances(&board, &lancesRaiz, ordenados);
 
-        for(int i = 0; i < numCapturas && i < lancesRaiz.count; i ++){
-            move_to_str(ordenados[i].lance, textoLance);
-            printf(" %s %s %" PRId16 "\n", capturasOrdenacao[i], textoLance, ordenados[i].nota);
-
-            if(strcmp(textoLance, capturasOrdenacao[i]) != 0) retornoOrdenacao = 1;
-        }
-
-        int k = numCapturas;
+        Move ultimoSemCaptura = MOVE_NONE;
         for(int j = 0; j < lancesRaiz.count; j ++){
-            if(move_is_capture(lancesRaiz.moves[j])) continue;
-            if(k >= lancesRaiz.count || ordenados[k].lance != lancesRaiz.moves[j] || ordenados[k].nota != 0) retornoOrdenacao = 1;
-            k ++;
+            if(!move_is_capture(lancesRaiz.moves[j])) ultimoSemCaptura = lancesRaiz.moves[j];
         }
-        // k == count: as capturas esperadas são todas as capturas, e nenhum lance some ou repete
-        if(k != lancesRaiz.count) retornoOrdenacao = 1;
+        int indiceCaptura = movelist_find(&lancesRaiz, capturasOrdenacao[numCapturas - 1]);
+        Move menorCaptura = (indiceCaptura >= 0) ? lancesRaiz.moves[indiceCaptura] : MOVE_NONE;
+
+        // Sem esses lances na FEN, os casos 2 e 3 repetiriam o caso 1 sem avisar
+        if(ultimoSemCaptura == MOVE_NONE || menorCaptura == MOVE_NONE) retornoOrdenacao = 1;
+
+        const Move primeiros[] = {MOVE_NONE, ultimoSemCaptura, menorCaptura};
+
+        for(size_t c = 0; c < sizeof(primeiros)/sizeof(primeiros[0]); c ++){
+            Move primeiro = primeiros[c];
+            char textoPrimeiro[MOVE_STR_SIZE];
+            move_to_str(primeiro, textoPrimeiro); // MOVE_NONE: "a1a1", que não casa com nenhuma captura
+
+            ordenarLances(&board, &lancesRaiz, primeiro, ordenados);
+            int k = 0;
+
+            if(primeiro != MOVE_NONE){
+                move_to_str(ordenados[0].lance, textoLance);
+                printf(" primeiro %s %" PRId16 "\n", textoLance, ordenados[0].nota);
+
+                if(ordenados[0].lance != primeiro || ordenados[0].nota != NOTA_PRIMEIRO) retornoOrdenacao = 1;
+                k = 1;
+            }
+
+            for(int i = 0; i < numCapturas; i ++){
+                if(strcmp(capturasOrdenacao[i], textoPrimeiro) == 0) continue;
+                if(k >= lancesRaiz.count){
+                    retornoOrdenacao = 1;
+                    break;
+                }
+                move_to_str(ordenados[k].lance, textoLance);
+                printf(" %s %s %" PRId16 "\n", capturasOrdenacao[i], textoLance, ordenados[k].nota);
+
+                if(strcmp(textoLance, capturasOrdenacao[i]) != 0) retornoOrdenacao = 1;
+                k ++;
+            }
+
+            for(int j = 0; j < lancesRaiz.count; j ++){
+                if(move_is_capture(lancesRaiz.moves[j]) || lancesRaiz.moves[j] == primeiro) continue;
+                if(k >= lancesRaiz.count || ordenados[k].lance != lancesRaiz.moves[j] || ordenados[k].nota != 0) retornoOrdenacao = 1;
+                k ++;
+            }
+            // k == count: as capturas esperadas são todas as capturas, e nenhum lance some ou repete
+            if(k != lancesRaiz.count) retornoOrdenacao = 1;
+            printf("\n");
+        }
     }
-    printf("\n");
 
     // Teste dos casos da avaliação do score do tabuleiro
 

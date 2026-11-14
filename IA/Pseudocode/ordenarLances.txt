@@ -6,6 +6,8 @@
 
 -- En passant: a casa de destino está vazia; a vítima é o peão capturado. Promoção com captura: o atacante é o peão (a peça na origem antes do lance)
 
+-- primeiro: lance que vem antes de todos, com nota NOTA_PRIMEIRO = 64 (acima da maior nota MVV-LVA, 39). Na raiz do alfa-beta é o melhor lance da iteração anterior (ver alfa-beta.txt); nos demais nós, e na iteração 1, é MOVE_NONE (a1->a1, nunca legal), e nenhum lance recebe NOTA_PRIMEIRO
+
 -- LanceOrdenado é o registro {lance, nota}. listaOrdenada é local ao nó, como listaGerada
 
 -- Ordenação estável (inserção): um lance só passa à frente de nota estritamente menor, então lances de mesma nota (inclusive todos os de nota 0) ficam na ordem do gerador. A ordem resultante é determinística e previsível nos testes
@@ -20,9 +22,12 @@ função notaMVVLVA(estado, lance):
     atacante = tipo(estado.array[move_from(lance)])
     retorna 8 * vitima - atacante
 
-função ordenarLances(estado, listaGerada, listaOrdenada):
+função ordenarLances(estado, listaGerada, primeiro, listaOrdenada):
     para i = 0 ... listaGerada.count - 1 faça
-        atual = {listaGerada[i], notaMVVLVA(estado, listaGerada[i])}
+        se listaGerada[i] == primeiro então
+            atual = {listaGerada[i], NOTA_PRIMEIRO}
+        senão
+            atual = {listaGerada[i], notaMVVLVA(estado, listaGerada[i])}
         j = i
         enquanto j > 0 e listaOrdenada[j - 1].nota < atual.nota faça
             listaOrdenada[j] = listaOrdenada[j - 1]

@@ -12,14 +12,19 @@ typedef struct LanceOrdenado{
     int16_t nota;
 } LanceOrdenado;
 
-void ordenarLances(const Board *board, const MoveList *lista, LanceOrdenado ordenados[]);
+// Nota do lance que deve vir primeiro: acima da maior nota MVV-LVA (39, dama capturada por peão)
+#define NOTA_PRIMEIRO 64
+
+void ordenarLances(const Board *board, const MoveList *lista, Move primeiro, LanceOrdenado ordenados[]);
 /*
 Copia os lista->count lances de lista para ordenados[0..lista->count - 1], em ordem
 decrescente de nota MVV-LVA (vítima mais valiosa, atacante menos valioso):
+    primeiro: nota = NOTA_PRIMEIRO (vem antes de todos)
     captura: nota = 8 * tipo(vítima) - tipo(atacante), sempre > 0
         en passant: vítima é peão; promoção com captura: atacante é peão
     demais lances (inclusive promoção sem captura): nota = 0
 Ordenação estável: lances de mesma nota ficam na ordem de lista (a do gerador).
+primeiro == MOVE_NONE (a1->a1, nunca legal): nenhum lance recebe NOTA_PRIMEIRO.
 
 Pré-condição:
     lista gerada para board (os lances são de board, ainda não feitos)

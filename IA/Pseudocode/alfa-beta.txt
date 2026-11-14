@@ -6,6 +6,8 @@
 
 -- Os lances são percorridos em ordem MVV-LVA (ver ordenarLances.txt), não na ordem do gerador: listaOrdenada é local ao nó, como listaGerada. Por isso listaCandidatos sai na ordem MVV-LVA, e o lance escolhido com o sorteio desligado pode diferir do minimax entre candidatos empatados; o conjunto de candidatos e o valor não mudam
 
+-- Na raiz, o melhor lance da iteração anterior (CANDIDATOS[0], ver escolherJogada.txt) vem antes de todos: é o mais provável de continuar melhor, e com ele primeiro a poda corta mais cedo nos irmãos. CANDIDATOS guarda a última iteração completa e está vazia na iteração 1; nesse caso, e fora da raiz, primeiro = MOVE_NONE
+
 função podaAlfaBeta(estado, profundidade, alfa, beta):
     nosVisitados = nosVisitados + 1
     se estourouTempo() então
@@ -24,7 +26,10 @@ função podaAlfaBeta(estado, profundidade, alfa, beta):
                 senão retorna MATE - profundidade
             senão retorna 0
         senão:
-            listaOrdenada = ordenarLances(estado, listaGerada)
+            primeiro = MOVE_NONE
+            se profundidade == 0 e CANDIDATOS != lista vazia então
+                primeiro = CANDIDATOS[0]
+            listaOrdenada = ordenarLances(estado, listaGerada, primeiro)
             se estado.side_to_move == WHITE faça
                 melhor = -INFINITO
                 para todo lance em listaOrdenada faça

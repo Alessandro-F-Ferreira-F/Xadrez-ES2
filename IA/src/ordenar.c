@@ -1,5 +1,8 @@
 #include "ordenar.h"
 
+// O lance primeiro precisa vir antes de qualquer captura (maior nota MVV-LVA: dama capturada por peão)
+_Static_assert(NOTA_PRIMEIRO > 8 * QUEEN - PAWN, "NOTA_PRIMEIRO nao supera a maior nota MVV-LVA");
+
 // Nota MVV-LVA: a vítima domina (8 * vítima >= 8 > 6 >= atacante), o atacante desempata
 static int16_t notaMVVLVA(const Board *board, Move lance){
     if(!move_is_capture(lance)) return 0;
@@ -12,11 +15,12 @@ static int16_t notaMVVLVA(const Board *board, Move lance){
 }
 
 // Inserção estável: só passa à frente de nota estritamente menor
-void ordenarLances(const Board *board, const MoveList *lista, LanceOrdenado ordenados[]){
+void ordenarLances(const Board *board, const MoveList *lista, Move primeiro, LanceOrdenado ordenados[]){
     for(int i = 0; i < lista->count; i ++){
         LanceOrdenado atual;
         atual.lance = lista->moves[i];
-        atual.nota = notaMVVLVA(board, atual.lance);
+        if(atual.lance == primeiro) atual.nota = NOTA_PRIMEIRO;
+        else atual.nota = notaMVVLVA(board, atual.lance);
 
         int j = i;
         while(j > 0 && ordenados[j - 1].nota < atual.nota){

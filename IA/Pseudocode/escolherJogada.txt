@@ -6,7 +6,7 @@
 
 -- Aprofundamento iterativo: a busca roda com limiteIteracao = 1, 2, ..., profundidade (go depth), e para antes se o prazo de tempoMs milissegundos (go movetime) passar. tempoMs = TEMPO_SEM_LIMITE desliga o relógio. O prazo conta a partir do início da chamada
 
--- Só iterações completas valem: CANDIDATOS e scoreBruto guardam o resultado da última iteração que terminou. CANDIDATOS é global e pública (lida pelos testes do sorteio); listaCandidatos é a lista de trabalho da iteração corrente. A iteração interrompida pelo tempo é descartada (sem ordenação de lances, ela só viu parte da raiz)
+-- Só iterações completas valem: CANDIDATOS e scoreBruto guardam o resultado da última iteração que terminou. CANDIDATOS é global e pública (lida pelos testes do sorteio); listaCandidatos é a lista de trabalho da iteração corrente. Durante a iteração D, CANDIDATOS[0] é o melhor lance da iteração D - 1, que o alfa-beta percorre primeiro na raiz (ver alfa-beta.txt). A iteração interrompida pelo tempo é descartada (ela só viu parte da raiz)
 
 -- A iteração 1 roda com o relógio desligado (relogioAtivo falso), e por isso sempre termina: há lance mesmo com tempoMs muito pequeno. A partir da iteração 2, o relógio é conferido antes de começar cada iteração e durante a busca (ver estourouTempo em minimax.txt)
 

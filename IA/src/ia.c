@@ -196,9 +196,13 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
             else return 0;
         }
         else{
-            // MVV-LVA: capturas primeiro, para cortar mais cedo
+            // MVV-LVA: capturas primeiro, para cortar mais cedo. Na raiz, antes de tudo, o melhor lance da
+            // iteração anterior (CANDIDATOS guarda a última completa; vazia na iteração 1)
+            Move primeiro = MOVE_NONE;
+            if(profundidade == 0 && CANDIDATOS.count > 0) primeiro = CANDIDATOS.moves[0];
+
             LanceOrdenado listaOrdenada[MAX_MOVES];
-            ordenarLances(board, &listaGerada, listaOrdenada);
+            ordenarLances(board, &listaGerada, primeiro, listaOrdenada);
 
             if(board->side_to_move == WHITE){
                 int32_t melhor = -INFINITO;

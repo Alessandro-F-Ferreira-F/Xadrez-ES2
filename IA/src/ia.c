@@ -317,6 +317,9 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
 
         candidatosCompletos = listaCandidatos;
         scoreBruto = scoreIteracao;
+
+        // Mate achado: uma iteração mais funda não acha mate mais curto
+        if(abs(scoreBruto) >= LIMIAR_MATE) break;
     }
 
     if(candidatosCompletos.count > 0){

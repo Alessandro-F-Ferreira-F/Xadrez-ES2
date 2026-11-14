@@ -10,6 +10,9 @@
 
 -- A iteração 1 roda com o relógio desligado (relogioAtivo falso), e por isso sempre termina: há lance mesmo com tempoMs muito pequeno. A partir da iteração 2, o relógio é conferido antes de começar cada iteração e durante a busca (ver estourouTempo em minimax.txt)
 
+-- Parada por mate: se uma iteração completa devolve |scoreBruto| >= LIMIAR_MATE, o aprofundamento para. Um mate em p meios-lances achado com limite D (p <= D) já é exato: um mate mais curto teria aparecido na mesma iteração, e para o lado que leva mate todas as defesas já terminam em mate dentro de D. Uma iteração mais funda não muda lance nem score
+-- Com o limite D, o nó em profundidade D devolve avaliar antes de gerar lances; por isso um mate em p meios-lances só é visto a partir da iteração p + 1
+
 -- alfa e beta convencionados como -INFINITO e +INFINITO, respectivamente, para ficarem inicialmente fora do intervalo de valores possíveis do tabuleiro
 
 -- JOGADA é a estrutura que contém uma jogada com lance (tipo Move), score (preenchido por converterScore), tipo de score (se é mate, centipeão ou movimento inválido) e resultado da chamada (sucesso, bug ou partida terminada)
@@ -76,6 +79,9 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
 
         candidatosCompletos = listaCandidatos
         scoreBruto = scoreIteracao
+
+        se |scoreBruto| >= LIMIAR_MATE então -- mate achado: ver comentário no topo
+            interromper
 
     se candidatosCompletos != lista vazia então:
         converterScore(scoreBruto, estado.side_to_move, JOGADA) -- ver converterScore.txt

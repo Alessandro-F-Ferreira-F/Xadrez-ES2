@@ -77,7 +77,8 @@ Variante, randomizador, profundidade, tempoMs e raiz são verificados
 internamente; não há pré-condição a cargo do chamador.
 
 Aprofundamento iterativo: busca com limite 1, 2, ..., profundidade
-(go depth), parando antes se tempoMs (go movetime) se esgotar.
+(go depth), parando antes se tempoMs (go movetime) se esgotar ou se
+uma iteração completa achar mate (para qualquer lado).
     profundidade: 1 <= profundidade <= PROF_MAX
     tempoMs: em milissegundos, >= 0; TEMPO_SEM_LIMITE (0) desliga o relógio
 A iteração interrompida pelo tempo é descartada: lance e score vêm da

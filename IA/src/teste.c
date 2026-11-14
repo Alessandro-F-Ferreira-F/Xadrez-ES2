@@ -117,23 +117,30 @@ static const CasoEscolherJogada casosEscolherJogada[] = {
 // Sem esperado fixo: o esperado é o próprio minimax.
 // Válido para PROF_TESTE sem limite de tempo e enquanto as duas variantes percorrerem a raiz na mesma ordem
 // (com ordenação de lances, o lance pode diferir entre candidatos empatados).
-static const char *casosV1V2[] = {
-    // Muitos lances empatados na raiz: a ordem dos candidatos importa
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+// iteracoes: última iteração que deve rodar. Sem mate, PROF_TESTE; com mate em p meios-lances,
+// a busca para na iteração p + 1, a primeira que o vê
+typedef struct CasoV1V2{
+    const char *fen;
+    int iteracoes;
+} CasoV1V2;
 
-    // Mates em 1 e em 2, nos dois lados
-    "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
-    "r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1",
-    "6k1/8/8/8/8/8/8/RR4K1 w - - 0 1",
-    "rr4k1/8/8/8/8/8/8/6K1 b - - 0 1",
+static const CasoV1V2 casosV1V2[] = {
+    // Muitos lances empatados na raiz: a ordem dos candidatos importa
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",                PROF_TESTE},
+    {"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",              PROF_TESTE},
+
+    // Mates em 1 (p = 1) e em 2 (p = 3), nos dois lados
+    {"6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",                                       2},
+    {"r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1",                                       2},
+    {"6k1/8/8/8/8/8/8/RR4K1 w - - 0 1",                                         4},
+    {"rr4k1/8/8/8/8/8/8/6K1 b - - 0 1",                                         4},
 
     // Ganho de material, nos dois lados
-    "4k3/8/8/3q4/8/8/8/3QK3 w - - 0 1",
-    "3qk3/8/8/8/3Q4/8/8/4K3 b - - 0 1",
+    {"4k3/8/8/3q4/8/8/8/3QK3 w - - 0 1",                                        PROF_TESTE},
+    {"3qk3/8/8/8/3Q4/8/8/4K3 b - - 0 1",                                        PROF_TESTE},
 
     // Meio-jogo carregado (kiwipete)
-    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    {"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",    PROF_TESTE},
 };
 
 #define FOLGA_TEMPO_MS 50
@@ -185,35 +192,35 @@ int main(void){
     varTesteEmpate = SEM_EMPATE;
 
     for(size_t i = 0; i < sizeof(casosV1V2)/sizeof(casosV1V2[0]); i ++){
-        if(!fen_parse(casosV1V2[i], &board)){
+        if(!fen_parse(casosV1V2[i].fen, &board)){
             retornoV1V2 = 1;
             continue;
         }
         // Esperado exato do minimax: sem empate por regra, a iteração de limite D visita todo nó
-        // até D, e nós terminais não têm filhos, como no perft. Soma das iterações D = 1..PROF_TESTE.
+        // até D, e nós terminais não têm filhos, como no perft. Soma das iterações D = 1..iteracoes.
         // O perft ignora a regra dos 50 lances; o minimax corta no empate. Para a soma valer
         // também com a regra real, o halfmove_clock não pode chegar a 100 dentro da árvore
         if(board.halfmove_clock + PROF_TESTE >= 100){
-            printf("FEN v1 = v2 com halfmove alto demais para PROF_TESTE: %s\n", casosV1V2[i]);
+            printf("FEN v1 = v2 com halfmove alto demais para PROF_TESTE: %s\n", casosV1V2[i].fen);
             retornoNos = 1;
             continue;
         }
         uint64_t nosEsperados = 0;
-        for(int limite = 1; limite <= PROF_TESTE; limite ++){
+        for(int limite = 1; limite <= casosV1V2[i].iteracoes; limite ++){
             for(int d = 0; d <= limite; d ++) nosEsperados += perft(&board, d);
         }
 
-        fen_parse(casosV1V2[i], &board);
+        fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_MINIMAX, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaMinimax = JOGADA;
         uint64_t nosMinimax = NOS_VISITADOS;
 
-        fen_parse(casosV1V2[i], &board);
+        fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaAlfaBeta = JOGADA;
         uint64_t nosAlfaBeta = NOS_VISITADOS;
 
-        fen_parse(casosV1V2[i], &board);
+        fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaRepetida = JOGADA;
         uint64_t nosRepetida = NOS_VISITADOS;

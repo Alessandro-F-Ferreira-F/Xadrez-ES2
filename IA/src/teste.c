@@ -302,20 +302,23 @@ int main(void){
     }
     printf("\n");
 
-    // Teste do sorteio: posição inicial, com muitos candidatos empatados em cp 0.
+    // Teste do sorteio: torre preta solta que quatro peças brancas capturam (4 candidatos entre 35 lances legais).
     // Desligado: o lance é o primeiro candidato. Ligado: o lance está entre os candidatos, o score
     // não muda, a mesma semente repete o lance e sementes diferentes não dão sempre o mesmo lance
 
     int retornoSorteio = 0;
-    const char *fenSorteio = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    const char *fenSorteio = "7k/8/8/3r4/5N2/1BN5/8/3QK3 w - - 0 1";
 
     fen_parse(fenSorteio, &board);
+    generate_legal_moves(&board, &lancesRaiz);
     escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
     Play jogadaDesligado = JOGADA;
     MoveList candidatosDesligado = CANDIDATOS;
 
-    // Com menos de 2 candidatos, o sorteio não teria o que sortear
+    // Com menos de 2 candidatos, o sorteio não teria o que sortear; com todos os lances legais como
+    // candidatos, "lance ∈ CANDIDATOS" não distinguiria candidato de lance legal qualquer
     if(jogadaDesligado.resultado != RESULTADO_SUCESSO || candidatosDesligado.count < 2
+    || candidatosDesligado.count >= lancesRaiz.count
     || jogadaDesligado.lance != candidatosDesligado.moves[0]) retornoSorteio = 1;
 
     bool lancesDistintos = false;

@@ -113,10 +113,11 @@ static const CasoEscolherJogada casosEscolherJogada[] = {
     {"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",                                VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RAIZ_AFOGAMENTO},
 };
 
-// v1 = v2: minimax e alfa-beta devem devolver o mesmo lance, score e tipo (SORTEIO_DESLIGADO).
+// v1 = v2: minimax e alfa-beta devem devolver o mesmo lance, score, tipo e CANDIDATOS (SORTEIO_DESLIGADO).
 // Sem esperado fixo: o esperado é o próprio minimax.
+// CANDIDATOS coincide porque os filhos da raiz são buscados com janela completa (valores exatos, não limites).
 // Válido para PROF_TESTE sem limite de tempo e enquanto as duas variantes percorrerem a raiz na mesma ordem
-// (com ordenação de lances, o lance pode diferir entre candidatos empatados).
+// (com ordenação de lances, o lance e a ordem de CANDIDATOS podem diferir; o conjunto não).
 // iteracoes: última iteração que deve rodar. Sem mate, PROF_TESTE; com mate em p meios-lances,
 // a busca para na iteração p + 1, a primeira que o vê
 typedef struct CasoV1V2{
@@ -160,6 +161,14 @@ static const CasoTempo casosTempo[] = {
 // Sementes 1..NUM_SEMENTES no teste do sorteio
 #define NUM_SEMENTES 8
 
+// Mesmos lances, na mesma ordem
+static bool mesmosCandidatos(const MoveList *a, const MoveList *b){
+    if(a->count != b->count) return false;
+    for(int i = 0; i < a->count; i ++){
+        if(a->moves[i] != b->moves[i]) return false;
+    }
+    return true;
+}
 
 int main(void){
     init_square_tables();
@@ -190,6 +199,7 @@ int main(void){
 
     int retornoV1V2 = 0;
     Play jogadaMinimax, jogadaAlfaBeta, jogadaRepetida;
+    MoveList candidatosMinimax, candidatosAlfaBeta, candidatosRepetida;
     int retornoNos = 0;
     uint64_t totalNosMinimax = 0, totalNosAlfaBeta = 0;
 
@@ -217,16 +227,19 @@ int main(void){
         fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_MINIMAX, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaMinimax = JOGADA;
+        candidatosMinimax = CANDIDATOS;
         uint64_t nosMinimax = NOS_VISITADOS;
 
         fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaAlfaBeta = JOGADA;
+        candidatosAlfaBeta = CANDIDATOS;
         uint64_t nosAlfaBeta = NOS_VISITADOS;
 
         fen_parse(casosV1V2[i].fen, &board);
         escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
         jogadaRepetida = JOGADA;
+        candidatosRepetida = CANDIDATOS;
         uint64_t nosRepetida = NOS_VISITADOS;
 
         totalNosMinimax += nosMinimax;
@@ -241,10 +254,11 @@ int main(void){
         // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (MOVE_NONE) passariam no teste
         if(jogadaMinimax.resultado != RESULTADO_SUCESSO || jogadaAlfaBeta.resultado != RESULTADO_SUCESSO
         || jogadaMinimax.lance != jogadaAlfaBeta.lance || jogadaMinimax.score != jogadaAlfaBeta.score
-        || jogadaMinimax.tipo != jogadaAlfaBeta.tipo) retornoV1V2 = 1;
+        || jogadaMinimax.tipo != jogadaAlfaBeta.tipo || !mesmosCandidatos(&candidatosMinimax, &candidatosAlfaBeta)) retornoV1V2 = 1;
 
         if(jogadaRepetida.resultado != jogadaAlfaBeta.resultado || jogadaRepetida.lance != jogadaAlfaBeta.lance
-        || jogadaRepetida.score != jogadaAlfaBeta.score || jogadaRepetida.tipo != jogadaAlfaBeta.tipo) retornoV1V2 = 1;
+        || jogadaRepetida.score != jogadaAlfaBeta.score || jogadaRepetida.tipo != jogadaAlfaBeta.tipo
+        || !mesmosCandidatos(&candidatosRepetida, &candidatosAlfaBeta)) retornoV1V2 = 1;
     }
 
     // A poda precisa podar: no total, alfa-beta visita estritamente menos nós

@@ -4,11 +4,19 @@
 
 -- emXeque(estado) é a função que testa se o rei do lado da vez está em xeque, dado um estado
 
--- profMax é a constante de compilação global que estipula a profundidade máxima do minimax, dado que a pilha não é infinita e o tempo é limitado (profMax deve ser maior que 0)
+-- profMax é a constante de compilação global que estipula o teto da profundidade pedida a escolherJogada (go depth), dado que a pilha não é infinita (profMax deve ser maior que 0). Também define LIMIAR_MATE. Não é a profundidade da busca
+
+-- limiteIteracao é a variável global com a profundidade da iteração corrente do aprofundamento iterativo (1, 2, ..., profundidade pedida), definida por escolherJogada antes de cada busca (ver escolherJogada.txt)
+
+-- tempoEsgotado é a variável global (booleana) que indica que o prazo da chamada passou. É desligada em escolherJogada e, depois de ligada, fica ligada até a próxima chamada
+
+-- estourouTempo() liga tempoEsgotado se o prazo passou e devolve tempoEsgotado. O relógio só é consultado a cada INTERVALO_RELOGIO nós, e nunca na iteração 1 nem sem limite de tempo (ver escolherJogada.txt)
+
+-- Com tempo esgotado, o nó devolve 0 sem buscar, e o laço devolve 0 logo após desfazer o lance: o valor é descartado pela chamadora, e o estado volta intacto
 
 -- listaCandidatos variável global que guarda a lista de lances possíveis para serem escolhidos, todos empatados no melhor valor, com base nos critérios do minimax. Preenchida apenas na raiz da árvore de busca
 
--- nosVisitados é a variável global que conta os nós visitados pela busca (NOS_VISITADOS em C): cada entrada em minimax ou podaAlfaBeta conta um nó, inclusive a raiz. É zerada em escolherJogada
+-- nosVisitados é a variável global que conta os nós visitados pela busca (NOS_VISITADOS em C): cada entrada em minimax ou podaAlfaBeta conta um nó, inclusive a raiz, somando todas as iterações. É zerada em escolherJogada
 
 -- Valores utilizados como limite para os estados intermediários (ou seja, que não são fim de partida) no retorno de avaliar explicitados em avaliar.txt
 
@@ -19,9 +27,12 @@ INFINITO = 20000
 
 função minimax(estado, profundidade):
     nosVisitados = nosVisitados + 1
+    se estourouTempo() então
+        retorna 0
+
     se testeEmpateRegra(estado) então
         retorna 0
-    senão se profMax <= profundidade então
+    senão se limiteIteracao <= profundidade então
         retorna avaliar(estado)
     senão 
         listaGerada = generate_legal_moves(estado)
@@ -39,6 +50,8 @@ função minimax(estado, profundidade):
                     make_move(estado, lance, undo)
                     atual = minimax(estado, profundidade + 1)
                     unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
 
                     se atual > melhor então 
                         melhor = atual
@@ -55,6 +68,8 @@ função minimax(estado, profundidade):
                     make_move(estado, lance, undo)
                     atual = minimax(estado, profundidade + 1)
                     unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
 
                     se atual < melhor então
                         melhor = atual

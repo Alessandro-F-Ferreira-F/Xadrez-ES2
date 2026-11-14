@@ -6,9 +6,12 @@
 
 função podaAlfaBeta(estado, profundidade, alfa, beta):
     nosVisitados = nosVisitados + 1
+    se estourouTempo() então
+        retorna 0
+
     se testeEmpateRegra(estado) então
         retorna 0
-    senão se profMax <= profundidade então
+    senão se limiteIteracao <= profundidade então
         retorna avaliar(estado)
     senão 
         listaGerada = generate_legal_moves(estado)
@@ -26,6 +29,8 @@ função podaAlfaBeta(estado, profundidade, alfa, beta):
                     make_move(estado, lance, undo)
                     atual = podaAlfaBeta(estado, profundidade + 1, alfa, beta)
                     unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
 
                     se atual > melhor então 
                         melhor = atual
@@ -47,6 +52,8 @@ função podaAlfaBeta(estado, profundidade, alfa, beta):
                     make_move(estado, lance, undo)
                     atual = podaAlfaBeta(estado, profundidade + 1, alfa, beta)
                     unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
 
                     se atual < melhor então
                         melhor = atual

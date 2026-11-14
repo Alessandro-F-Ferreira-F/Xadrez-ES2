@@ -9,7 +9,10 @@
 #include <stdint.h>
 
 // Constantes de compilação
-#define PROF_MAX 4
+// PROF_MAX: teto do parâmetro profundidade de escolherJogada (go depth) e da
+// classificação de mate (LIMIAR_MATE); não é a profundidade usada na busca
+#define PROF_MAX 64
+#define TEMPO_SEM_LIMITE 0
 #define VARIANTE_MINIMAX 0
 #define VARIANTE_ALFA_BETA 1
 
@@ -33,6 +36,8 @@
 #define RESULTADO_ERRO_INTERNO (-1)
 #define RESULTADO_VARIANTE_INVALIDA (-2)
 #define RESULTADO_RANDOMIZADOR_INVALIDO (-3)
+#define RESULTADO_PROFUNDIDADE_INVALIDA (-4)
+#define RESULTADO_TEMPO_INVALIDO (-5)
 #define RESULTADO_SUCESSO 0
 #define RESULTADO_RAIZ_MATE 1
 #define RESULTADO_RAIZ_AFOGAMENTO 2
@@ -65,11 +70,19 @@ Após a chamada:
     p->tipo == TIPO_CENTIPEAO: p->score em centipeões
 */
 
-void escolherJogada(Board *board, int variante, int randomizador);
+void escolherJogada(Board *board, int variante, int randomizador, int profundidade, int tempoMs);
 /*
 Escolhe um lance para o lado da vez em board e grava o resultado em JOGADA.
-Variante, randomizador e raiz são verificados internamente; não há
-pré-condição a cargo do chamador.
+Variante, randomizador, profundidade, tempoMs e raiz são verificados
+internamente; não há pré-condição a cargo do chamador.
+
+Aprofundamento iterativo: busca com limite 1, 2, ..., profundidade
+(go depth), parando antes se tempoMs (go movetime) se esgotar.
+    profundidade: 1 <= profundidade <= PROF_MAX
+    tempoMs: em milissegundos, >= 0; TEMPO_SEM_LIMITE (0) desliga o relógio
+A iteração interrompida pelo tempo é descartada: lance e score vêm da
+última iteração completa. A iteração 1 sempre termina, mesmo com o tempo
+esgotado, para que haja lance.
 
 Após a chamada:
     os valores de JOGADA são válidos apenas após o término da chamada
@@ -96,8 +109,8 @@ extern Play JOGADA;
 extern uint64_t NOS_VISITADOS;
 /*
 Número de nós visitados pela última chamada de escolherJogada: cada entrada
-em minimax ou podaAlfaBeta conta um nó, inclusive a raiz. Zerado no início
-de escolherJogada; fica em 0 se verificarChamada não devolver sucesso.
+em minimax ou podaAlfaBeta conta um nó, inclusive a raiz, somando todas as
+iterações (também a interrompida). Zerado no início de escolherJogada; fica em 0 se verificarChamada não devolver sucesso.
 Métrica de comparação entre variantes (mostra se a poda poda).
 */
 

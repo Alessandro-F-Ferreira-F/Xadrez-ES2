@@ -18,7 +18,9 @@
 
 -- listaCandidatos variável global que guarda a lista de lances possíveis para serem escolhidos, todos empatados no melhor valor, com base nos critérios do minimax. Preenchida apenas na raiz da árvore de busca
 
--- nosVisitados é a variável global que conta os nós visitados pela busca (NOS_VISITADOS em C): cada entrada em minimax ou podaAlfaBeta conta um nó, inclusive a raiz, somando todas as iterações. É zerada em escolherJogada
+-- nosVisitados é a variável global que conta os nós visitados pela busca (NOS_VISITADOS em C): cada entrada em minimax, podaAlfaBeta, quiescenciaMinimax ou quiescenciaAlfaBeta conta um nó, inclusive a raiz, somando todas as iterações. É zerada em escolherJogada. NOS_QUIESCENCIA conta só as entradas nas funções de quiescência (ver quiescencia.txt)
+
+-- quiescenciaAtiva é a variável global (booleana) que liga a quiescência nas folhas: com ela, o nó em limiteIteracao chama a quiescência em vez de avaliar (ver quiescencia.txt). Definida por escolherJogada
 
 -- Valores utilizados como limite para os estados intermediários (ou seja, que não são fim de partida) no retorno de avaliar explicitados em avaliar.txt
 
@@ -35,7 +37,9 @@ função minimax(estado, profundidade):
     se testeEmpateRegra(estado) então
         retorna 0
     senão se limiteIteracao <= profundidade então
-        retorna avaliar(estado)
+        se quiescenciaAtiva então
+            retorna quiescenciaMinimax(estado, profundidade)
+        senão retorna avaliar(estado)
     senão 
         listaGerada = generate_legal_moves(estado)
         se listaGerada == vazio então

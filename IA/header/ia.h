@@ -23,6 +23,9 @@
 #define SORTEIO_LIGADO 1
 #define SORTEIO_DESLIGADO 0
 
+#define QUIESCENCIA_LIGADA 1
+#define QUIESCENCIA_DESLIGADA 0
+
 #define TIPO_INVALIDO 0
 #define TIPO_CENTIPEAO 1
 #define TIPO_MATE (-1)
@@ -42,6 +45,7 @@
 #define RESULTADO_RANDOMIZADOR_INVALIDO (-3)
 #define RESULTADO_PROFUNDIDADE_INVALIDA (-4)
 #define RESULTADO_TEMPO_INVALIDO (-5)
+#define RESULTADO_QUIESCENCIA_INVALIDA (-6)
 #define RESULTADO_SUCESSO 0
 #define RESULTADO_RAIZ_MATE 1
 #define RESULTADO_RAIZ_AFOGAMENTO 2
@@ -74,15 +78,18 @@ Após a chamada:
     p->tipo == TIPO_CENTIPEAO: p->score em centipeões
 */
 
-void escolherJogada(Board *board, int variante, int randomizador, int profundidade, int tempoMs);
+void escolherJogada(Board *board, int variante, int randomizador, int quiescencia, int profundidade, int tempoMs);
 /*
 Escolhe um lance para o lado da vez em board e grava o resultado em JOGADA.
-Variante, randomizador, profundidade, tempoMs e raiz são verificados
-internamente; não há pré-condição a cargo do chamador.
+Variante, randomizador, quiescencia, profundidade, tempoMs e raiz são
+verificados internamente; não há pré-condição a cargo do chamador.
 
 Aprofundamento iterativo: busca com limite 1, 2, ..., profundidade
 (go depth), parando antes se tempoMs (go movetime) se esgotar ou se
-uma iteração completa achar mate (para qualquer lado).
+uma iteração completa achar mate (para qualquer lado) dentro do limite.
+    quiescencia: QUIESCENCIA_LIGADA estende as folhas com capturas (e com
+    todas as evasões, em xeque) até a posição ficar quieta, nas duas
+    variantes; QUIESCENCIA_DESLIGADA avalia as folhas direto
     profundidade: 1 <= profundidade <= PROF_MAX
     tempoMs: em milissegundos, >= 0; TEMPO_SEM_LIMITE (0) desliga o relógio
     se clock() falhar, o prazo conta como passado: só a iteração 1 roda
@@ -91,7 +98,9 @@ da raiz (o melhor lance da iteração anterior) completou, lance e score vêm do
 filhos que completaram (parcial; empates entre os filhos não buscados ficam de
 fora); senão, e sempre no minimax, ela é descartada e lance e score vêm da
 última iteração completa. A iteração 1 sempre termina, mesmo com o tempo
-esgotado, para que haja lance.
+esgotado, para que haja lance. Com quiescência e relógio, a iteração 1 não tem
+custo limitado: uma passada de segurança (limite 1, sem quiescência, sem
+relógio) roda antes e garante o lance, e todas as iterações rodam sob o relógio.
 
 Após a chamada:
     os valores de JOGADA são válidos apenas após o término da chamada
@@ -129,16 +138,25 @@ Esvaziada no início de escolherJogada; fica vazia se JOGADA.resultado != RESULT
 extern uint64_t NOS_VISITADOS;
 /*
 Número de nós visitados pela última chamada de escolherJogada: cada entrada
-em minimax ou podaAlfaBeta conta um nó, inclusive a raiz, somando todas as
-iterações (também a interrompida). Zerado no início de escolherJogada; fica em 0 se verificarChamada não devolver sucesso.
+em minimax, podaAlfaBeta ou nas funções de quiescência conta um nó, inclusive
+a raiz, somando todas as iterações (também a interrompida). Zerado no início de escolherJogada; fica em 0 se verificarChamada não devolver sucesso.
 Métrica de comparação entre variantes (mostra se a poda poda).
+*/
+
+extern uint64_t NOS_QUIESCENCIA;
+/*
+Parte de NOS_VISITADOS que é entrada nas funções de quiescência; 0 com
+QUIESCENCIA_DESLIGADA. O nó do horizonte entra duas vezes em NOS_VISITADOS
+(na busca principal e como raiz da quiescência), então NOS_VISITADOS -
+NOS_QUIESCENCIA é a contagem da busca principal. Zerado junto com NOS_VISITADOS.
 */
 
 extern int PROF_ALCANCADA;
 extern bool PARCIAL_USADA;
 /*
 Instrumentação da última chamada de escolherJogada:
-    PROF_ALCANCADA: limite da iteração aproveitada (a que gerou JOGADA)
+    PROF_ALCANCADA: limite da iteração aproveitada (a que gerou JOGADA); 0 com
+    RESULTADO_SUCESSO se só a passada de segurança valeu (ver escolherJogada)
     PARCIAL_USADA: verdadeiro se essa iteração foi interrompida pelo tempo e
     aproveitada parcialmente (só alfa-beta)
 Zeradas (0 e falso) no início de escolherJogada; ficam assim se

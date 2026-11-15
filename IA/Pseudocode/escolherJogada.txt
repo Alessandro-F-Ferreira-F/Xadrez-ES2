@@ -1,8 +1,10 @@
--- Convenção adotada: VARIANTE_MINIMAX representa minimax puro, VARIANTE_ALFA_BETA representa poda alfa-beta. Esta convenção será usada dentro da função escolherJogada(estado, variante, randomizador, profundidade, tempoMs)
+-- Convenção adotada: VARIANTE_MINIMAX representa minimax puro, VARIANTE_ALFA_BETA representa poda alfa-beta. Esta convenção será usada dentro da função escolherJogada(estado, variante, randomizador, quiescencia, profundidade, tempoMs)
 
 -- Na função escolherJogada, o parâmetro randomizador deve receber SORTEIO_DESLIGADO ou SORTEIO_LIGADO, para desativar/ativar o sorteio da lista de listaCandidatos
 
--- A validade de variante, randomizador, profundidade e tempoMs, e a condição de raiz não terminal, são verificadas por verificarChamada(estado, variante, randomizador, profundidade, tempoMs) no início de escolherJogada (ver verificarChamada.txt). A busca só executa se o retorno for RESULTADO_SUCESSO
+-- Na função escolherJogada, o parâmetro quiescencia deve receber QUIESCENCIA_LIGADA ou QUIESCENCIA_DESLIGADA, para estender ou não as folhas com a quiescência (ver quiescencia.txt), nas duas variantes
+
+-- A validade de variante, randomizador, quiescencia, profundidade e tempoMs, e a condição de raiz não terminal, são verificadas por verificarChamada(estado, variante, randomizador, quiescencia, profundidade, tempoMs) no início de escolherJogada (ver verificarChamada.txt). A busca só executa se o retorno for RESULTADO_SUCESSO
 
 -- Aprofundamento iterativo: a busca roda com limiteIteracao = 1, 2, ..., profundidade (go depth), e para antes se o prazo de tempoMs milissegundos (go movetime) passar. tempoMs = TEMPO_SEM_LIMITE desliga o relógio. O prazo conta a partir do início da chamada
 
@@ -14,10 +16,13 @@
 
 -- A iteração 1 roda com o relógio desligado (relogioAtivo falso), e por isso sempre termina: há lance mesmo com tempoMs muito pequeno. A partir da iteração 2, o relógio é conferido antes de começar cada iteração e durante a busca (ver estourouTempo em minimax.txt)
 
+-- Com a quiescência, nem a iteração 1 tem custo limitado (medido: minimax no kiwipete passa de 60 s já com limite 1). Com relógio, roda antes uma passada de segurança: limite 1, sem quiescência e com o relógio desligado, que sempre termina (raiz + um nó por lance) e preenche CANDIDATOS e scoreBruto. Depois, todas as iterações, inclusive a 1, rodam com a quiescência e sob o relógio. A iteração 1 interrompida segue a regra da parcial (o primeiro filho é o melhor da passada de segurança); se nada for aproveitado, valem os candidatos da passada de segurança, e PROF_ALCANCADA fica 0 (com RESULTADO_SUCESSO). Sem limite de tempo não há passada de segurança
+
 -- prazoPassou() devolve verdadeiro se relógio() >= prazo ou se relógio() falhar (devolver (clock_t)-1): sem como medir o tempo, o prazo conta como passado. Se o relógio já falha no início, prazo = INT64_MIN e só a iteração 1 roda. prazo é guardado em inteiro de 64 bits: no Windows o clock_t tem 32 bits e inicio + tempoMs poderia estourar
 
--- Parada por mate: se uma iteração completa devolve |scoreBruto| >= LIMIAR_MATE, o aprofundamento para. Um mate em p meios-lances achado com limite D (p <= D) já é exato: um mate mais curto teria aparecido na mesma iteração, e para o lado que leva mate todas as defesas já terminam em mate dentro de D. Uma iteração mais funda não muda lance nem score
--- Com o limite D, o nó em profundidade D devolve avaliar antes de gerar lances; por isso um mate em p meios-lances só é visto a partir da iteração p + 1
+-- Parada por mate: se uma iteração completa devolve |scoreBruto| >= MATE - limiteIteracao (mate a até limiteIteracao meios-lances), o aprofundamento para. Um mate em p meios-lances achado com limite D (p <= D) já é exato: um mate mais curto teria aparecido na mesma iteração, e para o lado que leva mate todas as defesas já terminam em mate dentro de D. Uma iteração mais funda não muda lance nem score
+-- Um mate achado só na quiescência (p > D) não para: lá a busca não tem largura completa, e o mate pode não ser o mais curto. Sem a quiescência, todo mate tem p < D, e a condição equivale à antiga |scoreBruto| >= LIMIAR_MATE
+-- Com o limite D e sem a quiescência, o nó em profundidade D devolve avaliar antes de gerar lances; por isso um mate em p meios-lances só é visto a partir da iteração p + 1. Com a quiescência, o nó em D gera os lances e reconhece o mate: ele é visto já na iteração p
 
 -- alfa e beta convencionados como -INFINITO e +INFINITO, respectivamente, para ficarem inicialmente fora do intervalo de valores possíveis do tabuleiro
 
@@ -46,13 +51,17 @@ LIMIAR_MATE = MATE - PROF_LIMITE
 SORTEIO_LIGADO = 1
 SORTEIO_DESLIGADO = 0
 
+QUIESCENCIA_LIGADA = 1
+QUIESCENCIA_DESLIGADA = 0
+
 TEMPO_SEM_LIMITE = 0
 
-função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
+função escolherJogada(estado, variante, randomizador, quiescencia, profundidade, tempoMs):
     inicio = relógio()
     listaCandidatos.limpar()
     CANDIDATOS.limpar()
     nosVisitados = 0
+    NOS_QUIESCENCIA = 0
     PROF_ALCANCADA = 0
     PARCIAL_USADA = falso
     relogioAtivo = falso
@@ -60,7 +69,7 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
     JOGADA.lance = MOVE_NONE
     JOGADA.score = SCORE_INVALIDO
     JOGADA.tipo = TIPO_INVALIDO
-    JOGADA.resultado = verificarChamada(estado, variante, randomizador, profundidade, tempoMs)
+    JOGADA.resultado = verificarChamada(estado, variante, randomizador, quiescencia, profundidade, tempoMs)
 
     se JOGADA.resultado != RESULTADO_SUCESSO então
         retorna
@@ -73,8 +82,22 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
 
     scoreBruto = SCORE_INVALIDO
 
+    passadaSeguranca = (tempoMs != TEMPO_SEM_LIMITE e quiescencia == QUIESCENCIA_LIGADA) -- ver comentário no topo
+    se passadaSeguranca então
+        limiteIteracao = 1
+        quiescenciaAtiva = falso
+        relogioAtivo = falso
+        listaCandidatos.limpar()
+        se variante == VARIANTE_MINIMAX então
+            scoreBruto = minimax(estado, 0)
+        senão se variante == VARIANTE_ALFA_BETA então
+            scoreBruto = podaAlfaBeta(estado, 0, ALFA, BETA)
+        CANDIDATOS = listaCandidatos -- PROF_ALCANCADA continua 0
+
+    quiescenciaAtiva = (quiescencia == QUIESCENCIA_LIGADA)
+
     para limiteIteracao de 1 até profundidade faça
-        relogioAtivo = (tempoMs != TEMPO_SEM_LIMITE e limiteIteracao > 1)
+        relogioAtivo = (tempoMs != TEMPO_SEM_LIMITE e (limiteIteracao > 1 ou passadaSeguranca))
 
         se relogioAtivo e prazoPassou() então
             interromper
@@ -99,7 +122,7 @@ função escolherJogada(estado, variante, randomizador, profundidade, tempoMs):
         scoreBruto = scoreIteracao
         PROF_ALCANCADA = limiteIteracao
 
-        se |scoreBruto| >= LIMIAR_MATE então -- mate achado: ver comentário no topo
+        se |scoreBruto| >= MATE - limiteIteracao então -- mate achado dentro do limite: ver comentário no topo
             interromper
 
     se CANDIDATOS != lista vazia então:

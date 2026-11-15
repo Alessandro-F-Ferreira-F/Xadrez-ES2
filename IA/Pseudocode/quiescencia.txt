@@ -1,0 +1,149 @@
+-- A quiescência continua a busca além de limiteIteracao só com capturas, até a posição ficar quieta. Sem ela, a folha em limiteIteracao é avaliada no meio de uma troca (efeito horizonte: uma dama que captura um peão defendido parece ganhar o peão, porque a recaptura fica além do limite)
+
+-- É chamada por minimax e podaAlfaBeta no nó em limiteIteracao quando quiescenciaAtiva (ver minimax.txt e alfa-beta.txt), no lugar de avaliar, com a mesma profundidade: o nó do horizonte é a raiz da quiescência. Nunca é a raiz da busca (profundidade >= limiteIteracao >= 1)
+
+-- Todo o bloco inicial de comentários de minimax.txt vale aqui, além dos valores MATE e INFINITO. Cada entrada conta um nó em nosVisitados e em NOS_QUIESCENCIA. O nó do horizonte entra duas vezes em nosVisitados (na busca principal e como raiz da quiescência), então nosVisitados - NOS_QUIESCENCIA é a contagem da busca principal, que no minimax continua exata pelo perft
+
+-- Ordem do caso base: tempo esgotado, empate por regra, teto PROF_LIMITE, gerar lances, lista vazia (xeque = mate, senão afogamento), stand-pat (fora de xeque), laço. A lista vazia vem antes do stand-pat: sem lances legais e fora de xeque é afogamento (0), não avaliar
+
+-- PROF_LIMITE (ver minimax.txt): em profundidade PROF_LIMITE a quiescência devolve avaliar, mesmo em xeque. Assim todo mate fica a até PROF_LIMITE meios-lances (>= LIMIAR_MATE) e a pilha fica limitada
+
+-- Stand-pat: fora de xeque, o lado da vez não é obrigado a capturar; parar vale avaliar(estado), que entra como valor inicial de melhor. Em xeque, parar não é opção: melhor começa em -INFINITO (brancas) ou +INFINITO (pretas) e todas as evasões são buscadas, não só as capturas
+
+-- Lances buscados fora de xeque: só capturas (move_is_capture, que inclui en passant e promoção com captura, com todas as peças de promoção). Promoção sem captura não entra. O motor não tem gerador só de capturas: os lances legais são gerados e filtrados
+
+-- quiescenciaMinimax não poda e percorre os lances na ordem do gerador: é a referência de quiescenciaAlfaBeta (v1 = v2 com a quiescência ligada). O custo dela cresce rápido (a árvore de capturas sem poda explode, mais ainda com as evasões em xeque)
+
+-- quiescenciaAlfaBeta percorre os lances em ordem MVV-LVA (ordenarLances com primeiro = MOVE_NONE, ver ordenarLances.txt). O stand-pat entra como piso (brancas, alfa) ou teto (pretas, beta) antes dos lances e pode cortar sozinho. Como nunca é a raiz, alfa e beta sempre podem ser atualizados
+
+-- Com tempo esgotado, valem as regras de minimax.txt: o nó devolve 0 na entrada, e o laço devolve 0 logo após desfazer o lance
+
+função quiescenciaMinimax(estado, profundidade):
+    nosVisitados = nosVisitados + 1
+    NOS_QUIESCENCIA = NOS_QUIESCENCIA + 1
+    se estourouTempo() então
+        retorna 0
+
+    se testeEmpateRegra(estado) então
+        retorna 0
+    senão se PROF_LIMITE <= profundidade então
+        retorna avaliar(estado)
+    senão
+        listaGerada = generate_legal_moves(estado)
+        xeque = emXeque(estado)
+        se listaGerada == vazio então
+            se xeque então
+                se estado.side_to_move == WHITE então
+                    retorna -(MATE - profundidade)
+                senão retorna MATE - profundidade
+            senão retorna 0
+        senão:
+            se estado.side_to_move == WHITE faça
+                melhor = -INFINITO
+                se não xeque então
+                    melhor = avaliar(estado) -- stand-pat
+                para todo lance em listaGerada faça
+                    se não xeque e não move_is_capture(lance) então
+                        continuar
+                    undo = novo registro
+                    make_move(estado, lance, undo)
+                    atual = quiescenciaMinimax(estado, profundidade + 1)
+                    unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
+
+                    se atual > melhor então
+                        melhor = atual
+                retornar melhor
+            senão:
+                melhor = INFINITO
+                se não xeque então
+                    melhor = avaliar(estado) -- stand-pat
+                para todo lance em listaGerada faça
+                    se não xeque e não move_is_capture(lance) então
+                        continuar
+                    undo = novo registro
+                    make_move(estado, lance, undo)
+                    atual = quiescenciaMinimax(estado, profundidade + 1)
+                    unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
+
+                    se atual < melhor então
+                        melhor = atual
+                retornar melhor
+
+função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
+    nosVisitados = nosVisitados + 1
+    NOS_QUIESCENCIA = NOS_QUIESCENCIA + 1
+    se estourouTempo() então
+        retorna 0
+
+    se testeEmpateRegra(estado) então
+        retorna 0
+    senão se PROF_LIMITE <= profundidade então
+        retorna avaliar(estado)
+    senão
+        listaGerada = generate_legal_moves(estado)
+        xeque = emXeque(estado)
+        se listaGerada == vazio então
+            se xeque então
+                se estado.side_to_move == WHITE então
+                    retorna -(MATE - profundidade)
+                senão retorna MATE - profundidade
+            senão retorna 0
+        senão:
+            se estado.side_to_move == WHITE faça
+                melhor = -INFINITO
+                se não xeque então
+                    melhor = avaliar(estado) -- stand-pat
+                    se melhor > alfa então
+                        alfa = melhor
+                    se alfa >= beta então
+                        retorna melhor
+                listaOrdenada = ordenarLances(estado, listaGerada, MOVE_NONE)
+                para todo lance em listaOrdenada faça
+                    se não xeque e não move_is_capture(lance) então
+                        continuar
+                    undo = novo registro
+                    make_move(estado, lance, undo)
+                    atual = quiescenciaAlfaBeta(estado, profundidade + 1, alfa, beta)
+                    unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
+
+                    se atual > melhor então
+                        melhor = atual
+                        se melhor > alfa então
+                            alfa = melhor
+
+                    se alfa >= beta então:
+                        interromper
+                retornar melhor
+            senão:
+                melhor = INFINITO
+                se não xeque então
+                    melhor = avaliar(estado) -- stand-pat
+                    se melhor < beta então
+                        beta = melhor
+                    se alfa >= beta então
+                        retorna melhor
+                listaOrdenada = ordenarLances(estado, listaGerada, MOVE_NONE)
+                para todo lance em listaOrdenada faça
+                    se não xeque e não move_is_capture(lance) então
+                        continuar
+                    undo = novo registro
+                    make_move(estado, lance, undo)
+                    atual = quiescenciaAlfaBeta(estado, profundidade + 1, alfa, beta)
+                    unmake_move(estado, lance, undo)
+                    se tempoEsgotado então
+                        retorna 0
+
+                    se atual < melhor então
+                        melhor = atual
+                        se melhor < beta então
+                            beta = melhor
+
+                    se alfa >= beta então:
+                        interromper
+                retornar melhor

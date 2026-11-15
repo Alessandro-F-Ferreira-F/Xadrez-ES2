@@ -18,6 +18,7 @@ _Static_assert(LIMIAR_MATE > AVALIACAO_MAX, "PROF_LIMITE grande demais: LIMIAR_M
 
 Play JOGADA;
 uint64_t NOS_VISITADOS;
+uint64_t NOS_QUIESCENCIA;
 MoveList CANDIDATOS;
 int PROF_ALCANCADA;
 bool PARCIAL_USADA;
@@ -27,6 +28,7 @@ static int32_t scoreParcial;
 
 // Estado da iteração corrente, definido por escolherJogada antes de cada busca
 static int limiteIteracao;
+static bool quiescenciaAtiva;
 static bool relogioAtivo;
 // Em int64_t: no Windows clock_t é long de 32 bits, e inicio + tempoMs pode estourar
 static int64_t prazo;
@@ -61,9 +63,10 @@ static bool emXeque(const Board *board){
     return is_square_attacked(board, board->king_square[board->side_to_move], board->side_to_move);
 }
 
-static int8_t verificarChamada(Board *board, int variante, int randomizador, int profundidade, int tempoMs){
+static int8_t verificarChamada(Board *board, int variante, int randomizador, int quiescencia, int profundidade, int tempoMs){
     if(variante != VARIANTE_MINIMAX && variante != VARIANTE_ALFA_BETA) return RESULTADO_VARIANTE_INVALIDA;
     if(randomizador != SORTEIO_LIGADO && randomizador != SORTEIO_DESLIGADO) return RESULTADO_RANDOMIZADOR_INVALIDO;
+    if(quiescencia != QUIESCENCIA_LIGADA && quiescencia != QUIESCENCIA_DESLIGADA) return RESULTADO_QUIESCENCIA_INVALIDA;
     if(profundidade < 1 || profundidade > PROF_MAX) return RESULTADO_PROFUNDIDADE_INVALIDA;
     if(tempoMs < 0) return RESULTADO_TEMPO_INVALIDO;
 
@@ -100,13 +103,198 @@ static bool estourouTempo(void){
     return tempoEsgotado;
 }
 
+// Quiescência: continua a busca além de limiteIteracao só com capturas, até a posição ficar quieta.
+// Fora de xeque, o lado da vez pode parar (stand-pat: vale avaliar) ou capturar; em xeque, parar não
+// é opção, e todas as evasões são buscadas. Sem lances legais, mate ou afogamento, como na busca
+// principal. Em PROF_LIMITE, devolve avaliar: mantém todo mate >= LIMIAR_MATE e a pilha limitada.
+// Versão sem poda, na ordem do gerador: referência da quiescência com poda (v1 = v2)
+static int32_t quiescenciaMinimax(Board *board, int profundidade){
+    NOS_VISITADOS ++;
+    NOS_QUIESCENCIA ++;
+
+    if(estourouTempo()) return 0;
+
+    if(testeEmpateRegra(board)) return 0;
+    else if(PROF_LIMITE <= profundidade) return avaliar(board);
+    else{
+        MoveList listaGerada;
+        generate_legal_moves(board, &listaGerada);
+        bool xeque = emXeque(board);
+
+        if(listaGerada.count == 0){
+            if(xeque){
+                if(board->side_to_move == WHITE){
+                    return -(MATE - profundidade);
+                }
+                else return MATE - profundidade;
+            }
+            else return 0;
+        }
+        else{
+            if(board->side_to_move == WHITE){
+                int32_t melhor = -INFINITO;
+                if(!xeque) melhor = avaliar(board);
+
+                for(int i = 0; i < listaGerada.count; i ++){
+                    Move lance = listaGerada.moves[i];
+                    if(!xeque && !move_is_capture(lance)) continue;
+                    Undo undo;
+
+                    make_move(board, lance, &undo);
+                    int32_t atual = quiescenciaMinimax(board, profundidade + 1);
+                    unmake_move(board, lance, &undo);
+
+                    if(tempoEsgotado) return 0;
+
+                    if(atual > melhor){
+                        melhor = atual;
+                    }
+                }
+
+                return melhor;
+            }
+            else{
+                int32_t melhor = INFINITO;
+                if(!xeque) melhor = avaliar(board);
+
+                for(int i = 0; i < listaGerada.count; i ++){
+                    Move lance = listaGerada.moves[i];
+                    if(!xeque && !move_is_capture(lance)) continue;
+                    Undo undo;
+
+                    make_move(board, lance, &undo);
+                    int32_t atual = quiescenciaMinimax(board, profundidade + 1);
+                    unmake_move(board, lance, &undo);
+
+                    if(tempoEsgotado) return 0;
+
+                    if(atual < melhor){
+                        melhor = atual;
+                    }
+                }
+
+                return melhor;
+            }
+        }
+    }
+}
+
+// Quiescência com poda, em ordem MVV-LVA. O stand-pat entra como piso (brancas) ou teto (pretas) antes
+// dos lances, e pode cortar sozinho. Nunca é a raiz (profundidade >= limiteIteracao >= 1): alfa e beta
+// sempre podem ser atualizados
+static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_t beta){
+    NOS_VISITADOS ++;
+    NOS_QUIESCENCIA ++;
+
+    if(estourouTempo()) return 0;
+
+    if(testeEmpateRegra(board)) return 0;
+    else if(PROF_LIMITE <= profundidade) return avaliar(board);
+    else{
+        MoveList listaGerada;
+        generate_legal_moves(board, &listaGerada);
+        bool xeque = emXeque(board);
+
+        if(listaGerada.count == 0){
+            if(xeque){
+                if(board->side_to_move == WHITE){
+                    return -(MATE - profundidade);
+                }
+                else return MATE - profundidade;
+            }
+            else return 0;
+        }
+        else{
+            if(board->side_to_move == WHITE){
+                int32_t melhor = -INFINITO;
+
+                if(!xeque){
+                    melhor = avaliar(board);
+                    if(melhor > alfa) alfa = melhor;
+                    if(alfa >= beta) return melhor;
+                }
+
+                LanceOrdenado listaOrdenada[MAX_MOVES];
+                ordenarLances(board, &listaGerada, MOVE_NONE, listaOrdenada);
+
+                for(int i = 0; i < listaGerada.count; i ++){
+                    Move lance = listaOrdenada[i].lance;
+                    if(!xeque && !move_is_capture(lance)) continue;
+                    Undo undo;
+
+                    make_move(board, lance, &undo);
+                    int32_t atual = quiescenciaAlfaBeta(board, profundidade + 1, alfa, beta);
+                    unmake_move(board, lance, &undo);
+
+                    if(tempoEsgotado) return 0;
+
+                    if(atual > melhor){
+                        melhor = atual;
+
+                        if(melhor > alfa){
+                            alfa = melhor;
+                        }
+                    }
+
+                    if(alfa >= beta){
+                        break;
+                    }
+                }
+
+                return melhor;
+            }
+            else{
+                int32_t melhor = INFINITO;
+
+                if(!xeque){
+                    melhor = avaliar(board);
+                    if(melhor < beta) beta = melhor;
+                    if(alfa >= beta) return melhor;
+                }
+
+                LanceOrdenado listaOrdenada[MAX_MOVES];
+                ordenarLances(board, &listaGerada, MOVE_NONE, listaOrdenada);
+
+                for(int i = 0; i < listaGerada.count; i ++){
+                    Move lance = listaOrdenada[i].lance;
+                    if(!xeque && !move_is_capture(lance)) continue;
+                    Undo undo;
+
+                    make_move(board, lance, &undo);
+                    int32_t atual = quiescenciaAlfaBeta(board, profundidade + 1, alfa, beta);
+                    unmake_move(board, lance, &undo);
+
+                    if(tempoEsgotado) return 0;
+
+                    if(atual < melhor){
+                        melhor = atual;
+
+                        if(melhor < beta){
+                            beta = melhor;
+                        }
+                    }
+
+                    if(alfa >= beta){
+                        break;
+                    }
+                }
+
+                return melhor;
+            }
+        }
+    }
+}
+
 static int32_t minimax(Board *board, int profundidade){
     NOS_VISITADOS ++;
 
     if(estourouTempo()) return 0;
 
     if(testeEmpateRegra(board)) return 0;
-    else if(limiteIteracao <= profundidade) return avaliar(board);
+    else if(limiteIteracao <= profundidade){
+        if(quiescenciaAtiva) return quiescenciaMinimax(board, profundidade);
+        else return avaliar(board);
+    }
     else{
         MoveList listaGerada;
         generate_legal_moves(board, &listaGerada);
@@ -185,7 +373,10 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
     if(estourouTempo()) return 0;
 
     if(testeEmpateRegra(board)) return 0;
-    else if(limiteIteracao <= profundidade) return avaliar(board);
+    else if(limiteIteracao <= profundidade){
+        if(quiescenciaAtiva) return quiescenciaAlfaBeta(board, profundidade, alfa, beta);
+        else return avaliar(board);
+    }
     else{
         MoveList listaGerada;
         generate_legal_moves(board, &listaGerada);
@@ -299,13 +490,14 @@ void iniciarSorteio(unsigned int semente){
     srand(semente);
 }
 
-void escolherJogada(Board *board, int variante, int randomizador, int profundidade, int tempoMs){
+void escolherJogada(Board *board, int variante, int randomizador, int quiescencia, int profundidade, int tempoMs){
     // O prazo conta a partir da chamada, incluindo a verificação
     clock_t inicio = clock();
 
     movelist_clear(&listaCandidatos);
     movelist_clear(&CANDIDATOS);
     NOS_VISITADOS = 0;
+    NOS_QUIESCENCIA = 0;
     PROF_ALCANCADA = 0;
     PARCIAL_USADA = false;
     relogioAtivo = false;
@@ -314,12 +506,13 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
     JOGADA.lance = MOVE_NONE;
     JOGADA.score = SCORE_INVALIDO;
     JOGADA.tipo = TIPO_INVALIDO;
-    JOGADA.resultado = verificarChamada(board, variante, randomizador, profundidade, tempoMs);
+    JOGADA.resultado = verificarChamada(board, variante, randomizador, quiescencia, profundidade, tempoMs);
 
     if(JOGADA.resultado != RESULTADO_SUCESSO) return;
 
     if(tempoMs != TEMPO_SEM_LIMITE){
-        // clock() falhou: sem início, o prazo conta como já passado (só a iteração 1 roda)
+        // clock() falhou: sem início, o prazo conta como já passado (só a iteração 1, ou a passada
+        // de segurança, roda)
         if(inicio == (clock_t)-1) prazo = INT64_MIN;
         else prazo = (int64_t)inicio + (int64_t)tempoMs * CLOCKS_PER_SEC / 1000;
     }
@@ -327,9 +520,31 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
     // Score da última iteração aproveitada (os candidatos dela ficam em CANDIDATOS)
     int32_t scoreBruto = SCORE_INVALIDO;
 
+    // Com a quiescência, nem a iteração 1 tem custo limitado. Com relógio, uma passada de segurança
+    // (limite 1, sem quiescência, relógio desligado) sempre termina e garante lance; depois, todas as
+    // iterações rodam com a quiescência e sob o relógio. Se só ela valer, PROF_ALCANCADA fica em 0
+    bool passadaSeguranca = (tempoMs != TEMPO_SEM_LIMITE && quiescencia == QUIESCENCIA_LIGADA);
+
+    if(passadaSeguranca){
+        limiteIteracao = 1;
+        quiescenciaAtiva = false;
+        relogioAtivo = false;
+        movelist_clear(&listaCandidatos);
+
+        if(variante == VARIANTE_MINIMAX){
+            scoreBruto = minimax(board, 0);
+        }
+        else if(variante == VARIANTE_ALFA_BETA){
+            scoreBruto = podaAlfaBeta(board, 0, -INFINITO, INFINITO);
+        }
+        CANDIDATOS = listaCandidatos;
+    }
+
+    quiescenciaAtiva = (quiescencia == QUIESCENCIA_LIGADA);
+
     for(limiteIteracao = 1; limiteIteracao <= profundidade; limiteIteracao ++){
-        // Iteração 1 com o relógio desligado: sempre termina, para que haja lance
-        relogioAtivo = (tempoMs != TEMPO_SEM_LIMITE && limiteIteracao > 1);
+        // Sem passada de segurança, a iteração 1 roda com o relógio desligado: sempre termina, para que haja lance
+        relogioAtivo = (tempoMs != TEMPO_SEM_LIMITE && (limiteIteracao > 1 || passadaSeguranca));
 
         if(relogioAtivo && prazoPassou()) break;
 
@@ -362,8 +577,10 @@ void escolherJogada(Board *board, int variante, int randomizador, int profundida
         scoreBruto = scoreIteracao;
         PROF_ALCANCADA = limiteIteracao;
 
-        // Mate achado: uma iteração mais funda não acha mate mais curto
-        if(abs(scoreBruto) >= LIMIAR_MATE) break;
+        // Mate achado dentro de limiteIteracao (largura completa): uma iteração mais funda não acha
+        // mate mais curto. Mate achado só na quiescência (mais fundo) não para: lá a busca não é
+        // completa, e o mate pode não ser o mais curto
+        if(abs(scoreBruto) >= MATE - limiteIteracao) break;
     }
 
     if(CANDIDATOS.count > 0){

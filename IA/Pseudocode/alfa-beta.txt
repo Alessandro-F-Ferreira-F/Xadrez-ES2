@@ -18,7 +18,9 @@ função podaAlfaBeta(estado, profundidade, alfa, beta):
     se testeEmpateRegra(estado) então
         retorna 0
     senão se limiteIteracao <= profundidade então
-        retorna avaliar(estado)
+        se quiescenciaAtiva então
+            retorna quiescenciaAlfaBeta(estado, profundidade, alfa, beta)
+        senão retorna avaliar(estado)
     senão 
         listaGerada = generate_legal_moves(estado)
         se listaGerada == vazio então

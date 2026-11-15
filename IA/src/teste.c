@@ -88,6 +88,7 @@ typedef struct CasoEscolherJogada{
     const char *fen;
     int variante;
     int randomizador;
+    int quiescencia;
     int profundidade;
     int tempoMs;
     int testarEmpate;
@@ -96,22 +97,25 @@ typedef struct CasoEscolherJogada{
 
 static const CasoEscolherJogada casosEscolherJogada[] = {
     // Parâmetros inválidos (o stub não chega a ser consultado)
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      2,                  SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_VARIANTE_INVALIDA},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   2,                 PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RANDOMIZADOR_INVALIDO},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      2,                  2,                 PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_VARIANTE_INVALIDA},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, 0,            TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_PROFUNDIDADE_INVALIDA},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_MAX + 1, TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_PROFUNDIDADE_INVALIDA},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   -1,               SEM_EMPATE,        RESULTADO_TEMPO_INVALIDO},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   2,                 0,            -1,               SEM_EMPATE,        RESULTADO_RANDOMIZADOR_INVALIDO},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, 0,            -1,               SEM_EMPATE,        RESULTADO_PROFUNDIDADE_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      2,                  SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_VARIANTE_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   2,                 QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RANDOMIZADOR_INVALIDO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      2,                  2,                 QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_VARIANTE_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, 2,                     PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_QUIESCENCIA_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   2,                 2,                     PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RANDOMIZADOR_INVALIDO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, 2,                     0,            TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_QUIESCENCIA_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, 0,            TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_PROFUNDIDADE_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_MAX + 1, TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_PROFUNDIDADE_INVALIDA},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE,   -1,               SEM_EMPATE,        RESULTADO_TEMPO_INVALIDO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   2,                 QUIESCENCIA_DESLIGADA, 0,            -1,               SEM_EMPATE,        RESULTADO_RANDOMIZADOR_INVALIDO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, 0,            -1,               SEM_EMPATE,        RESULTADO_PROFUNDIDADE_INVALIDA},
 
     // Empate por regra (valor devolvido pelo stub)
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, EMPATE_PROVISORIO, RESULTADO_EMPATE_PROVISORIO},
-    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, 99,                RESULTADO_ERRO_INTERNO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, EMPATE_PROVISORIO, RESULTADO_EMPATE_PROVISORIO},
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",      VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, 99,                RESULTADO_ERRO_INTERNO},
 
     // Raiz sem lances legais (FENs reais)
-    {"rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3", VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RAIZ_MATE},
-    {"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",                                VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RAIZ_AFOGAMENTO},
+    {"rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3", VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RAIZ_MATE},
+    {"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",                                VARIANTE_MINIMAX,   SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE,   TEMPO_SEM_LIMITE, SEM_EMPATE,        RESULTADO_RAIZ_AFOGAMENTO},
 };
 
 // v1 = v2: minimax e alfa-beta devem devolver o mesmo score, tipo e conjunto de CANDIDATOS (SORTEIO_DESLIGADO),
@@ -145,18 +149,51 @@ static const CasoV1V2 casosV1V2[] = {
     {"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",    PROF_TESTE},
 };
 
+// v1 = v2 com a quiescência ligada: a quiescência sem poda (minimax) é a referência da com poda.
+// Profundidade por posição: sem poda, a árvore de capturas explode, mais ainda com as evasões em xeque.
+// Fora, por custo (medido > 60 s): após 1.e4 já na profundidade 2 e o kiwipete já na 1; o kiwipete com
+// quiescência fica coberto pelo teste de tempo.
+// iteracoes: sem mate, a profundidade; com mate em p meios-lances, p (a quiescência reconhece o mate no
+// próprio nó do horizonte, uma iteração antes da busca sem ela)
+typedef struct CasoV1V2Quiescencia{
+    const char *fen;
+    int profundidade;
+    int iteracoes;
+} CasoV1V2Quiescencia;
+
+static const CasoV1V2Quiescencia casosV1V2Quiescencia[] = {
+    {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",                2, 2},
+
+    // Mates em 1 (p = 1) e em 2 (p = 3), nos dois lados
+    {"6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",                                       2, 1},
+    {"r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1",                                       2, 1},
+    {"6k1/8/8/8/8/8/8/RR4K1 w - - 0 1",                                         4, 3},
+    {"rr4k1/8/8/8/8/8/8/6K1 b - - 0 1",                                         4, 3},
+
+    // Ganho de material, nos dois lados
+    {"4k3/8/8/3q4/8/8/8/3QK3 w - - 0 1",                                        3, 3},
+    {"3qk3/8/8/8/3Q4/8/8/4K3 b - - 0 1",                                        3, 3},
+
+    // Rica em capturas (FEN do sorteio: torre solta, quatro peças a capturam)
+    {"7k/8/8/3r4/5N2/1BN5/8/3QK3 w - - 0 1",                                    3, 3},
+};
+
 #define FOLGA_TEMPO_MS 50
 
 typedef struct CasoTempo{
     int variante;
+    int quiescencia;
     int tempoMs;
 } CasoTempo;
 
-// 1 ms: só a iteração 1 (relógio desligado) cabe; o prazo já passou ao fim dela
+// 1 ms: a iteração 1 (relógio desligado) sempre termina; no alfa-beta, a seguinte pode ser aproveitada
+// parcialmente. Com a quiescência, confere também a saída por tempo nos laços dela
 static const CasoTempo casosTempo[] = {
-    {VARIANTE_ALFA_BETA, 1},
-    {VARIANTE_ALFA_BETA, 100},
-    {VARIANTE_MINIMAX,   100},
+    {VARIANTE_ALFA_BETA, QUIESCENCIA_DESLIGADA, 1},
+    {VARIANTE_ALFA_BETA, QUIESCENCIA_DESLIGADA, 100},
+    {VARIANTE_MINIMAX,   QUIESCENCIA_DESLIGADA, 100},
+    {VARIANTE_ALFA_BETA, QUIESCENCIA_LIGADA,    100},
+    {VARIANTE_MINIMAX,   QUIESCENCIA_LIGADA,    100},
 };
 
 // Sementes 1..NUM_SEMENTES no teste do sorteio
@@ -187,6 +224,102 @@ static bool mesmoConjunto(const MoveList *a, const MoveList *b){
     return true;
 }
 
+// v1 = v2, determinismo e contagem de nós para uma FEN; acumula os totais e liga as flags em caso de falha
+static void executarV1V2(const char *fen, int quiescencia, int profundidade, int iteracoes,
+                         uint64_t *totalNosMinimax, uint64_t *totalNosAlfaBeta, int *retornoV1V2, int *retornoNos){
+    Board board;
+
+    if(!fen_parse(fen, &board)){
+        *retornoV1V2 = 1;
+        return;
+    }
+    // Esperado exato do minimax: sem empate por regra, a iteração de limite D visita todo nó
+    // até D, e nós terminais não têm filhos, como no perft. Soma das iterações D = 1..iteracoes.
+    // Com a quiescência, vale para a busca principal: NOS_VISITADOS - NOS_QUIESCENCIA.
+    // O perft ignora a regra dos 50 lances; o minimax corta no empate. Para a soma valer
+    // também com a regra real, o halfmove_clock não pode chegar a 100 dentro da árvore
+    if(board.halfmove_clock + profundidade >= 100){
+        printf("FEN v1 = v2 com halfmove alto demais para a profundidade: %s\n", fen);
+        *retornoNos = 1;
+        return;
+    }
+    uint64_t nosEsperados = 0;
+    for(int limite = 1; limite <= iteracoes; limite ++){
+        for(int d = 0; d <= limite; d ++) nosEsperados += perft(&board, d);
+    }
+
+    fen_parse(fen, &board);
+    escolherJogada(&board, VARIANTE_MINIMAX, SORTEIO_DESLIGADO, quiescencia, profundidade, TEMPO_SEM_LIMITE);
+    Play jogadaMinimax = JOGADA;
+    MoveList candidatosMinimax = CANDIDATOS;
+    uint64_t nosMinimax = NOS_VISITADOS;
+    uint64_t nosQuiescenciaMinimax = NOS_QUIESCENCIA;
+    // Sem limite de tempo: a última iteração rodada é completa
+    if(PROF_ALCANCADA != iteracoes || PARCIAL_USADA) *retornoV1V2 = 1;
+
+    fen_parse(fen, &board);
+    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, quiescencia, profundidade, TEMPO_SEM_LIMITE);
+    Play jogadaAlfaBeta = JOGADA;
+    MoveList candidatosAlfaBeta = CANDIDATOS;
+    uint64_t nosAlfaBeta = NOS_VISITADOS;
+    uint64_t nosQuiescenciaAlfaBeta = NOS_QUIESCENCIA;
+    if(PROF_ALCANCADA != iteracoes || PARCIAL_USADA) *retornoV1V2 = 1;
+
+    fen_parse(fen, &board);
+    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, quiescencia, profundidade, TEMPO_SEM_LIMITE);
+    Play jogadaRepetida = JOGADA;
+    MoveList candidatosRepetida = CANDIDATOS;
+    uint64_t nosRepetida = NOS_VISITADOS;
+
+    *totalNosMinimax += nosMinimax;
+    *totalNosAlfaBeta += nosAlfaBeta;
+
+    printf(" %u %u % " PRId32 " % " PRId32 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 "\n",
+           (unsigned) jogadaMinimax.lance, (unsigned) jogadaAlfaBeta.lance, jogadaMinimax.score, jogadaAlfaBeta.score,
+           nosEsperados, nosMinimax, nosQuiescenciaMinimax, nosAlfaBeta, nosQuiescenciaAlfaBeta);
+
+    // Contagem de nós: minimax exato na busca principal; alfa-beta nunca visita mais que o minimax (a poda
+    // percorre um subconjunto da árvore, em qualquer ordem de lances, também na quiescência)
+    if(nosMinimax - nosQuiescenciaMinimax != nosEsperados || nosAlfaBeta > nosMinimax || nosRepetida != nosAlfaBeta) *retornoNos = 1;
+
+    // Desligada, nenhum nó de quiescência; ligada, todo horizonte entra nela
+    if(quiescencia == QUIESCENCIA_DESLIGADA && (nosQuiescenciaMinimax != 0 || nosQuiescenciaAlfaBeta != 0)) *retornoNos = 1;
+    if(quiescencia == QUIESCENCIA_LIGADA && (nosQuiescenciaMinimax == 0 || nosQuiescenciaAlfaBeta == 0)) *retornoNos = 1;
+
+    // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (MOVE_NONE) passariam no teste
+    if(jogadaMinimax.resultado != RESULTADO_SUCESSO || jogadaAlfaBeta.resultado != RESULTADO_SUCESSO
+    || jogadaMinimax.score != jogadaAlfaBeta.score || jogadaMinimax.tipo != jogadaAlfaBeta.tipo
+    || !mesmoConjunto(&candidatosMinimax, &candidatosAlfaBeta)
+    || !contemLance(&candidatosMinimax, jogadaAlfaBeta.lance)) *retornoV1V2 = 1;
+
+    if(jogadaRepetida.resultado != jogadaAlfaBeta.resultado || jogadaRepetida.lance != jogadaAlfaBeta.lance
+    || jogadaRepetida.score != jogadaAlfaBeta.score || jogadaRepetida.tipo != jogadaAlfaBeta.tipo
+    || !mesmosCandidatos(&candidatosRepetida, &candidatosAlfaBeta)) *retornoV1V2 = 1;
+}
+
+// Quiescência no horizonte: dama captura um peão defendido por peão. Profundidade 1: sem quiescência, a
+// captura parece ganhar um peão; com ela, a recaptura aparece e a captura deixa de ser candidata
+typedef struct CasoHorizonte{
+    const char *fen;
+    const char *captura;
+} CasoHorizonte;
+
+static const CasoHorizonte casosHorizonte[] = {
+    {"4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1", "d1d5"},
+    {"3qk3/8/8/8/3P4/4P3/8/4K3 b - - 0 1", "d8d4"},
+};
+
+// Mate em 1 visto pela quiescência já na profundidade 1 (o mate está no nó do horizonte); sem ela, não
+typedef struct CasoMateQuiescencia{
+    const char *fen;
+    const char *lance;
+} CasoMateQuiescencia;
+
+static const CasoMateQuiescencia casosMateQuiescencia[] = {
+    {"6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", "a1a8"},
+    {"r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1", "a8a1"},
+};
+
 // Ordenação MVV-LVA: uma captura de cada nota, todas distintas, incluindo en passant (d6)
 static const char *fenOrdenacao = "7k/8/8/q2pP1r1/1P6/1n3N2/2B5/3QK3 w - d6 0 1";
 // Capturas na ordem esperada: PxD (39), CxT (30), BxC (13), PxP e.p. (7), DxP (3)
@@ -209,7 +342,7 @@ int main(void){
             PROF_ALCANCADA = 1; // sentinelas: só voltam a 0 e falso se escolherJogada zerar
             PARCIAL_USADA = true;
             escolherJogada(&board, casosEscolherJogada[i].variante, casosEscolherJogada[i].randomizador,
-                           casosEscolherJogada[i].profundidade, casosEscolherJogada[i].tempoMs);
+                           casosEscolherJogada[i].quiescencia, casosEscolherJogada[i].profundidade, casosEscolherJogada[i].tempoMs);
             printf(" % " PRId8 " % " PRId8 "\n", JOGADA.resultado, casosEscolherJogada[i].resultadoEsperado);        
 
             if(JOGADA.resultado != casosEscolherJogada[i].resultadoEsperado || JOGADA.lance != MOVE_NONE
@@ -220,78 +353,32 @@ int main(void){
         else retornoTesteEscolherJogada = 1;
     }
 
-    // Teste v1 = v2 (e determinismo: mesma variante duas vezes)
+    // Teste v1 = v2 (e determinismo: mesma variante duas vezes), com a quiescência desligada e ligada
 
     int retornoV1V2 = 0;
-    Play jogadaMinimax, jogadaAlfaBeta, jogadaRepetida;
-    MoveList candidatosMinimax, candidatosAlfaBeta, candidatosRepetida;
     int retornoNos = 0;
     uint64_t totalNosMinimax = 0, totalNosAlfaBeta = 0;
 
     varTesteEmpate = SEM_EMPATE;
 
     for(size_t i = 0; i < sizeof(casosV1V2)/sizeof(casosV1V2[0]); i ++){
-        if(!fen_parse(casosV1V2[i].fen, &board)){
-            retornoV1V2 = 1;
-            continue;
-        }
-        // Esperado exato do minimax: sem empate por regra, a iteração de limite D visita todo nó
-        // até D, e nós terminais não têm filhos, como no perft. Soma das iterações D = 1..iteracoes.
-        // O perft ignora a regra dos 50 lances; o minimax corta no empate. Para a soma valer
-        // também com a regra real, o halfmove_clock não pode chegar a 100 dentro da árvore
-        if(board.halfmove_clock + PROF_TESTE >= 100){
-            printf("FEN v1 = v2 com halfmove alto demais para PROF_TESTE: %s\n", casosV1V2[i].fen);
-            retornoNos = 1;
-            continue;
-        }
-        uint64_t nosEsperados = 0;
-        for(int limite = 1; limite <= casosV1V2[i].iteracoes; limite ++){
-            for(int d = 0; d <= limite; d ++) nosEsperados += perft(&board, d);
-        }
-
-        fen_parse(casosV1V2[i].fen, &board);
-        escolherJogada(&board, VARIANTE_MINIMAX, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
-        jogadaMinimax = JOGADA;
-        candidatosMinimax = CANDIDATOS;
-        uint64_t nosMinimax = NOS_VISITADOS;
-        // Sem limite de tempo: a última iteração rodada é completa
-        if(PROF_ALCANCADA != casosV1V2[i].iteracoes || PARCIAL_USADA) retornoV1V2 = 1;
-
-        fen_parse(casosV1V2[i].fen, &board);
-        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
-        jogadaAlfaBeta = JOGADA;
-        candidatosAlfaBeta = CANDIDATOS;
-        uint64_t nosAlfaBeta = NOS_VISITADOS;
-        if(PROF_ALCANCADA != casosV1V2[i].iteracoes || PARCIAL_USADA) retornoV1V2 = 1;
-
-        fen_parse(casosV1V2[i].fen, &board);
-        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
-        jogadaRepetida = JOGADA;
-        candidatosRepetida = CANDIDATOS;
-        uint64_t nosRepetida = NOS_VISITADOS;
-
-        totalNosMinimax += nosMinimax;
-        totalNosAlfaBeta += nosAlfaBeta;
-
-        printf(" %u %u % " PRId32 " % " PRId32 " %" PRIu64 " %" PRIu64 " %" PRIu64 "\n", (unsigned) jogadaMinimax.lance, (unsigned) jogadaAlfaBeta.lance,
-               jogadaMinimax.score, jogadaAlfaBeta.score, nosEsperados, nosMinimax, nosAlfaBeta);
-
-        // Contagem de nós: minimax exato; alfa-beta nunca visita mais que o minimax (a poda percorre um
-        // subconjunto da árvore, em qualquer ordem de lances)
-        if(nosMinimax != nosEsperados || nosAlfaBeta > nosMinimax || nosRepetida != nosAlfaBeta) retornoNos = 1;
-
-        // resultado == SUCESSO nas duas: sem isso, duas falhas iguais (MOVE_NONE) passariam no teste
-        if(jogadaMinimax.resultado != RESULTADO_SUCESSO || jogadaAlfaBeta.resultado != RESULTADO_SUCESSO
-        || jogadaMinimax.score != jogadaAlfaBeta.score || jogadaMinimax.tipo != jogadaAlfaBeta.tipo
-        || !mesmoConjunto(&candidatosMinimax, &candidatosAlfaBeta)
-        || !contemLance(&candidatosMinimax, jogadaAlfaBeta.lance)) retornoV1V2 = 1;
-
-        if(jogadaRepetida.resultado != jogadaAlfaBeta.resultado || jogadaRepetida.lance != jogadaAlfaBeta.lance
-        || jogadaRepetida.score != jogadaAlfaBeta.score || jogadaRepetida.tipo != jogadaAlfaBeta.tipo
-        || !mesmosCandidatos(&candidatosRepetida, &candidatosAlfaBeta)) retornoV1V2 = 1;
+        executarV1V2(casosV1V2[i].fen, QUIESCENCIA_DESLIGADA, PROF_TESTE, casosV1V2[i].iteracoes,
+                     &totalNosMinimax, &totalNosAlfaBeta, &retornoV1V2, &retornoNos);
     }
 
     // A poda precisa podar: no total, alfa-beta visita estritamente menos nós
+    if(totalNosAlfaBeta >= totalNosMinimax) retornoNos = 1;
+
+    printf(" total: %" PRIu64 " %" PRIu64 "\n\n", totalNosMinimax, totalNosAlfaBeta);
+
+    totalNosMinimax = 0;
+    totalNosAlfaBeta = 0;
+
+    for(size_t i = 0; i < sizeof(casosV1V2Quiescencia)/sizeof(casosV1V2Quiescencia[0]); i ++){
+        executarV1V2(casosV1V2Quiescencia[i].fen, QUIESCENCIA_LIGADA, casosV1V2Quiescencia[i].profundidade,
+                     casosV1V2Quiescencia[i].iteracoes, &totalNosMinimax, &totalNosAlfaBeta, &retornoV1V2, &retornoNos);
+    }
+
     if(totalNosAlfaBeta >= totalNosMinimax) retornoNos = 1;
 
     printf(" total: %" PRIu64 " %" PRIu64 "\n\n", totalNosMinimax, totalNosAlfaBeta);
@@ -315,7 +402,7 @@ int main(void){
         fen_write(&board, fenAntes);
 
         clock_t inicio = clock();
-        escolherJogada(&board, casosTempo[i].variante, SORTEIO_DESLIGADO, PROF_MAX, casosTempo[i].tempoMs);
+        escolherJogada(&board, casosTempo[i].variante, SORTEIO_DESLIGADO, casosTempo[i].quiescencia, PROF_MAX, casosTempo[i].tempoMs);
         long gastoMs = (long)((clock() - inicio) * 1000 / CLOCKS_PER_SEC);
 
         fen_write(&board, fenDepois);
@@ -331,14 +418,92 @@ int main(void){
             if(!contemLance(&lancesRaiz, CANDIDATOS.moves[j])) candidatosLegais = false;
         }
 
-        // PROF_ALCANCADA e PARCIAL_USADA são medição: dependem do relógio, só se confere o que vale sempre
-        printf(" %d %d %ld %u %" PRIu64 " %d %d\n", casosTempo[i].variante, casosTempo[i].tempoMs, gastoMs, (unsigned) JOGADA.lance,
-               NOS_VISITADOS, PROF_ALCANCADA, (int) PARCIAL_USADA);
+        // PROF_ALCANCADA e PARCIAL_USADA são medição: dependem do relógio, só se confere o que vale sempre.
+        // Com a quiescência, PROF_ALCANCADA = 0 é válido: só a passada de segurança valeu
+        printf(" %d %d %d %ld %u %" PRIu64 " %" PRIu64 " %d %d\n", casosTempo[i].variante, casosTempo[i].quiescencia, casosTempo[i].tempoMs,
+               gastoMs, (unsigned) JOGADA.lance, NOS_VISITADOS, NOS_QUIESCENCIA, PROF_ALCANCADA, (int) PARCIAL_USADA);
 
         if(JOGADA.resultado != RESULTADO_SUCESSO || !lanceLegal || strcmp(fenAntes, fenDepois) != 0
         || !candidatosLegais || !contemLance(&CANDIDATOS, JOGADA.lance)
-        || PROF_ALCANCADA < 1 || (casosTempo[i].variante == VARIANTE_MINIMAX && PARCIAL_USADA)
+        || (PROF_ALCANCADA < 1 && casosTempo[i].quiescencia == QUIESCENCIA_DESLIGADA)
+        || (PROF_ALCANCADA == 0 && PARCIAL_USADA) || (casosTempo[i].variante == VARIANTE_MINIMAX && PARCIAL_USADA)
         || NOS_VISITADOS < nosIteracao1 || gastoMs > casosTempo[i].tempoMs + FOLGA_TEMPO_MS) retornoTempo = 1;
+    }
+    printf("\n");
+
+    // Teste da quiescência em posições escolhidas (alfa-beta; o minimax é coberto pelo v1 = v2)
+
+    int retornoQuiescencia = 0;
+
+    // Horizonte: sem quiescência, a captura do peão defendido é o lance; com ela, nem é candidata
+    for(size_t i = 0; i < sizeof(casosHorizonte)/sizeof(casosHorizonte[0]); i ++){
+        if(!fen_parse(casosHorizonte[i].fen, &board)){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        generate_legal_moves(&board, &lancesRaiz);
+        int indice = movelist_find(&lancesRaiz, casosHorizonte[i].captura);
+        if(indice < 0){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        Move captura = lancesRaiz.moves[indice];
+
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, 1, TEMPO_SEM_LIMITE);
+        Play jogadaSem = JOGADA;
+
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_LIGADA, 1, TEMPO_SEM_LIMITE);
+
+        printf(" %s %u % " PRId32 " %u % " PRId32 "\n", casosHorizonte[i].captura, (unsigned) jogadaSem.lance, jogadaSem.score,
+               (unsigned) JOGADA.lance, JOGADA.score);
+
+        if(jogadaSem.resultado != RESULTADO_SUCESSO || jogadaSem.lance != captura
+        || JOGADA.resultado != RESULTADO_SUCESSO || contemLance(&CANDIDATOS, captura)) retornoQuiescencia = 1;
+    }
+
+    // Stand-pat: na posição inicial com profundidade 1, nenhuma resposta tem captura. Cada nó do horizonte
+    // entra na quiescência uma vez e para nela: resultado igual ao sem quiescência
+    const char *fenInicial = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    if(!fen_parse(fenInicial, &board)) retornoQuiescencia = 1;
+    generate_legal_moves(&board, &lancesRaiz);
+
+    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, 1, TEMPO_SEM_LIMITE);
+    Play jogadaSemQuiescencia = JOGADA;
+    MoveList candidatosSemQuiescencia = CANDIDATOS;
+
+    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_LIGADA, 1, TEMPO_SEM_LIMITE);
+
+    printf(" stand-pat %" PRIu64 " %d\n", NOS_QUIESCENCIA, lancesRaiz.count);
+
+    if(JOGADA.resultado != RESULTADO_SUCESSO || NOS_QUIESCENCIA != (uint64_t) lancesRaiz.count
+    || JOGADA.score != jogadaSemQuiescencia.score || JOGADA.tipo != jogadaSemQuiescencia.tipo
+    || !mesmosCandidatos(&CANDIDATOS, &candidatosSemQuiescencia)) retornoQuiescencia = 1;
+
+    // Mate na quiescência: profundidade 1 basta com ela (mate em 1 lance); sem ela, centipeão
+    for(size_t i = 0; i < sizeof(casosMateQuiescencia)/sizeof(casosMateQuiescencia[0]); i ++){
+        if(!fen_parse(casosMateQuiescencia[i].fen, &board)){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        generate_legal_moves(&board, &lancesRaiz);
+        int indice = movelist_find(&lancesRaiz, casosMateQuiescencia[i].lance);
+        if(indice < 0){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        Move mate = lancesRaiz.moves[indice];
+
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, 1, TEMPO_SEM_LIMITE);
+        Play jogadaSem = JOGADA;
+
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_LIGADA, 1, TEMPO_SEM_LIMITE);
+
+        printf(" %s % " PRId8 " %u % " PRId32 " % " PRId8 "\n", casosMateQuiescencia[i].lance, jogadaSem.tipo,
+               (unsigned) JOGADA.lance, JOGADA.score, JOGADA.tipo);
+
+        if(jogadaSem.resultado != RESULTADO_SUCESSO || jogadaSem.tipo != TIPO_CENTIPEAO
+        || JOGADA.resultado != RESULTADO_SUCESSO || JOGADA.lance != mate || JOGADA.tipo != TIPO_MATE
+        || JOGADA.score != 1) retornoQuiescencia = 1;
     }
     printf("\n");
 
@@ -351,7 +516,7 @@ int main(void){
 
     fen_parse(fenSorteio, &board);
     generate_legal_moves(&board, &lancesRaiz);
-    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
+    escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE, TEMPO_SEM_LIMITE);
     Play jogadaDesligado = JOGADA;
     MoveList candidatosDesligado = CANDIDATOS;
 
@@ -366,7 +531,7 @@ int main(void){
     for(unsigned int semente = 1; semente <= NUM_SEMENTES; semente ++){
         iniciarSorteio(semente);
         fen_parse(fenSorteio, &board);
-        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_LIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_LIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE, TEMPO_SEM_LIMITE);
         Play jogadaSorteada = JOGADA;
 
         bool candidato = false;
@@ -376,7 +541,7 @@ int main(void){
 
         iniciarSorteio(semente);
         fen_parse(fenSorteio, &board);
-        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_LIGADO, PROF_TESTE, TEMPO_SEM_LIMITE);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_LIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE, TEMPO_SEM_LIMITE);
 
         printf(" %u %d %u %u\n", semente, CANDIDATOS.count, (unsigned) jogadaSorteada.lance, (unsigned) JOGADA.lance);
 
@@ -520,10 +685,11 @@ int main(void){
     if(retornoV1V2) printf("Erro em v1 = v2\n");
     if(retornoNos) printf("Erro na contagem de nos\n");
     if(retornoTempo) printf("Erro no limite de tempo\n");
+    if(retornoQuiescencia) printf("Erro na quiescencia\n");
     if(retornoSorteio) printf("Erro no sorteio\n");
     if(retornoOrdenacao) printf("Erro na ordenacao\n");
 
     if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada || retornoV1V2 || retornoNos || retornoTempo
-    || retornoSorteio || retornoOrdenacao) return 1;
+    || retornoQuiescencia || retornoSorteio || retornoOrdenacao) return 1;
     return 0;
 }

@@ -38,6 +38,13 @@ int main()
                     static_cast<float>(event.mouseButton.y),
                     bridge
                 );
+            } else if (event.type == sf::Event::KeyPressed &&
+                       event.key.code == sf::Keyboard::R) {
+                board.resetGame();
+                bridge.sendCommand("ucinewgame");
+                bridge.sendCommand("position startpos");
+                bridge.sendCommand("legalmoves");
+                board.setLegalMoves(bridge.readCommand());
             }
         }
 

@@ -108,6 +108,12 @@ static void test_integration_fools_mate_state() {
     CHECK(stateLine.find("check e1") != std::string::npos, "Rei branco em e1 deve estar em xeque");
     CHECK(stateLine.find("result 0-1") != std::string::npos, "Resultado deve ser 0-1 (vitoria das pretas)");
     CHECK(stateLine.find("reason checkmate") != std::string::npos, "Motivo deve ser checkmate");
+    board.processUCICommand(stateLine);
+    CHECK(board.isGameOver(), "ChessBoard deve marcar fim de jogo apos processar state de mate");
+    CHECK(board.isInCheck() && board.getCheckCol() == 4 && board.getCheckRow() == 7,
+          "ChessBoard deve marcar rei branco em e1 em xeque");
+    CHECK(board.getGameResult() == "0-1" && board.getGameReason() == "checkmate",
+          "ChessBoard deve guardar resultado e motivo do mate");
 
     CHECK(bridge.sendCommand("legalmoves"), "Consulta lances legais no mate");
     board.processUCICommand(bridge.readCommand());
@@ -117,6 +123,35 @@ static void test_integration_fools_mate_state() {
     std::string best = bridge.readCommand();
     CHECK(best == "bestmove 0000", "Motor deve devolver bestmove 0000 no mate");
     board.processUCICommand(best);
+
+    bridge.stop();
+}
+
+// 5. Integracao (Issue #7): Jogador aplica xeque-mate via playTurnWithEngine e interface detecta o fim de jogo
+static void test_integration_checkmate_via_play_turn() {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+
+    // 1. e4 g5 2. d4 f6 (prepara 3. Qh5# - Mate do Louco para as brancas)
+    const std::string setup = "position startpos moves e2e4 g7g5 d2d4 f7f6";
+    board.processUCICommand(setup);
+    CHECK(bridge.sendCommand(setup), "Envia pre-mate para o motor");
+    CHECK(bridge.sendCommand("legalmoves"), "Consulta lances legais antes de Qh5#");
+    board.processUCICommand(bridge.readCommand());
+
+    // 1o clique em d1 (col 3, row 7 -> x=350, y=750)
+    CHECK(!board.playTurnWithEngine(350.f, 750.f, bridge), "1o clique seleciona a dama em d1");
+    // 2o clique em h5 (col 7, row 3 -> x=750, y=350): aplica d1h5#
+    CHECK(board.playTurnWithEngine(750.f, 350.f, bridge), "2o clique aplica Qh5# e atualiza state");
+
+    CHECK(board.isGameOver(), "playTurnWithEngine deve detectar fim de jogo apos Qh5#");
+    CHECK(board.getGameResult() == "1-0", "Resultado deve ser 1-0 (vitoria das brancas)");
+    CHECK(board.getGameReason() == "checkmate", "Motivo deve ser checkmate");
+    CHECK(board.isInCheck() && board.getCheckCol() == 4 && board.getCheckRow() == 0,
+          "Rei preto em e8 (4, 0) deve estar destacado em xeque");
+    CHECK(board.getMoveHistory().size() == 5, "Motor nao deve jogar apos tomar mate (5 lances no total)");
 
     bridge.stop();
 }
@@ -174,6 +209,7 @@ int main() {
     RUN_TEST(test_integration_mouse_click_turn_with_engine);
     RUN_TEST(test_integration_fools_mate_state);
     RUN_TEST(test_integration_full_game_until_end);
+    RUN_TEST(test_integration_checkmate_via_play_turn);
 
     std::cout << "=== Resultado Integracao: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
     return (g_failed == 0) ? 0 : 1;

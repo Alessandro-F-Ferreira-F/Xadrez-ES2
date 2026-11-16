@@ -4,7 +4,11 @@
 
 -- Todo o bloco inicial de comentários de minimax.txt vale aqui, além dos valores MATE e INFINITO. Cada entrada conta um nó em nosVisitados e em NOS_QUIESCENCIA. O nó do horizonte entra duas vezes em nosVisitados (na busca principal e como raiz da quiescência), então nosVisitados - NOS_QUIESCENCIA é a contagem da busca principal, que no minimax continua exata pelo perft
 
--- Ordem do caso base: tempo esgotado, empate por regra, teto PROF_LIMITE, gerar lances, lista vazia (xeque = mate, senão afogamento), stand-pat (fora de xeque), laço. A lista vazia vem antes do stand-pat: sem lances legais e fora de xeque é afogamento (0), não avaliar
+-- Ordem do caso base em quiescenciaMinimax: tempo esgotado, empate por regra, teto PROF_LIMITE, gerar lances, lista vazia (xeque = mate, senão afogamento), stand-pat (fora de xeque), laço. A lista vazia vem antes do stand-pat: sem lances legais e fora de xeque é afogamento (0), não avaliar
+
+-- Ordem do caso base em quiescenciaAlfaBeta: tempo esgotado, empate por regra, teto PROF_LIMITE, xeque, stand-pat com corte antecipado (fora de xeque), gerar lances, lista vazia, stand-pat como piso ou teto, laço. Gerar a lista é o passo mais caro do nó, e cerca de metade dos nós corta no stand-pat. O corte antes de gerar só vale se houver lance legal (senão o valor é o do afogamento, 0); lanceGarantido prova isso sem gerar a lista. Com a prova, a lista não seria vazia e o corte seria o mesmo: o valor devolvido não muda, e quiescenciaMinimax continua a referência exata. Sem a prova, gera a lista e segue a ordem de quiescenciaMinimax
+
+-- lanceGarantido (pré-condição: fora de xeque) é condição suficiente, não necessária: falso não quer dizer afogamento. Uma peça fora da fileira, da coluna e das diagonais do próprio rei não pode estar cravada, e fora de xeque qualquer lance pseudolegal dela é legal: avanço simples ou captura normal do peão (en passant fica de fora), destino vazio ou inimigo do cavalo, um passo numa direção de bispo, torre ou dama. Se nenhuma peça servir, o rei: fora de xeque ele não bloqueia raio nenhum, então is_square_attacked com o rei no lugar é exato para as casas vizinhas. Em is_square_attacked(estado, casa, lado), lado é o defensor. KING_TARGETS (square.h) não é inicializada pelo motor: as casas vizinhas saem de SQ_TO_EDGE e DIR_OFFSET
 
 -- PROF_LIMITE (ver minimax.txt): em profundidade PROF_LIMITE a quiescência devolve avaliar, mesmo em xeque. Assim todo mate fica a até PROF_LIMITE meios-lances (>= LIMIAR_MATE) e a pilha fica limitada
 
@@ -14,7 +18,7 @@
 
 -- quiescenciaMinimax não poda e percorre os lances na ordem do gerador: é a referência de quiescenciaAlfaBeta (v1 = v2 com a quiescência ligada). O custo dela cresce rápido (a árvore de capturas sem poda explode, mais ainda com as evasões em xeque)
 
--- quiescenciaAlfaBeta percorre os lances em ordem MVV-LVA (ordenarLances com primeiro = MOVE_NONE, ver ordenarLances.txt). O stand-pat entra como piso (brancas, alfa) ou teto (pretas, beta) antes dos lances e pode cortar sozinho. Como nunca é a raiz, alfa e beta sempre podem ser atualizados
+-- quiescenciaAlfaBeta percorre os lances em ordem MVV-LVA (ordenarLances com primeiro = MOVE_NONE, ver ordenarLances.txt). Fora de xeque, as capturas são filtradas para listaCapturas antes de ordenar (na ordem do gerador; a inserção estável dá a mesma ordem de antes, sem ordenar lances que seriam pulados). O stand-pat entra como piso (brancas, alfa) ou teto (pretas, beta) antes dos lances e pode cortar sozinho. Como nunca é a raiz, alfa e beta sempre podem ser atualizados
 
 -- Com tempo esgotado, valem as regras de minimax.txt: o nó devolve 0 na entrada, e o laço devolve 0 logo após desfazer o lance
 
@@ -73,6 +77,32 @@ função quiescenciaMinimax(estado, profundidade):
                         melhor = atual
                 retornar melhor
 
+função lanceGarantido(estado):
+    lado = estado.side_to_move
+    rei = estado.king_square[lado]
+    para toda casa do tabuleiro faça
+        peca = estado.array[casa]
+        se peca vazia ou cor(peca) != lado ou tipo(peca) == KING então
+            continuar
+        se casa na mesma fileira, coluna ou diagonal de rei então
+            continuar -- pode estar cravada
+        se tipo(peca) == PAWN então
+            se a casa à frente (PAWN_PUSH[lado]) está vazia então
+                retorna verdadeiro
+            se alguma casa de PAWN_ATTACKS[lado][casa] tem peça inimiga então
+                retorna verdadeiro
+        senão se tipo(peca) == KNIGHT então
+            se alguma casa de KNIGHT_ATTACKS[casa] está vazia ou tem peça inimiga então
+                retorna verdadeiro
+        senão -- BISHOP: diagonais; ROOK: ortogonais; QUEEN: todas
+            se, numa direção da peça com SQ_TO_EDGE[casa][dir] > 0, a casa casa + DIR_OFFSET[dir] está vazia ou tem peça inimiga então
+                retorna verdadeiro
+    para toda direção dir com SQ_TO_EDGE[rei][dir] > 0 faça
+        destino = rei + DIR_OFFSET[dir]
+        se destino sem peça de lado e não is_square_attacked(estado, destino, lado) então
+            retorna verdadeiro
+    retorna falso
+
 função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
     nosVisitados = nosVisitados + 1
     NOS_QUIESCENCIA = NOS_QUIESCENCIA + 1
@@ -84,8 +114,16 @@ função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
     senão se PROF_LIMITE <= profundidade então
         retorna avaliar(estado)
     senão
-        listaGerada = generate_legal_moves(estado)
         xeque = emXeque(estado)
+        standPat = 0
+        se não xeque então
+            standPat = avaliar(estado)
+            se estado.side_to_move == WHITE então
+                corta = standPat >= beta
+            senão corta = standPat <= alfa
+            se corta e lanceGarantido(estado) então
+                retorna standPat
+        listaGerada = generate_legal_moves(estado)
         se listaGerada == vazio então
             se xeque então
                 se estado.side_to_move == WHITE então
@@ -93,18 +131,20 @@ função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
                 senão retorna MATE - profundidade
             senão retorna 0
         senão:
+            listaBusca = listaGerada
+            se não xeque então
+                listaCapturas = lances de listaGerada com move_is_capture, na mesma ordem
+                listaBusca = listaCapturas
             se estado.side_to_move == WHITE faça
                 melhor = -INFINITO
                 se não xeque então
-                    melhor = avaliar(estado) -- stand-pat
+                    melhor = standPat
                     se melhor > alfa então
                         alfa = melhor
                     se alfa >= beta então
                         retorna melhor
-                listaOrdenada = ordenarLances(estado, listaGerada, MOVE_NONE)
+                listaOrdenada = ordenarLances(estado, listaBusca, MOVE_NONE)
                 para todo lance em listaOrdenada faça
-                    se não xeque e não move_is_capture(lance) então
-                        continuar
                     undo = novo registro
                     make_move(estado, lance, undo)
                     atual = quiescenciaAlfaBeta(estado, profundidade + 1, alfa, beta)
@@ -123,15 +163,13 @@ função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
             senão:
                 melhor = INFINITO
                 se não xeque então
-                    melhor = avaliar(estado) -- stand-pat
+                    melhor = standPat
                     se melhor < beta então
                         beta = melhor
                     se alfa >= beta então
                         retorna melhor
-                listaOrdenada = ordenarLances(estado, listaGerada, MOVE_NONE)
+                listaOrdenada = ordenarLances(estado, listaBusca, MOVE_NONE)
                 para todo lance em listaOrdenada faça
-                    se não xeque e não move_is_capture(lance) então
-                        continuar
                     undo = novo registro
                     make_move(estado, lance, undo)
                     atual = quiescenciaAlfaBeta(estado, profundidade + 1, alfa, beta)

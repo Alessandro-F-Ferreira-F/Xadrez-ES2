@@ -8,6 +8,8 @@
 #include "ia.h"
 #include "stubs.h"
 #include "movegen.h"
+#include "makemove.h"
+#include "iaTeste.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -320,6 +322,49 @@ static const CasoMateQuiescencia casosMateQuiescencia[] = {
     {"r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1", "a8a1"},
 };
 
+// lanceGarantido em afogamentos (fora de xeque, sem lances): tem de dar false. O terceiro tem um peão
+// bloqueado fora das linhas do rei; o quarto, peão e rei brancos sem lance
+static const char *fensAfogamento[] = {
+    "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+    "k7/8/1Q6/8/8/8/8/7K b - - 0 1",
+    "7k/5Q2/6K1/8/8/p7/P7/8 b - - 0 1",
+    "8/8/8/8/8/5k2/5p2/5K2 w - - 0 1",
+};
+
+// lanceGarantido nas árvores percorridas como no perft: inicial, kiwipete, perft 3 e perft 4 (cravadas e xeques)
+static const char *fensLanceGarantido[] = {
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+    "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+};
+#define PROF_LANCE_GARANTIDO 3
+
+// Percorre a árvore até profundidade (como o perft) e confere lanceGarantido em todo nó fora de xeque:
+// true exige lista gerada não vazia. Conta os nós fora de xeque e aqueles em que a prova falhou havendo
+// lance (só informativo: a quiescência gera a lista nesses casos)
+static void percorrerLanceGarantido(Board *board, int profundidade, bool *falha, uint64_t *nosFora, uint64_t *provaFalhou){
+    MoveList lista;
+    generate_legal_moves(board, &lista);
+    Color lado = board->side_to_move;
+
+    // is_square_attacked(board, casa, lado): lado é o defensor
+    if(!is_square_attacked(board, board->king_square[lado], lado)){
+        bool garantido = lanceGarantido(board);
+        (*nosFora) ++;
+        if(garantido && lista.count == 0) *falha = true;
+        if(!garantido && lista.count > 0) (*provaFalhou) ++;
+    }
+    if(profundidade == 0) return;
+
+    for(int i = 0; i < lista.count; i ++){
+        Undo undo;
+        make_move(board, lista.moves[i], &undo);
+        percorrerLanceGarantido(board, profundidade - 1, falha, nosFora, provaFalhou);
+        unmake_move(board, lista.moves[i], &undo);
+    }
+}
+
 // Ordenação MVV-LVA: uma captura de cada nota, todas distintas, incluindo en passant (d6)
 static const char *fenOrdenacao = "7k/8/8/q2pP1r1/1P6/1n3N2/2B5/3QK3 w - d6 0 1";
 // Capturas na ordem esperada: PxD (39), CxT (30), BxC (13), PxP e.p. (7), DxP (3)
@@ -504,6 +549,38 @@ int main(void){
         if(jogadaSem.resultado != RESULTADO_SUCESSO || jogadaSem.tipo != TIPO_CENTIPEAO
         || JOGADA.resultado != RESULTADO_SUCESSO || JOGADA.lance != mate || JOGADA.tipo != TIPO_MATE
         || JOGADA.score != 1) retornoQuiescencia = 1;
+    }
+
+    // lanceGarantido: false nos afogamentos; nas árvores, true só com lista não vazia
+    for(size_t i = 0; i < sizeof(fensAfogamento)/sizeof(fensAfogamento[0]); i ++){
+        if(!fen_parse(fensAfogamento[i], &board)){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        generate_legal_moves(&board, &lancesRaiz);
+        Color lado = board.side_to_move;
+        bool xeque = is_square_attacked(&board, board.king_square[lado], lado);
+        bool garantido = lanceGarantido(&board);
+
+        printf(" afogamento %d %d %d\n", lancesRaiz.count, (int) xeque, (int) garantido);
+
+        // Sem lances e fora de xeque confere a FEN; garantido tem de ser false
+        if(lancesRaiz.count != 0 || xeque || garantido) retornoQuiescencia = 1;
+    }
+
+    for(size_t i = 0; i < sizeof(fensLanceGarantido)/sizeof(fensLanceGarantido[0]); i ++){
+        if(!fen_parse(fensLanceGarantido[i], &board)){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        bool falha = false;
+        uint64_t nosFora = 0, provaFalhou = 0;
+
+        percorrerLanceGarantido(&board, PROF_LANCE_GARANTIDO, &falha, &nosFora, &provaFalhou);
+
+        printf(" lanceGarantido %" PRIu64 " %" PRIu64 " %d\n", nosFora, provaFalhou, (int) falha);
+
+        if(falha) retornoQuiescencia = 1;
     }
     printf("\n");
 

@@ -4,6 +4,8 @@
 #include "pendenciasRegras.h"
 #include "makemove.h"
 #include "movegen.h"
+#include "square.h"
+#include "iaTeste.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -61,6 +63,71 @@ void converterScore(int32_t scoreBruto, Color lado, Play *p){
 
 static bool emXeque(const Board *board){
     return is_square_attacked(board, board->king_square[board->side_to_move], board->side_to_move);
+}
+
+// Prova barata de que o lado da vez tem um lance legal, sem gerar a lista. Pré-condição: fora de xeque.
+// Condição suficiente, não necessária: false não quer dizer afogamento, só que a prova falhou.
+// Uma peça fora da fileira, da coluna e das diagonais do próprio rei não pode estar cravada; fora de
+// xeque, qualquer lance pseudolegal dela é legal (en passant fica de fora). Se nenhuma servir, o rei:
+// fora de xeque ele não bloqueia raio nenhum, então is_square_attacked com o rei no lugar é exato
+bool lanceGarantido(const Board *board){
+    Color lado = board->side_to_move;
+    int rei = board->king_square[lado];
+    int filaRei = RANK_OF(rei), colunaRei = FILE_OF(rei);
+
+    for(int casa = 0; casa < BOARD_SIZE; casa ++){
+        Piece peca = board->array[casa];
+        if(peca == EMPTY || PIECE_COLOR(peca) != lado || PIECE_TYPE(peca) == KING) continue;
+
+        int fila = RANK_OF(casa), coluna = FILE_OF(casa);
+        if(fila == filaRei || coluna == colunaRei || fila - coluna == filaRei - colunaRei
+           || fila + coluna == filaRei + colunaRei) continue;
+
+        PieceType tipo = PIECE_TYPE(peca);
+
+        if(tipo == PAWN){
+            // Avanço simples (com ou sem promoção) ou captura normal
+            int destino = casa + PAWN_PUSH[lado];
+            if(!SQ_OFFBOARD(destino) && board->array[destino] == EMPTY) return true;
+            for(int i = 0; i < 2; i ++){
+                destino = PAWN_ATTACKS[lado][casa][i];
+                if(destino == SQ_NONE) continue;
+                Piece alvo = board->array[destino];
+                if(alvo != EMPTY && PIECE_COLOR(alvo) != lado) return true;
+            }
+        }
+        else if(tipo == KNIGHT){
+            for(int i = 0; i < 8; i ++){
+                int destino = KNIGHT_ATTACKS[casa][i];
+                if(destino == SQ_NONE) continue;
+                Piece alvo = board->array[destino];
+                if(alvo == EMPTY || PIECE_COLOR(alvo) != lado) return true;
+            }
+        }
+        else{
+            // Um passo numa direção da peça: ortogonais (DIR_N..DIR_W) para torre, diagonais (DIR_NE..DIR_NW)
+            // para bispo, todas para a dama
+            int primeira = (tipo == BISHOP) ? DIR_NE : DIR_N;
+            int ultima = (tipo == ROOK) ? DIR_W : DIR_NW;
+            for(int dir = primeira; dir <= ultima; dir ++){
+                if(SQ_TO_EDGE[casa][dir] == 0) continue;
+                Piece alvo = board->array[casa + DIR_OFFSET[dir]];
+                if(alvo == EMPTY || PIECE_COLOR(alvo) != lado) return true;
+            }
+        }
+    }
+
+    // KING_TARGETS (square.h) não é inicializada pelo motor: as casas vizinhas saem de SQ_TO_EDGE e DIR_OFFSET.
+    // is_square_attacked(board, casa, lado): lado é o defensor
+    for(int dir = DIR_N; dir <= DIR_NW; dir ++){
+        if(SQ_TO_EDGE[rei][dir] == 0) continue;
+        int destino = rei + DIR_OFFSET[dir];
+        Piece alvo = board->array[destino];
+        if(alvo != EMPTY && PIECE_COLOR(alvo) == lado) continue;
+        if(!is_square_attacked(board, destino, lado)) return true;
+    }
+
+    return false;
 }
 
 static int8_t verificarChamada(Board *board, int variante, int randomizador, int quiescencia, int profundidade, int tempoMs){
@@ -191,9 +258,19 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
     if(testeEmpateRegra(board)) return 0;
     else if(PROF_LIMITE <= profundidade) return avaliar(board);
     else{
+        bool xeque = emXeque(board);
+        int32_t standPat = 0;
+
+        // Corte do stand-pat antes de gerar os lances, se houver lance legal garantido: com a lista
+        // gerada, ela não seria vazia e o corte seria o mesmo. Sem a garantia, pode ser afogamento (0)
+        if(!xeque){
+            standPat = avaliar(board);
+            bool corta = (board->side_to_move == WHITE) ? (standPat >= beta) : (standPat <= alfa);
+            if(corta && lanceGarantido(board)) return standPat;
+        }
+
         MoveList listaGerada;
         generate_legal_moves(board, &listaGerada);
-        bool xeque = emXeque(board);
 
         if(listaGerada.count == 0){
             if(xeque){
@@ -205,21 +282,32 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
             else return 0;
         }
         else{
+            // Fora de xeque, só as capturas são buscadas: filtradas antes de ordenar, na ordem do gerador
+            MoveList listaCapturas;
+            const MoveList *listaBusca = &listaGerada;
+
+            if(!xeque){
+                movelist_clear(&listaCapturas);
+                for(int i = 0; i < listaGerada.count; i ++){
+                    if(move_is_capture(listaGerada.moves[i])) movelist_add(&listaCapturas, listaGerada.moves[i]);
+                }
+                listaBusca = &listaCapturas;
+            }
+
             if(board->side_to_move == WHITE){
                 int32_t melhor = -INFINITO;
 
                 if(!xeque){
-                    melhor = avaliar(board);
+                    melhor = standPat;
                     if(melhor > alfa) alfa = melhor;
                     if(alfa >= beta) return melhor;
                 }
 
                 LanceOrdenado listaOrdenada[MAX_MOVES];
-                ordenarLances(board, &listaGerada, MOVE_NONE, listaOrdenada);
+                ordenarLances(board, listaBusca, MOVE_NONE, listaOrdenada);
 
-                for(int i = 0; i < listaGerada.count; i ++){
+                for(int i = 0; i < listaBusca->count; i ++){
                     Move lance = listaOrdenada[i].lance;
-                    if(!xeque && !move_is_capture(lance)) continue;
                     Undo undo;
 
                     make_move(board, lance, &undo);
@@ -247,17 +335,16 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
                 int32_t melhor = INFINITO;
 
                 if(!xeque){
-                    melhor = avaliar(board);
+                    melhor = standPat;
                     if(melhor < beta) beta = melhor;
                     if(alfa >= beta) return melhor;
                 }
 
                 LanceOrdenado listaOrdenada[MAX_MOVES];
-                ordenarLances(board, &listaGerada, MOVE_NONE, listaOrdenada);
+                ordenarLances(board, listaBusca, MOVE_NONE, listaOrdenada);
 
-                for(int i = 0; i < listaGerada.count; i ++){
+                for(int i = 0; i < listaBusca->count; i ++){
                     Move lance = listaOrdenada[i].lance;
-                    if(!xeque && !move_is_capture(lance)) continue;
                     Undo undo;
 
                     make_move(board, lance, &undo);

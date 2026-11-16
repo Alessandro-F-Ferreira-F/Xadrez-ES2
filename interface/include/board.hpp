@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,10 +30,29 @@ private:
     std::vector<std::string> legalMoves;
     std::vector<std::pair<int, int>> highlightedSquares;
 
+    // Estado de partida e alertas visuais (Issue #7)
+    int checkCol;
+    int checkRow;
+    int invalidMoveCol;
+    int invalidMoveRow;
+    std::string gameResult;
+    std::string gameReason;
+    std::string alertMessage;
+    bool alertVisible;
+    bool alertIsCritical;
+    float alertDurationSec;
+    std::chrono::steady_clock::time_point alertStart;
+    sf::FloatRect closeButtonBounds;
+    sf::Font alertFont;
+    bool fontLoaded;
+
     void initSquares();
     void loadTextures();
+    void loadAlertFont();
     void placePiece(PieceType type, PieceColor color, int col, int row);
     void updateHighlightsForSelected();
+    void showAlert(const std::string& message, float durationSec, bool critical);
+    void updateCloseButtonBounds();
 
 public:
     explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE);
@@ -59,6 +79,21 @@ public:
     const std::vector<std::pair<int, int>>& getHighlightedSquares() const { return highlightedSquares; }
 
     void clearSelection();
+    void resetGame();
+    void dismissAlert();
+    void updateAlert();
+
+    bool isGameOver() const { return gameResult != "*"; }
+    bool isInCheck() const { return checkCol >= 0 && checkRow >= 0; }
+    int getCheckCol() const { return checkCol; }
+    int getCheckRow() const { return checkRow; }
+    int getInvalidMoveCol() const { return invalidMoveCol; }
+    int getInvalidMoveRow() const { return invalidMoveRow; }
+    const std::string& getGameResult() const { return gameResult; }
+    const std::string& getGameReason() const { return gameReason; }
+    const std::string& getAlertMessage() const { return alertMessage; }
+    bool isAlertVisible() const { return alertVisible; }
+    const sf::FloatRect& getCloseButtonBounds() const { return closeButtonBounds; }
 
     // Recebe a linha "legalmoves e2e4 d2d4 ..." do motor e atualiza a lista de lances legais
     void setLegalMoves(const std::string& legalMovesLine);

@@ -293,6 +293,97 @@ static void test_engine_bridge_with_stub() {
     CHECK(bridge.stop(), "Encerra o stub com sucesso");
 }
 
+// 9. Teste de Unidade (Issue #7): Alertas de Estado de Jogo (Xeque, Mate, Afogamento, 50 lances e Bloqueio)
+static void test_game_state_alerts_and_lock() {
+    ChessBoard board(800.f);
+
+    CHECK(!board.isGameOver(), "Partida nao deve iniciar encerrada");
+    CHECK(!board.isInCheck(), "Partida nao deve iniciar em xeque");
+    CHECK(board.getCheckCol() == -1 && board.getCheckRow() == -1, "checkCol/Row iniciais devem ser -1");
+    CHECK(board.getGameResult() == "*", "Resultado inicial deve ser '*'");
+    CHECK(board.getGameReason() == "none", "Motivo inicial deve ser 'none'");
+    CHECK(board.getAlertMessage().empty(), "Sem alerta inicial");
+
+    // Xeque simples em e1
+    board.processUCICommand("state check e1 result * reason none fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    CHECK(board.isInCheck(), "Deve detectar xeque em e1");
+    CHECK(board.getCheckCol() == 4 && board.getCheckRow() == 7, "Casa do rei em xeque deve ser e1 (4, 7)");
+    CHECK(!board.isGameOver(), "Xeque simples nao encerra partida");
+    CHECK(board.getAlertMessage().find("Xeque") != std::string::npos, "Mensagem deve alertar Xeque");
+
+    // Saida do xeque
+    board.processUCICommand("state check - result * reason none fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    CHECK(!board.isInCheck(), "Xeque deve limpar com 'check -'");
+    CHECK(board.getCheckCol() == -1 && board.getCheckRow() == -1, "checkCol/Row voltam para -1");
+
+    // Xeque-mate (0-1)
+    board.processUCICommand("state check e1 result 0-1 reason checkmate fen rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3");
+    CHECK(board.isGameOver(), "Xeque-mate deve encerrar a partida");
+    CHECK(board.isInCheck(), "Rei em e1 continua destacado em xeque no mate");
+    CHECK(board.getGameResult() == "0-1", "Resultado deve ser 0-1");
+    CHECK(board.getGameReason() == "checkmate", "Motivo deve ser checkmate");
+    CHECK(board.getAlertMessage().find("Xeque-mate") != std::string::npos, "Mensagem deve alertar Xeque-mate");
+
+    // Bloqueio de cliques apos fim de jogo
+    CHECK(board.handleMouseClick(450.f, 650.f).empty(), "Nao deve selecionar nem mover apos fim de jogo");
+    CHECK(board.getSelectedCol() == -1, "Selecao bloqueada apos fim de jogo");
+
+    // Reinicio da partida
+    board.resetGame();
+    CHECK(!board.isGameOver(), "resetGame deve limpar fim de jogo");
+    CHECK(!board.isInCheck(), "resetGame deve limpar xeque");
+    CHECK(board.getGameResult() == "*", "resetGame restaura resultado '*'");
+    CHECK(board.getAlertMessage().empty(), "resetGame limpa alerta");
+
+    // Afogamento (stalemate)
+    board.processUCICommand("state check - result 1/2-1/2 reason stalemate fen 7k/5Q2/6K1/8/8/8/8/8 b - - 0 1");
+    CHECK(board.isGameOver(), "Afogamento deve encerrar partida");
+    CHECK(board.getGameReason() == "stalemate", "Motivo deve ser stalemate");
+    CHECK(board.getAlertMessage().find("Afogamento") != std::string::npos, "Mensagem deve alertar Afogamento");
+
+    // Regra dos 50 lances (fifty-moves)
+    board.processUCICommand("state check - result 1/2-1/2 reason fifty-moves fen 8/8/8/3K2k1/8/8/8/8 b - - 100 211");
+    CHECK(board.isGameOver(), "Empate de 50 lances deve encerrar partida");
+    CHECK(board.getGameReason() == "fifty-moves", "Motivo deve ser fifty-moves");
+    CHECK(board.getAlertMessage().find("50 lances") != std::string::npos, "Mensagem deve alertar 50 lances");
+}
+
+// 10. Teste de Unidade (Issue #7): Alertas de Movimento Invalido e Captura
+static void test_capture_and_invalid_move_alerts() {
+    ChessBoard board(800.f);
+    board.setLegalMoves("legalmoves g1f3");
+
+    // Seleciona cavalo em g1 (col 6, row 7 -> x=650, y=750) e clica em casa ilegal g3 (col 6, row 5 -> x=650, y=550)
+    board.handleMouseClick(650.f, 750.f);
+    CHECK(board.handleMouseClick(650.f, 550.f).empty(), "Lance ilegal deve ser bloqueado");
+    CHECK(board.getInvalidMoveCol() == 6 && board.getInvalidMoveRow() == 5,
+          "Casa do clique ilegal (g3) deve ser marcada para alerta visual");
+    CHECK(board.getAlertMessage().find("invalido") != std::string::npos,
+          "Mensagem deve alertar movimento invalido");
+
+    // Captura normal (1. e4 d5 2. exd5)
+    board.resetGame();
+    board.processUCICommand("position startpos moves e2e4 d7d5");
+    CHECK(board.applyUCIMove("e4d5"), "Captura e4d5 deve ser aplicada");
+    CHECK(board.getAlertMessage().find("Captura") != std::string::npos,
+          "Mensagem deve alertar captura de peca");
+
+    // Captura en passant (1. e4 a6 2. e5 d5 3. exd6)
+    board.resetGame();
+    board.processUCICommand("position startpos moves e2e4 a7a6 e4e5 d7d5");
+    CHECK(board.applyUCIMove("e5d6"), "Captura en passant e5d6 deve ser aplicada");
+    CHECK(board.getAlertMessage().find("Captura") != std::string::npos,
+          "Mensagem deve alertar captura en passant");
+    CHECK(board.isAlertVisible(), "Pop-up de alerta deve ficar visivel apos captura");
+
+    // Clicar no botao [X] do pop-up fecha o alerta sem selecionar pecas
+    const sf::FloatRect& closeRect = board.getCloseButtonBounds();
+    CHECK(board.handleMouseClick(closeRect.left + 5.f, closeRect.top + 5.f).empty(),
+          "Clique no botao [X] fecha pop-up sem mover peca");
+    CHECK(!board.isAlertVisible(), "Pop-up deve desaparecer apos clicar no [X]");
+    CHECK(board.getSelectedCol() == -1, "Clique no [X] nao deve selecionar peca por baixo");
+}
+
 int main() {
     std::cout << "=== [UNIT TESTS] Interface (Caixa Branca, Fronteiras e Stubs) ===" << std::endl;
 
@@ -304,6 +395,8 @@ int main() {
     RUN_TEST(test_process_uci_command);
     RUN_TEST(test_mouse_click_and_highlights);
     RUN_TEST(test_engine_bridge_with_stub);
+    RUN_TEST(test_game_state_alerts_and_lock);
+    RUN_TEST(test_capture_and_invalid_move_alerts);
 
     std::cout << "=== Resultado Unidade: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
     return (g_failed == 0) ? 0 : 1;

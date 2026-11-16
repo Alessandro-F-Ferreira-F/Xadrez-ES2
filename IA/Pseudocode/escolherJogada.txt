@@ -18,7 +18,7 @@
 
 -- Com a quiescência, nem a iteração 1 tem custo limitado (medido: minimax no kiwipete passa de 60 s já com limite 1). Com relógio, roda antes uma passada de segurança: limite 1, sem quiescência e com o relógio desligado, que sempre termina (raiz + um nó por lance) e preenche CANDIDATOS e scoreBruto. Depois, todas as iterações, inclusive a 1, rodam com a quiescência e sob o relógio. A iteração 1 interrompida segue a regra da parcial (o primeiro filho é o melhor da passada de segurança); se nada for aproveitado, valem os candidatos da passada de segurança, e PROF_ALCANCADA fica 0 (com RESULTADO_SUCESSO). Sem limite de tempo não há passada de segurança
 
--- prazoPassou() devolve verdadeiro se relógio() >= prazo ou se relógio() falhar (devolver (clock_t)-1): sem como medir o tempo, o prazo conta como passado. Se o relógio já falha no início, prazo = INT64_MIN e só a iteração 1 roda. prazo é guardado em inteiro de 64 bits: no Windows o clock_t tem 32 bits e inicio + tempoMs poderia estourar
+-- prazoPassou() devolve verdadeiro se clock() >= prazo ou se clock() falhar (devolver (clock_t)-1): sem como medir o tempo, o prazo conta como passado. Se o relógio já falha no início, prazo = INT64_MIN e só a iteração 1 roda. prazo é guardado em inteiro de 64 bits: no Windows o clock_t tem 32 bits e inicio + tempoMs poderia estourar
 
 -- Parada por mate: se uma iteração completa devolve |scoreBruto| >= MATE - limiteIteracao (mate a até limiteIteracao meios-lances), o aprofundamento para. Um mate em p meios-lances achado com limite D (p <= D) já é exato: um mate mais curto teria aparecido na mesma iteração, e para o lado que leva mate todas as defesas já terminam em mate dentro de D. Uma iteração mais funda não muda lance nem score
 -- Um mate achado só na quiescência (p > D) não para: lá a busca não tem largura completa, e o mate pode não ser o mais curto. Sem a quiescência, todo mate tem p < D, e a condição equivale à antiga |scoreBruto| >= LIMIAR_MATE
@@ -45,7 +45,7 @@ TIPO_INVALIDO = 0 -- valor padrão de JOGADA.tipo quando não há jogada
 TIPO_CENTIPEAO = 1
 TIPO_MATE = -1
 
-PROF_LIMITE = 2 * profMax -- ver minimax.txt
+PROF_LIMITE = 2 * PROF_MAX -- ver minimax.txt
 LIMIAR_MATE = MATE - PROF_LIMITE
 
 SORTEIO_LIGADO = 1
@@ -57,7 +57,7 @@ QUIESCENCIA_DESLIGADA = 0
 TEMPO_SEM_LIMITE = 0
 
 função escolherJogada(estado, variante, randomizador, quiescencia, profundidade, tempoMs):
-    inicio = relógio()
+    inicio = clock()
     listaCandidatos.limpar()
     CANDIDATOS.limpar()
     nosVisitados = 0
@@ -78,7 +78,7 @@ função escolherJogada(estado, variante, randomizador, quiescencia, profundidad
         se inicio == (clock_t)-1 então -- sem início, o prazo conta como já passado
             prazo = INT64_MIN
         senão
-            prazo = inicio + tempoMs
+            prazo = inicio + tempoMs * CLOCKS_PER_SEC / 1000 -- ms para tiques do clock()
 
     scoreBruto = SCORE_INVALIDO
 

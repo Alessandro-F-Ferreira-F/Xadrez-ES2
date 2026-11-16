@@ -13,7 +13,7 @@ RESULTADO_SUCESSO = 0
 RESULTADO_ERRO_INTERNO = -1 -- lista de candidatos vazia após busca com raiz válida; não deve ocorrer (ver escolherJogada.txt)
 RESULTADO_VARIANTE_INVALIDA = -2
 RESULTADO_RANDOMIZADOR_INVALIDO = -3
-RESULTADO_PROFUNDIDADE_INVALIDA = -4 -- profundidade fora de [1, profMax]
+RESULTADO_PROFUNDIDADE_INVALIDA = -4 -- profundidade fora de [1, PROF_MAX]
 RESULTADO_TEMPO_INVALIDO = -5 -- tempoMs negativo
 RESULTADO_QUIESCENCIA_INVALIDA = -6 -- quiescencia diferente de QUIESCENCIA_LIGADA e QUIESCENCIA_DESLIGADA
 
@@ -33,7 +33,7 @@ função verificarChamada(estado, variante, randomizador, quiescencia, profundid
     se quiescencia != QUIESCENCIA_LIGADA e quiescencia != QUIESCENCIA_DESLIGADA então
         retorna RESULTADO_QUIESCENCIA_INVALIDA
 
-    se profundidade < 1 ou profundidade > profMax então
+    se profundidade < 1 ou profundidade > PROF_MAX então
         retorna RESULTADO_PROFUNDIDADE_INVALIDA
 
     se tempoMs < 0 então

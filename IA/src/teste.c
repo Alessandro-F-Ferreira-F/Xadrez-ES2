@@ -135,6 +135,10 @@ static void percorrerSimetria(Board *board, int profundidade, bool *falha, uint6
 // Profundidade dos testes de busca (go depth), sem limite de tempo
 #define PROF_TESTE 4
 
+// Kiwipete (meio-jogo carregado), usado em vários blocos. #define e não static const char*: este não
+// serve de inicializador nas tabelas
+#define FEN_KIWIPETE "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+
 typedef struct CasoEscolherJogada{
     const char *fen;
     int variante;
@@ -197,7 +201,7 @@ static const CasoV1V2 casosV1V2[] = {
     {"3qk3/8/8/8/3Q4/8/8/4K3 b - - 0 1",                                        PROF_TESTE},
 
     // Meio-jogo carregado (kiwipete)
-    {"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",    PROF_TESTE},
+    {FEN_KIWIPETE,                                                              PROF_TESTE},
 };
 
 // v1 = v2 com a quiescência ligada: a quiescência sem poda (minimax) é a referência da com poda.
@@ -383,14 +387,13 @@ static const char *fensAfogamento[] = {
 // lanceGarantido nas árvores percorridas como no perft: inicial, kiwipete, perft 3 e perft 4 (cravadas e xeques)
 static const char *fensLanceGarantido[] = {
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    FEN_KIWIPETE,
     "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
     "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
 };
 #define PROF_LANCE_GARANTIDO 3
 
 // Delta pruning no kiwipete (alfa-beta com quiescência): prof. 2 custa ~130 mil nós sem o delta
-static const char *fenKiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 #define PROF_DELTA_KIWIPETE 2
 
 // Percorre a árvore até profundidade (como o perft) e confere lanceGarantido em todo nó fora de xeque:
@@ -510,12 +513,11 @@ int main(void){
     // O tempo gasto depende da máquina: só se exige que não passe muito do prazo (FOLGA_TEMPO_MS)
 
     int retornoTempo = 0;
-    const char *fenTempo = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
     char fenAntes[MAX_FEN_STRING], fenDepois[MAX_FEN_STRING];
     MoveList lancesRaiz;
 
     for(size_t i = 0; i < sizeof(casosTempo)/sizeof(casosTempo[0]); i ++){
-        if(!fen_parse(fenTempo, &board)){
+        if(!fen_parse(FEN_KIWIPETE, &board)){
             retornoTempo = 1;
             continue;
         }
@@ -668,7 +670,7 @@ int main(void){
 
     for(size_t i = 0; i <= sizeof(casosV1V2Quiescencia)/sizeof(casosV1V2Quiescencia[0]); i ++){
         bool kiwipete = (i == sizeof(casosV1V2Quiescencia)/sizeof(casosV1V2Quiescencia[0]));
-        const char *fen = kiwipete ? fenKiwipete : casosV1V2Quiescencia[i].fen;
+        const char *fen = kiwipete ? FEN_KIWIPETE : casosV1V2Quiescencia[i].fen;
         int profundidade = kiwipete ? PROF_DELTA_KIWIPETE : casosV1V2Quiescencia[i].profundidade;
 
         if(!fen_parse(fen, &board)){
@@ -702,7 +704,7 @@ int main(void){
     int retornoSorteio = 0;
     const char *fenSorteio = "6k1/5ppp/8/8/8/8/8/RRR3K1 w - - 0 1";
 
-    fen_parse(fenSorteio, &board);
+    if(!fen_parse(fenSorteio, &board)) retornoSorteio = 1;
     generate_legal_moves(&board, &lancesRaiz);
     escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_DESLIGADA, PROF_TESTE, TEMPO_SEM_LIMITE);
     Play jogadaDesligado = JOGADA;
@@ -826,7 +828,7 @@ int main(void){
     for(size_t i = 0; i < sizeof(casosNiveis)/sizeof(casosNiveis[0]); i ++){
         parametros = sentinelaNivel;
         if(!parametrosNivel(casosNiveis[i].nivel, &parametros) || !mesmosParametros(&parametros, &casosNiveis[i].esperado)
-        || !fen_parse(fenKiwipete, &board)){
+        || !fen_parse(FEN_KIWIPETE, &board)){
             retornoNiveis = 1;
             continue;
         }

@@ -19,12 +19,12 @@ Implementação em **C11**. **Estado em 16/11/2026 (fim da etapa 14):** pedido a
 regras **enviado** (§8), sem resposta. **RNF01 alterado** (`468ca0f`): IA < 200 ms no fácil e
 no médio, < 1 s no difícil. **Níveis de dificuldade (RF03) feitos** (`501fdbf`): módulo
 `niveis`, mapa nível → parâmetros de `escolherJogada`, sem a ligação ao `go` (§3.20). **PSTs
-conferidas** contra o CPW: idênticas (§3.19). `IA` e `origin/IA` em `501fdbf`; `origin/main`
-em `4121a26`, a avançar por *fast-forward* até o commit deste contexto (§9). Suíte passando
-(~6 s), nenhum aviso vindo de `IA/`. **9 de 10 itens da EAP concluídos**; falta só o 1.5.2
-(integração), que depende do dev das regras.
-**Próximo passo:** merge no `main`; complemento ao dev (§8); depois, a integração quando o dev
-responder (§9).
+conferidas** contra o CPW: idênticas (§3.19). Recomendações pequenas aplicadas (`6ddca64`).
+**Merge feito:** `main`, `IA` e os remotos iguais (até `6ddca64`, mais o commit desta
+atualização). **Complemento ao dev enviado** (§8). Suíte passando (~6 s), nenhum aviso vindo
+de `IA/`. **9 de 10 itens da EAP concluídos**; falta só o 1.5.2 (integração), que depende do
+dev das regras.
+**Próximo passo:** aguardar a resposta do dev e fazer a integração (§9).
 
 ---
 
@@ -127,8 +127,9 @@ Até 2 e 3 existirem, `testeEmpateRegra` continua vindo do stub (`stubs.c`), dec
 - **Editor salvando buffer antigo por cima do disco** (etapa 8). Antes de commitar, compilar a
   partir do disco.
 - **Commit com mais do que o combinado**, **antes do combinado**, ou **mensagem repetida**.
-- **Mensagem de commit fora da convenção** (etapa 10: `0615267`). Nas etapas 11 a 14, todos
-  os commits saíram na convenção.
+- **Mensagem de commit fora da convenção** (etapa 10: `0615267`; etapa 14: `6ddca64`, dois
+  commits sugeridos fundidos num só, com as duas mensagens unidas por `;` — já no remoto,
+  deixado assim).
 
 **Mudanças sem efeito cruzado podem ir em commits separados a partir de uma cópia de trabalho
 só** (etapa 14): `git add` só dos arquivos de cada commit, um por vez.
@@ -202,9 +203,11 @@ de comportamento por commit.
 | `e0bedbc` | Contexto da etapa 13 | |
 | `468ca0f` | RNF01: 200 ms no fácil e no médio, 1 s no difícil (`docs/requisitos.md`) | |
 | `501fdbf` | Níveis de dificuldade: `niveis.h/.c`, `niveis.txt` (novos) + `teste.c` | |
-| (este) | Contexto da etapa 14 | |
+| `7745f35` | Contexto da etapa 14 | |
+| `6ddca64` | Pseudocódigo com os nomes do C (`PROF_MAX`, `clock()`, ms → tiques) + `FEN_KIWIPETE` e `fen_parse` do sorteio no teste (4 arquivos) | mensagem dupla, fora da convenção, deixado assim |
+| (este) | Contexto da etapa 14 atualizado após o merge | |
 
-Até `4121a26`, todos em `origin/main`; o resto entra no merge planejado (§9). `IA/docs/` entra no repositório **de propósito**: explicita o
+Todos em `origin/main` (merge por *fast-forward* na etapa 14). `IA/docs/` entra no repositório **de propósito**: explicita o
 desenvolvimento orientado a especificação em `.md`.
 
 ---
@@ -557,7 +560,7 @@ Ligar a IA ao `go` depende do dev das regras (§8).
 
 | Arquivo | Conteúdo | Estado |
 |---|---|---|
-| `IA/Pseudocode/minimax.txt` | minimax; `profMax`, `PROF_LIMITE`, `limiteIteracao`, `tempoEsgotado`, `estourouTempo`, `nosVisitados`, `quiescenciaAtiva` | fechado |
+| `IA/Pseudocode/minimax.txt` | minimax; `PROF_MAX`, `PROF_LIMITE`, `limiteIteracao`, `tempoEsgotado`, `estourouTempo`, `nosVisitados`, `quiescenciaAtiva` | fechado |
 | `IA/Pseudocode/alfa-beta.txt` | poda alfa-beta; ordenação; `primeiro`; `scoreParcial`; chamada da quiescência | fechado |
 | `IA/Pseudocode/quiescencia.txt` | `quiescenciaMinimax`, `lanceGarantido`, `podaDelta`, `valorVitima`, `quiescenciaAlfaBeta` | fechado (etapa 13) |
 | `IA/Pseudocode/ordenarLances.txt` | `notaMVVLVA`, `ordenarLances` | fechado |
@@ -604,7 +607,8 @@ Ligar a IA ao `go` depende do dev das regras (§8).
 
   Todo o `engine/src` menos `main.c`; **`niveis.c` novo na etapa 14**. A suíte leva **~6 s**
   (etapa 14; ~1,2 s a mais pelo teste dos níveis). O `.vscode/tasks.json` (ignorado pelo git)
-  **ainda não** está assim — acertar em cada máquina, incluindo o `ordenar.c` e o `niveis.c`.
+  **foi acertado nesta máquina** na etapa 14 (mesmos arquivos e flags; testado); em outra
+  máquina, acertar à mão.
 - **Medições** (etapas 13 e 14): programas à parte no **scratchpad** do Claude, compilados com `-O2
   -DNDEBUG` contra o `ia.c` do disco, chamando `init_square_tables()` antes de tudo (sem ela, os
   resultados saem errados sem aviso: aconteceu na primeira medição da etapa 13).
@@ -728,7 +732,7 @@ Inalterado (FEN `7k/8/8/q2pP1r1/1P6/1n3N2/2B5/3QK3 w - d6 0 1`, três casos de `
   sentinela (`{-7, -7, -7, -7, -7}`) intacta.
 - **Válidos** (`casosNiveis {nivel, esperado, respostaMaxMs}`): parâmetros **exatos**, escritos
   como literais (2, 3, 180, 950) — duplicação proposital, o teste é a especificação, como os
-  esperados do `avaliar`. No kiwipete (`fenKiwipete`): `SUCESSO`, lance ∈ `CANDIDATOS`,
+  esperados do `avaliar`. No kiwipete (`FEN_KIWIPETE`): `SUCESSO`, lance ∈ `CANDIDATOS`,
   `PROF_ALCANCADA ≤ profundidade` e **gasto < teto do RNF01, sem folga** (`>=` falha; a margem
   vem dos prazos). Medido: fácil 0 ms (2), médio 181 ms (2, parcial), difícil 954 ms (3,
   parcial).
@@ -826,9 +830,9 @@ cumprido pelo relógio; o custo se mede em profundidade alcançada.
 ## 8. Decisões a acertar com a máquina de regras
 
 Pedido redigido no chat em 14/11 (itens 2, 4, 7 e 8, citando 1). **Enviado em 16/11**,
-aguardando resposta. **Ainda não comunicado** (mandar num complemento): `square.h` no
-congelamento, o `KING_TARGETS` não inicializado (§0.2, item 5), e o **mapa de níveis pronto**
-(`niveis.h`: o `go` só precisa do número do nível para obter os parâmetros, §3.20).
+aguardando resposta. **Complemento também enviado em 16/11** (etapa 14): `square.h` no
+congelamento, o `KING_TARGETS` não inicializado (§0.2, item 5), o **mapa de níveis pronto**
+(`niveis.h`, §3.20) com as três perguntas do item 8, os arquivos do build e o RNF01 novo.
 
 1. **Congelamento dos cabeçalhos** (`board.h`, `piece.h`, `move.h`, `makemove.h`, `movegen.h`,
    **e agora `square.h`**). A IA depende também de `move_is_capture`, `move_is_ep_capture`,
@@ -858,32 +862,30 @@ O dev das regras é **@caioveigap** (CODEOWNER de `engine/`).
 
 ## 9. Próximo passo
 
-1. **Merge `IA` → `main`** (decidido na etapa 14, depois do commit deste contexto): *fast-forward*
-   sem conflito (`origin/main` é ancestral de `IA`); leva a PST, os contextos 13 e 14, o RNF01 e
-   os níveis. O `docs/requisitos.md` está fora de `/IA/` e sem CODEOWNER: **avisar o grupo** da
-   mudança no RNF01.
-2. **Complemento ao dev:** `square.h`, `KING_TARGETS` e o mapa de níveis (§8). Não depende da
-   resposta ao pedido de 16/11.
-3. **Integração** (1.5.2), quando o dev responder (§8, itens 2, 4 e 8).
-4. **Apresentação (23/11).**
+1. **Integração** (1.5.2), quando o dev responder (§8, itens 2, 4 e 8).
+2. **Apresentação (23/11).**
+3. **Avisar o grupo da mudança no RNF01**, se ainda não foi feito (`docs/requisitos.md` está
+   fora de `/IA/`; o complemento ao dev já cita o RNF01 novo).
 
-~~Níveis (RF03)~~ (§3.20), ~~conferir as PSTs~~ (§3.19) e ~~decidir a PST no `main`~~ (item
-1): feitos na etapa 14.
+Feitos na etapa 14: ~~níveis (RF03)~~ (§3.20), ~~conferir as PSTs~~ (§3.19), ~~merge `IA` →
+`main`~~ (*fast-forward*), ~~complemento ao dev~~ (§8).
 
-**Recomendações pendentes** (não são erros):
-- **`fen_parse` sem conferir o retorno** no bloco do sorteio (`teste.c`), herdado.
-- **FEN do kiwipete repetida** no teste: `casosV1V2`, `fenTempo` (local da `main`) e
-  `fenKiwipete` (etapa 13). O `fenTempo` pode usar `fenKiwipete`; o `casosV1V2` não (o
-  `static const char*` não serve de inicializador; alternativa: `#define`). A torre solta
-  (antiga FEN do sorteio) não está mais duplicada.
-- Opcionais fora da EAP: SEE na quiescência; teste de afogamento que passe pelo caminho
-  "prova falhou" da `quiescenciaAlfaBeta` (§7.4).
-- **Pseudocódigo:** `relógio()` em vez de `clock()`; `prazo = inicio + tempoMs` omite a
-  conversão de ms para tiques (`tempoMs * CLOCKS_PER_SEC / 1000`); `profMax` em vez de
-  `PROF_MAX` (nome diferente do C).
-- **`.vscode/tasks.json`** com o comando da §6.1.
+**Recomendações resolvidas na etapa 14** (`6ddca64`, mais o `tasks.json` local):
+- ~~`fen_parse` sem conferir o retorno no sorteio~~: agora liga a flag, no padrão do bloco da
+  quiescência (o bloco segue rodando; o padrão `else { ... }` da ordenação reindentaria tudo).
+- ~~FEN do kiwipete repetida~~: `#define FEN_KIWIPETE` no topo do `teste.c`; `fenTempo` e
+  `fenKiwipete` removidos.
+- ~~Pseudocódigo~~: `PROF_MAX` (era `profMax`), `clock()` (era `relógio()`), `prazo = inicio +
+  tempoMs * CLOCKS_PER_SEC / 1000`.
+- ~~`.vscode/tasks.json`~~ igual ao comando da §6.1 (também corrigido `Ia\src\stubs.c`).
+
+**Recomendações pendentes** (não são erros; mudam comportamento ou pedem medição):
+- Opcionais fora da EAP: SEE na quiescência (ajudaria nas posições táticas, §7.10); teste de
+  afogamento que passe pelo caminho "prova falhou" da `quiescenciaAlfaBeta` (§7.4).
 - Seleção preguiçosa na ordenação.
 - Medir a profundidade alcançada antes da ordenação (§7.10, herdado).
+- Pequena, no teste: a FEN inicial aparece 18 vezes no `teste.c` (`fenInicial`,
+  `fensLanceGarantido`, `casosV1V2`, casos da verificação...), como a do kiwipete aparecia.
 
 ---
 

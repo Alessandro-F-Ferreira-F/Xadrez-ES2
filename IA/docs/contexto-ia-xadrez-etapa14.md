@@ -20,10 +20,10 @@ regras **enviado** (§8), sem resposta. **RNF01 alterado** (`468ca0f`): IA < 200
 no médio, < 1 s no difícil. **Níveis de dificuldade (RF03) feitos** (`501fdbf`): módulo
 `niveis`, mapa nível → parâmetros de `escolherJogada`, sem a ligação ao `go` (§3.20). **PSTs
 conferidas** contra o CPW: idênticas (§3.19). Recomendações pequenas aplicadas (`6ddca64`).
-**Merge feito:** `main`, `IA` e os remotos iguais (até `6ddca64`, mais o commit desta
+**Merge feito:** `main`, `IA` e os remotos iguais (até `60e18aa`, mais o commit desta
 atualização). **Complemento ao dev enviado** (§8). Suíte passando (~6 s), nenhum aviso vindo
-de `IA/`. **9 de 10 itens da EAP concluídos**; falta só o 1.5.2 (integração), que depende do
-dev das regras.
+de `IA/`. **Pacote 1.5 da EAP detalhado** (`60e18aa`, §10): 19 folhas, **17 concluídas**;
+faltam o 1.5.2.2 e o 1.5.2.3 (integração), que dependem do dev das regras.
 **Próximo passo:** aguardar a resposta do dev e fazer a integração (§9).
 
 ---
@@ -205,7 +205,9 @@ de comportamento por commit.
 | `501fdbf` | Níveis de dificuldade: `niveis.h/.c`, `niveis.txt` (novos) + `teste.c` | |
 | `7745f35` | Contexto da etapa 14 | |
 | `6ddca64` | Pseudocódigo com os nomes do C (`PROF_MAX`, `clock()`, ms → tiques) + `FEN_KIWIPETE` e `fen_parse` do sorteio no teste (4 arquivos) | mensagem dupla, fora da convenção, deixado assim |
-| (este) | Contexto da etapa 14 atualizado após o merge | |
+| `7fc68af` | Contexto da etapa 14 atualizado após o merge | |
+| `60e18aa` | Pacote 1.5 da EAP detalhado (`docs/EAP.md`) + linhas da IA e mudança de escopo no `docs/sprints.md` | |
+| (este) | Contexto da etapa 14 atualizado após a EAP | |
 
 Todos em `origin/main` (merge por *fast-forward* na etapa 14). `IA/docs/` entra no repositório **de propósito**: explicita o
 desenvolvimento orientado a especificação em `.md`.
@@ -583,6 +585,9 @@ Ligar a IA ao `go` depende do dev das regras (§8).
 | `IA/src/teste.c` | 9 blocos de teste (§7) | passando |
 | `IA/docs/` | contextos das etapas 2–14 | versionado |
 | `docs/requisitos.md` | requisitos do grupo; RNF01 alterado pela IA (etapa 14) | do grupo |
+| `docs/EAP.md` | EAP do grupo; pacote 1.5 detalhado pela IA (etapa 14, §10) | do grupo |
+| `docs/EAP.jpeg` | imagem da EAP; **ainda com o 1.5 antigo** (§9) | do grupo |
+| `docs/sprints.md` | sprints e EVM do grupo; linhas da IA e seção "Mudança de Escopo da IA" (etapa 14) | do grupo |
 
 `IA/Pseudocode/teste.exe` é um binário solto na pasta de pseudocódigo; não está no git.
 `IA/teste.exe` (saída do comando da §6.1) é ignorado pelo `*.exe` do `.gitignore`.
@@ -862,13 +867,17 @@ O dev das regras é **@caioveigap** (CODEOWNER de `engine/`).
 
 ## 9. Próximo passo
 
-1. **Integração** (1.5.2), quando o dev responder (§8, itens 2, 4 e 8).
+1. **Integração** (1.5.2.2 e 1.5.2.3), quando o dev responder (§8, itens 2, 4 e 8).
 2. **Apresentação (23/11).**
 3. **Avisar o grupo da mudança no RNF01**, se ainda não foi feito (`docs/requisitos.md` está
-   fora de `/IA/`; o complemento ao dev já cita o RNF01 novo).
+   fora de `/IA/`; o complemento ao dev já cita o RNF01 novo). Avisar também da EAP detalhada
+   e da mudança de escopo no `sprints.md` (§10).
+4. **`docs/EAP.jpeg`:** a pessoa que fez as imagens vai refazer com o 1.5 novo (pedido meu).
+   Até lá, imagem e texto divergem.
 
 Feitos na etapa 14: ~~níveis (RF03)~~ (§3.20), ~~conferir as PSTs~~ (§3.19), ~~merge `IA` →
-`main`~~ (*fast-forward*), ~~complemento ao dev~~ (§8).
+`main`~~ (*fast-forward*), ~~complemento ao dev~~ (§8), ~~detalhar o 1.5 da EAP e atualizar a
+IA no `sprints.md`~~ (`60e18aa`, §10).
 
 **Recomendações resolvidas na etapa 14** (`6ddca64`, mais o `tasks.json` local):
 - ~~`fen_parse` sem conferir o retorno no sorteio~~: agora liga a flag, no padrão do bloco da
@@ -891,10 +900,59 @@ Feitos na etapa 14: ~~níveis (RF03)~~ (§3.20), ~~conferir as PSTs~~ (§3.19), 
 
 ## 10. Mudanças de escopo da IA em relação à EAP (item 1.5)
 
-**Trabalho realizado que não aparece na EAP** (acumulado):
-- Especificação em pseudocódigo de todas as funções (**9 arquivos**, especificação viva).
-- Verificação da chamada (`verificarChamada`) e campo `resultado`.
-- Conversão de score para o protocolo (`converterScore`).
+### 10.1 EAP detalhada (etapa 14, `60e18aa`)
+
+O 1.5 tinha 10 folhas, contra ~30 do 1.4. Decisões (todas minhas, sobre proposta do Claude):
+
+- **Nenhum número antigo mudou**: o `sprints.md` e os IDs do Gantt (`#70`–`#81`) citam os
+  `1.5.x`. Só entraram filhos e itens novos no fim.
+- **Entregas, não detalhes de implementação**: iteração parcial, passada de segurança, stand-pat
+  antes de gerar e delta ficam no contexto e no pseudocódigo. A quiescência tem **dois filhos**
+  (funcionalidade e custo), no nível do 1.5.4; mais que isso seriam folhas de um commit.
+- **Sem duplicar** itens de outras áreas: testes da IA = `1.2.5.2`; tela de dificuldade = `1.3.4.2`.
+- **EVM:** filhos de itens antigos só decompõem o pai (as horas ficam nele); `1.5.5.5`, `1.5.7` e
+  `1.5.8` são escopo novo, **sem horas na linha de base**, fora do PV/EV da Seção 4 do
+  `sprints.md`. Estimar as horas fica com o grupo, se quiserem contar.
+- No `sprints.md`: status das linhas da IA com "em `16/11`" na célula (o cabeçalho "Status em
+  `16/10`" é das outras áreas); "promoções" saiu da linha da ordenação (não há bônus de
+  promoção, §3.12); seção nova "Mudança de Escopo da IA" depois da Sprint 5.
+
+```
+1.5 IA
+    1.5.1 Pesquisa
+        1.5.1.1 Estudo dos Algoritmos de Busca e Avaliação
+        1.5.1.2 Especificação em Pseudocódigo
+    1.5.2 Integração com a Máquina de Regras
+        1.5.2.1 Uso do Gerador Legal e de make/unmake
+        1.5.2.2 Detecção de Xeque e Empates pelo Motor
+        1.5.2.3 Ligação ao Comando go e ao Build do Motor
+        1.5.2.4 Conversão do Score para o Protocolo
+    1.5.3 Simulação de Estados
+    1.5.4 Avaliação de Posição
+        1.5.4.1 Avaliação Material
+        1.5.4.2 Avaliação Posicional
+        1.5.4.3 Interpolação por Fase da Partida
+    1.5.5 Busca de Melhor Lance
+        1.5.5.1 Algoritmo Minimax
+        1.5.5.2 Poda Alfa-Beta
+        1.5.5.3 Aprofundamento Progressivo
+            1.5.5.3.1 Controle de Tempo
+        1.5.5.4 Ordenação de Movimentos
+        1.5.5.5 Busca de Quiescência
+            1.5.5.5.1 Busca de Capturas e Evasões
+            1.5.5.5.2 Redução do Custo da Quiescência
+    1.5.6 Seleção de Lance Aleatório
+    1.5.7 Níveis de Dificuldade
+    1.5.8 Verificação da Chamada da IA
+```
+
+### 10.2 Trabalho além da EAP
+
+**Entrou na EAP em `60e18aa`:** pseudocódigo (1.5.1.2), `converterScore` (1.5.2.4), rei
+interpolado (1.5.4.3), relógio (1.5.5.3.1), quiescência (1.5.5.5), níveis (1.5.7),
+`verificarChamada` e `resultado` (1.5.8).
+
+**Continua fora da EAP** (acumulado):
 - Contrato com a máquina de regras (`pendenciasRegras.h`) — ligado a 1.5.2.
 - Testes automatizados da IA: verificação (15), v1 = v2 + determinismo + contagem de nós (9 +
   8 FENs), limite de tempo (5), quiescência em posições escolhidas (5 + afogamentos (4) +
@@ -907,32 +965,39 @@ Feitos na etapa 14: ~~níveis (RF03)~~ (§3.20), ~~conferir as PSTs~~ (§3.19), 
 - Garantias em tempo de compilação (`_Static_assert`).
 - Controle de semente do sorteio (`iniciarSorteio`).
 - Robustez do relógio (falha do `clock()`, estouro de 32 bits), parada por mate, iteração
-  parcial e passada de segurança.
-- **Quiescência** (fora da EAP; levar ao grupo), com stand-pat antes de gerar (prova barata de
-  lance legal) e *delta pruning*.
-- **Rei interpolado por fase** (*tapered eval*) na avaliação posicional.
+  parcial e passada de segurança (dentro de 1.5.5.3, sem item próprio).
 - Bug achado no motor pelos testes da IA: `KING_TARGETS` não inicializada.
 - **RNF01 revisto com medição** (etapa 14): tetos por nível em vez de "níveis básicos".
 - PSTs conferidas por script contra a fonte (448 valores).
 
-**Itens da EAP e seu estado:**
+### 10.3 Folhas da EAP e seu estado
 
-| Item | Estado |
+| Folha | Estado |
 |---|---|
-| 1.5.1 Pesquisa | Concluído |
-| 1.5.2 Integração com a Máquina de Regras | Em andamento: gerador legal, make/unmake e perft integrados; mapa de níveis pronto do lado da IA; falta `in_check`, empates e ligação ao `go` (pedido enviado em 16/11) |
+| 1.5.1.1 Estudo dos Algoritmos de Busca e Avaliação | Concluído |
+| 1.5.1.2 Especificação em Pseudocódigo | Concluído (9 arquivos, especificação viva) |
+| 1.5.2.1 Uso do Gerador Legal e de make/unmake | Concluído: contagem de nós do minimax exata pelo perft |
+| 1.5.2.2 Detecção de Xeque e Empates pelo Motor | **Pendente (dev):** `in_check`, empates; hoje `emXeque` e stub |
+| 1.5.2.3 Ligação ao Comando go e ao Build do Motor | **Pendente (dev):** mapa de níveis pronto do lado da IA (pedido enviado em 16/11) |
+| 1.5.2.4 Conversão do Score para o Protocolo | Concluído e testado |
 | 1.5.3 Simulação de Estados | Concluído |
 | 1.5.4.1 Avaliação Material | Concluído e testado |
-| 1.5.4.2 Avaliação Posicional | **Concluído e testado** (etapa 13): PSTs de Michniewski (conferidas na etapa 14) + rei interpolado por fase |
+| 1.5.4.2 Avaliação Posicional | Concluído e testado: PSTs de Michniewski (conferidas na etapa 14) |
+| 1.5.4.3 Interpolação por Fase da Partida | Concluído e testado (`2a38ca7`) |
 | 1.5.5.1 Minimax | Concluído, executado e testado |
 | 1.5.5.2 Poda Alfa-Beta | Concluído, executado e testado (~5,5% dos nós do minimax com ordenação e PST; 3,3% só com material) |
-| 1.5.5.3 Aprofundamento Progressivo | Concluído e testado, com iteração parcial; **níveis de dificuldade mapeados e testados** (etapa 14) |
+| 1.5.5.3.1 Controle de Tempo | Concluído e testado, com iteração parcial |
 | 1.5.5.4 Ordenação de Movimentos | Concluído e testado: MVV-LVA −56% de nós no alfa-beta |
+| 1.5.5.5.1 Busca de Capturas e Evasões | Concluído e testado (`37f6831`, `d874b94`) |
+| 1.5.5.5.2 Redução do Custo da Quiescência | Concluído e testado (`f57f549`, `4121a26`): −65% de tempo no kiwipete |
 | 1.5.6 Seleção de Lance Aleatório | Concluído e testado |
+| 1.5.7 Níveis de Dificuldade | Concluído e testado (`501fdbf`); ligação ao `go` em 1.5.2.3 |
+| 1.5.8 Verificação da Chamada da IA | Concluído e testado |
 
-**Quanto está pronto (16/11):** **9 de 10 itens da EAP** concluídos e testados (90% por
-contagem); falta o 1.5.2, que depende do dev das regras. **Por esforço, ~85%** (contando a
-quiescência no escopo; antes dos níveis, ~83%):
+**Quanto está pronto (16/11):** **17 de 19 folhas do 1.5** concluídas e testadas (~89% por
+contagem); faltam o 1.5.2.2 e o 1.5.2.3, que dependem do dev das regras. Na EAP antiga eram
+9 de 10 itens (a contagem nova não é comparável: o 1.5.2 virou 4 folhas). **Por esforço,
+~85%** (inalterado: a EAP nova reorganiza o trabalho, não o aumenta):
 
 | Parte | Peso aproximado | Estado |
 |---|---|---|
@@ -943,10 +1008,10 @@ quiescência no escopo; antes dos níveis, ~83%):
 | Quiescência | ~10% | **pronto**, com o custo tratado (stand-pat antes de gerar, delta) |
 | Avaliação posicional (PST) | ~10% | **pronto** |
 
-Para apresentação: "9 de 10 itens da EAP concluídos e testados, mais a quiescência; o
+Para apresentação: "17 de 19 itens da IA na EAP concluídos e testados; o
 alfa-beta visita ~5% dos nós do minimax; a quiescência elimina o efeito horizonte e teve o
 custo reduzido em ~65% (kiwipete, prof. 3: 2,04 s → 0,73 s); com a PST a IA desenvolve as
 peças em vez de jogar `a2a3`; três níveis de dificuldade, com resposta abaixo de 200 ms no
 fácil e no médio e de 1 s no difícil (RNF01); falta a integração com o motor".
 
-Quiescência e TT continuam fora da EAP — levar ao grupo.
+A quiescência entrou na EAP (1.5.5.5); a TT continua fora (depende do Zobrist do motor).

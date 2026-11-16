@@ -10,6 +10,7 @@
 #include "movegen.h"
 #include "makemove.h"
 #include "iaTeste.h"
+#include "niveis.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -422,6 +423,26 @@ static const char *fenOrdenacao = "7k/8/8/q2pP1r1/1P6/1n3N2/2B5/3QK3 w - d6 0 1"
 // Capturas na ordem esperada: PxD (39), CxT (30), BxC (13), PxP e.p. (7), DxP (3)
 static const char *capturasOrdenacao[] = {"b4a5", "f3g5", "c2b3", "e5d6", "d1d5"};
 
+// Níveis de dificuldade: parâmetros esperados (exatos) e teto do RNF01 de cada nível
+typedef struct CasoNivel{
+    int nivel;
+    ParametrosNivel esperado;
+    int respostaMaxMs;
+} CasoNivel;
+
+static const CasoNivel casosNiveis[] = {
+    {NIVEL_FACIL,   {VARIANTE_ALFA_BETA, SORTEIO_LIGADO, QUIESCENCIA_DESLIGADA, 2,        180}, RESPOSTA_MAX_BASICO_MS},
+    {NIVEL_MEDIO,   {VARIANTE_ALFA_BETA, SORTEIO_LIGADO, QUIESCENCIA_LIGADA,    3,        180}, RESPOSTA_MAX_BASICO_MS},
+    {NIVEL_DIFICIL, {VARIANTE_ALFA_BETA, SORTEIO_LIGADO, QUIESCENCIA_LIGADA,    PROF_MAX, 950}, RESPOSTA_MAX_DIFICIL_MS},
+};
+
+static const int niveisInvalidos[] = {NIVEL_FACIL - 1, NIVEL_DIFICIL + 1, -1};
+
+static bool mesmosParametros(const ParametrosNivel *a, const ParametrosNivel *b){
+    return a->variante == b->variante && a->randomizador == b->randomizador && a->quiescencia == b->quiescencia
+        && a->profundidade == b->profundidade && a->tempoMs == b->tempoMs;
+}
+
 int main(void){
     init_square_tables();
 
@@ -788,6 +809,40 @@ int main(void){
         }
     }
 
+    // Teste dos níveis de dificuldade (RF03): nível inválido não altera os parâmetros; nível válido devolve os
+    // parâmetros esperados e responde no kiwipete abaixo do teto do RNF01 (médio e difícil esgotam o prazo nele)
+
+    int retornoNiveis = 0;
+    ParametrosNivel parametros;
+    const ParametrosNivel sentinelaNivel = {-7, -7, -7, -7, -7};
+
+    for(size_t i = 0; i < sizeof(niveisInvalidos)/sizeof(niveisInvalidos[0]); i ++){
+        parametros = sentinelaNivel;
+        bool aceito = parametrosNivel(niveisInvalidos[i], &parametros);
+        printf(" nivel %d %d\n", niveisInvalidos[i], (int) aceito);
+        if(aceito || !mesmosParametros(&parametros, &sentinelaNivel)) retornoNiveis = 1;
+    }
+
+    for(size_t i = 0; i < sizeof(casosNiveis)/sizeof(casosNiveis[0]); i ++){
+        parametros = sentinelaNivel;
+        if(!parametrosNivel(casosNiveis[i].nivel, &parametros) || !mesmosParametros(&parametros, &casosNiveis[i].esperado)
+        || !fen_parse(fenKiwipete, &board)){
+            retornoNiveis = 1;
+            continue;
+        }
+
+        clock_t inicio = clock();
+        escolherJogada(&board, parametros.variante, parametros.randomizador, parametros.quiescencia, parametros.profundidade,
+                       parametros.tempoMs);
+        long gastoMs = (long)((clock() - inicio) * 1000 / CLOCKS_PER_SEC);
+
+        printf(" nivel %d %ld %d %d %u\n", casosNiveis[i].nivel, gastoMs, PROF_ALCANCADA, (int) PARCIAL_USADA, (unsigned) JOGADA.lance);
+
+        if(JOGADA.resultado != RESULTADO_SUCESSO || !contemLance(&CANDIDATOS, JOGADA.lance)
+        || PROF_ALCANCADA > parametros.profundidade || gastoMs >= casosNiveis[i].respostaMaxMs) retornoNiveis = 1;
+    }
+    printf("\n");
+
     // Teste dos casos da avaliação do score do tabuleiro
 
     int retornoEvaluation = 0;
@@ -870,8 +925,9 @@ int main(void){
     if(retornoQuiescencia) printf("Erro na quiescencia\n");
     if(retornoSorteio) printf("Erro no sorteio\n");
     if(retornoOrdenacao) printf("Erro na ordenacao\n");
+    if(retornoNiveis) printf("Erro nos niveis\n");
 
     if(retornoConversao || retornoEvaluation || retornoParser || retornoTesteEscolherJogada || retornoV1V2 || retornoNos || retornoTempo
-    || retornoQuiescencia || retornoSorteio || retornoOrdenacao) return 1;
+    || retornoQuiescencia || retornoSorteio || retornoOrdenacao || retornoNiveis) return 1;
     return 0;
 }

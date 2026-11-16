@@ -1,0 +1,26 @@
+-- Níveis de dificuldade (RF03): cada nível é um conjunto de parâmetros de escolherJogada (variante, randomizador, quiescencia, profundidade, tempoMs). escolherJogada não muda: quem recebe o nível (o go do protocolo) busca os parâmetros e os repassa
+
+-- Os níveis só pensam menos (profundidade, quiescência, prazo); não erram de propósito. Sorteio entre os N melhores exigiria o valor de cada filho da raiz, e ruído na avaliação quebraria o determinismo
+
+-- Alfa-beta em todos: o minimax chega ao mesmo score (v1 = v2), só mais devagar; não deixaria o nível mais fraco. Sorteio ligado em todos: varia o lance entre empatados, sem custo
+
+-- RNF01: resposta inferior a RESPOSTA_MAX_BASICO_MS = 200 ms no fácil e no médio e a RESPOSTA_MAX_DIFICIL_MS = 1000 ms no difícil. Os prazos (TEMPO_BASICO_MS = 180, TEMPO_DIFICIL_MS = 950) ficam abaixo dos tetos, com folga para o relógio passar um pouco do prazo (até 6 ms nas medições)
+
+-- Fácil: profundidade PROF_FACIL = 2, sem quiescência. Ainda erra pelo horizonte, mas não entrega peça em um lance (com profundidade 1, captura peça defendida)
+-- Médio: profundidade PROF_MEDIO = 3, com quiescência. Fica sempre abaixo do difícil (em 200 ms a busca alcança 3 a 6)
+-- Difícil: profundidade PROF_MAX, com quiescência; quem limita é o prazo
+
+-- tabelaNiveis: uma linha por nível, indexada por nivel - NIVEL_FACIL
+
+nivel          variante            randomizador     quiescencia            profundidade   tempoMs
+NIVEL_FACIL    VARIANTE_ALFA_BETA  SORTEIO_LIGADO   QUIESCENCIA_DESLIGADA  PROF_FACIL     TEMPO_BASICO_MS
+NIVEL_MEDIO    VARIANTE_ALFA_BETA  SORTEIO_LIGADO   QUIESCENCIA_LIGADA     PROF_MEDIO     TEMPO_BASICO_MS
+NIVEL_DIFICIL  VARIANTE_ALFA_BETA  SORTEIO_LIGADO   QUIESCENCIA_LIGADA     PROF_MAX       TEMPO_DIFICIL_MS
+
+-- parametrosNivel: nível fora de [NIVEL_FACIL, NIVEL_DIFICIL] devolve falso sem alterar p
+
+função parametrosNivel(nivel, p):
+    se nivel < NIVEL_FACIL ou nivel > NIVEL_DIFICIL então
+        retorna falso
+    p = tabelaNiveis[nivel - NIVEL_FACIL]
+    retorna verdadeiro

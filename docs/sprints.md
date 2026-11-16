@@ -57,7 +57,7 @@ Período de inicialização, arquitetura, documentação de gerência e fundaç�
 | `1.4.8.1` | `#64` | Aplicação de Lances (`make_move` + struct `Undo` + cache do rei) | Motor (`engine/`) | `14/09` – `02/10` | 7h | [#27](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/27) | ✅ Concluído |
 | `1.3.1.2` | `#100` | Modularização da Interface e Melhoria Visual / Renderização do Tabuleiro SFML | Interface (`interface/`) | `14/09` – `21/09` | 4h | [#2](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/2), [#3](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/3), [PR #30](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/pull/30) | ✅ Concluído |
 | `1.3.2.2` | `#102` | Seleção de Peças e Movimentação no `ChessBoard` | Interface (`interface/`) | `22/09` – `29/09` | 4h | [PR #36](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/pull/36) | ✅ Concluído |
-| `1.5.1` / `1.5.6` | `#70`, `#81` | Pesquisa da IA, pseudocódigos (`IA/Pseudocode/`) e seleção de lance aleatório | IA (`IA/`) | `14/09` – `02/10` | 3h | *(commits `IA/`)* | ✅ Concluído |
+| `1.5.1` (`1.5.1.1`, `1.5.1.2`) / `1.5.6` | `#70`, `#81` | Pesquisa da IA, pseudocódigos (`IA/Pseudocode/`) e seleção de lance aleatório | IA (`IA/`) | `14/09` – `02/10` | 3h | *(commits `IA/`)* | ✅ Concluído |
 
 - **Resumo EVM da Sprint 1:**
   - **PV:** 40h (R\$ 2.000,00) | **EV:** 40h (R\$ 2.000,00) | **AC:** *A preencher pela equipe*
@@ -93,8 +93,8 @@ Período de inicialização, arquitetura, documentação de gerência e fundaç�
 | ID EAP | ID Gantt | Tarefa / Entregável | Módulo | Janela no Gantt | Horas (PV) | Issue / PR (GitHub) | Status em `16/10` |
 | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | `1.2.3.7` a `1.2.3.9` | `#17`, `#18`, `#19` | Reuniões semanais (`16/10`, `23/10`, `30/10`), atualização do Burndown/AVA (`1.2.2`) e limpeza das issues da 2ª Apresentação | Gerência | `16/10` – `30/10` | 3h | [#11](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/11)–[#14](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/14), [#29](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/29) | 🔶 Em andamento |
-| `1.5.5.1` | `#77` | Algoritmo Minimax (`IA/src/ia.c`) | IA (`IA/`) | `13/10` – `02/11` | 7h | *(commits `IA/`)* | ✅ **Já implementado!** *(falta só integrar ao binário)* |
-| `1.5.2` | `#71` | Integração IA ↔ Máquina de Regras: remover `pendenciasRegras.h`/`stubs.c` e chamar `escolherJogada` no comando `go` de `engine/src/uci.c` | IA + Motor | `14/09` – `30/10` | 6h | [#21](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/21) *(fechamento UCI + IA)* | ⬜ Pendente *(caminho crítico)* |
+| `1.5.5.1` | `#77` | Algoritmo Minimax (`IA/src/ia.c`) | IA (`IA/`) | `13/10` – `02/11` | 7h | *(commits `IA/`)* | ✅ **Concluído e testado** em `16/11` *(contagem de nós exata pelo perft; falta só integrar ao binário, `1.5.2.3`)* |
+| `1.5.2` (`1.5.2.1` a `1.5.2.4`) | `#71` | Integração IA ↔ Máquina de Regras: remover `pendenciasRegras.h`/`stubs.c` e chamar `escolherJogada` no comando `go` de `engine/src/uci.c` | IA + Motor | `14/09` – `30/10` | 6h | [#21](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/21) *(fechamento UCI + IA)* | 🔶 **Parcial** em `16/11` *(`1.5.2.1` e `1.5.2.4` prontos; `1.5.2.2` e `1.5.2.3` dependem do motor: `in_check`, empates e ligação ao `go`, pedido enviado em `16/11`; caminho crítico)* |
 | `1.4.7.1` a `1.4.7.4` / `1.6.2.2` | `#58`–`#62`, `#92` | Detecção de Estados de Jogo e Histórico de Lances: Xeque, Mate, Afogamento e 50 lances prontos em `uci.c`; **faltam Histórico completo (`#26`), Material Insuficiente e Repetição Tripla** | Motor (`engine/`) | `14/09` – `20/11` | 6h | [#26](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/26) | 🔶 Parcial (4 de 6 prontos) |
 | `1.6.1.1` a `1.6.1.5` | `#84`–`#89` | Fundação de Qualidade e CI/CD: Pipeline Linux/Windows (`#10`, `#15`, `#16`), Testes automatizados (`#22`), Debug no terminal (`#28`) e Benchmark Perft (`#37`) | Motor / DevOps | `14/09` – `20/11` | 5h | [#10](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/10), [#15](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/15), [#16](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/16), [#22](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/22), [#28](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/28), [#37](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/37) | 🔶 Em andamento |
 | `1.3.6.2` a `1.3.6.4` | `#119`–`#121` | Comunicação completa com a Engine (`EngineBridge::readCommand()`, `stop()`) + Seleção e entrada de lances via clique do mouse (`#4`) | Interface (`interface/`) | `14/09` – `20/11` | 6h | [#4](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/4), [#6](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/6) | 🔶 Em andamento (`TODO` em `engine_bridge.cpp`) |
@@ -115,9 +115,9 @@ Período de inicialização, arquitetura, documentação de gerência e fundaç�
 | ID EAP | ID Gantt | Tarefa / Entregável | Módulo | Janela no Gantt | Horas (PV) | Issue / PR (GitHub) | Status em `16/10` |
 | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | `1.2.3.10` / `1.2.3.11` | `#20`, `#21` | Reuniões semanais (`06/11` e `13/11`) e atualização do Burndown/AVA (`1.2.2`) | Gerência | `06/11` – `13/11` | 2h | `-` | ⬜ Pendente |
-| `1.5.5.2` | `#78` | Otimização: **Poda Alfa-Beta** (`IA/src/ia.c`) + teste de paridade com Minimax | IA (`IA/`) | `03/11` – `20/11` | 7h | *(commits `IA/`)* | ⚡ **Já implementado em `IA/src/ia.c`!** |
-| `1.5.5.3` | `#80` | Otimização: **Aprofundamento Progressivo (Iterativo)** com relógio para suportar `go movetime` e `go depth` | IA (`IA/`) | `03/11` – `20/11` | 6h | *(abrir issue IA)* | ⬜ Pendente |
-| `1.5.5.4` | `#79` | Otimização: **Ordenação de Movimentos** (MVV-LVA, promoções, melhor da iteração anterior) | IA (`IA/`) | `03/11` – `20/11` | 6h | *(abrir issue IA)* | ⬜ Pendente |
+| `1.5.5.2` | `#78` | Otimização: **Poda Alfa-Beta** (`IA/src/ia.c`) + teste de paridade com Minimax | IA (`IA/`) | `03/11` – `20/11` | 7h | *(commits `IA/`)* | ✅ **Concluído e testado** em `16/11` *(~5,5% dos nós do Minimax)* |
+| `1.5.5.3` (`1.5.5.3.1`) | `#80` | Otimização: **Aprofundamento Progressivo (Iterativo)** com relógio para suportar `go movetime` e `go depth` | IA (`IA/`) | `03/11` – `20/11` | 6h | *(abrir issue IA)* | ✅ **Concluído e testado** em `16/11` *(`c95a223`, `0615267`, `3c952b0`)* |
+| `1.5.5.4` | `#79` | Otimização: **Ordenação de Movimentos** (MVV-LVA e melhor lance da iteração anterior) | IA (`IA/`) | `03/11` – `20/11` | 6h | *(abrir issue IA)* | ✅ **Concluído e testado** em `16/11` *(`86985a8`, `97c18dc`; −56% de nós no Alfa-Beta)* |
 | `1.3.4.1` a `1.3.4.3` | `#109`–`#112` | Telas de Menu Principal, Seleção de Modo de Jogo (vs. IA / Local), Seleção de Dificuldade e Configurações | Interface (`interface/`) | `14/09` – `20/11` | 7h | [#9](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/9) | ⬜ Pendente |
 | `1.3.5.1` a `1.3.5.3` | `#113`–`#116` | Fluxo da Partida Local: Início de Nova Partida (`27/10–20/11`), Parâmetros da IA e Alertas visuais de estado/fim de jogo | Interface (`interface/`) | `27/10` – `20/11` | 6h | [#7](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/7), [#9](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/9) | ⬜ Pendente |
 | `1.3.3.1` / `1.3.3.2` | `#106`–`#108` | HUD lateral com relógio da partida, indicador de turno, alertas de estado e histórico de lances | Interface (`interface/`) | `05/10` – `20/11` | 6h | [#7](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/7), [#8](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/8) | ⬜ Pendente |
@@ -135,6 +135,25 @@ Período de inicialização, arquitetura, documentação de gerência e fundaç�
 | `1.2.5.1` a `1.2.5.4` | `#28`–`#32` | Suíte definitiva de testes automatizados (`#39`) + Relatório de **Testes de Unidade, Integração, Sistema e Aceitação (Alfa e Beta)** + **Cobertura de Testes** | Todos os Módulos | `14/09` – `20/11` | 12h | [#22](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/22), [#38](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/38), [#39](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/issues/39) | 🔶 Parcial (`#38` concluída; `#22` e `#39` abertas) |
 | `1.2.2` | `#9` | Fechamento do **Monitoramento e Controle (Burndown + EVM Final)** e tabela de **participação por membro (PV e EV individual)** | Gerência | `03/08` – `23/11` | 6h | `-` | ⬜ Pendente |
 | `1.1.3` | `#6` | **Terceira Apresentação** (Slides + Publicação no Classroom + Demo Final do Produto) | Apresentação | `23/11/2026` | 6h | `-` | ⬜ Pendente |
+
+### Mudança de Escopo da IA (EAP atualizada em `16/11/2026`)
+
+O pacote `1.5` da [EAP](./EAP.md) foi detalhado. Os filhos de itens que já existiam (`1.5.1.x`, `1.5.2.x`, `1.5.4.3`, `1.5.5.3.1`) só decompõem o item pai: as horas continuam contadas no pai. Os itens `1.5.5.5`, `1.5.7` e `1.5.8` são **escopo novo**, sem ID no Gantt e sem horas na linha de base (Planning Poker); por isso não entram no PV nem no EV da Seção 4.
+
+| ID EAP | Entregável | Status em `16/11` | Commits |
+| :---: | :--- | :---: | :--- |
+| `1.5.1.1` | Estudo dos Algoritmos de Busca e Avaliação | ✅ Concluído | *(pesquisa)* |
+| `1.5.1.2` | Especificação em Pseudocódigo (`IA/Pseudocode/`, 9 arquivos) | ✅ Concluído | *(commits `IA/`)* |
+| `1.5.2.1` | Uso do Gerador Legal e de `make_move`/`unmake_move` | ✅ Concluído | *(contagem de nós do Minimax conferida pelo perft)* |
+| `1.5.2.2` | Detecção de Xeque e Empates pelo Motor | ⬜ Depende do motor | *(provisório: `emXeque` e stub de empate)* |
+| `1.5.2.3` | Ligação ao Comando `go` e ao Build do Motor | ⬜ Depende do motor | *(pedido enviado em `16/11`)* |
+| `1.5.2.4` | Conversão do Score para o Protocolo (`score cp` / `score mate`) | ✅ Concluído e testado | `converterScore` |
+| `1.5.4.3` | Interpolação por Fase da Partida (rei) | ✅ Concluído e testado | `2a38ca7` |
+| `1.5.5.3.1` | Controle de Tempo (`go movetime`) | ✅ Concluído e testado | `c95a223`, `0615267`, `3c952b0` |
+| `1.5.5.5.1` | Busca de Capturas e Evasões (quiescência) | ✅ Concluído e testado | `37f6831`, `d874b94` |
+| `1.5.5.5.2` | Redução do Custo da Quiescência (−65% de tempo no kiwipete) | ✅ Concluído e testado | `f57f549`, `4121a26` |
+| `1.5.7` | Níveis de Dificuldade (RF03; RNF01 revisto) | ✅ Concluído e testado *(ligação ao `go` em `1.5.2.3`)* | `501fdbf`, `468ca0f` |
+| `1.5.8` | Verificação da Chamada da IA (`verificarChamada`, campo `resultado`) | ✅ Concluído e testado | *(commits `IA/`)* |
 
 ---
 

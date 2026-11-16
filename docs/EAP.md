@@ -94,17 +94,30 @@
 
     1.5 IA
         1.5.1 Pesquisa
+            1.5.1.1 Estudo dos Algoritmos de Busca e Avaliação
+            1.5.1.2 Especificação em Pseudocódigo
         1.5.2 Integração com a Máquina de Regras
+            1.5.2.1 Uso do Gerador Legal e de make/unmake
+            1.5.2.2 Detecção de Xeque e Empates pelo Motor
+            1.5.2.3 Ligação ao Comando go e ao Build do Motor
+            1.5.2.4 Conversão do Score para o Protocolo
         1.5.3 Simulação de Estados
         1.5.4 Avaliação de Posição
             1.5.4.1 Avaliação Material
             1.5.4.2 Avaliação Posicional
+            1.5.4.3 Interpolação por Fase da Partida
         1.5.5 Busca de Melhor Lance
             1.5.5.1 Algoritmo Minimax
             1.5.5.2 Poda Alfa-Beta
             1.5.5.3 Aprofundamento Progressivo
+                1.5.5.3.1 Controle de Tempo
             1.5.5.4 Ordenação de Movimentos
+            1.5.5.5 Busca de Quiescência
+                1.5.5.5.1 Busca de Capturas e Evasões
+                1.5.5.5.2 Redução do Custo da Quiescência
         1.5.6 Seleção de Lance Aleatório
+        1.5.7 Níveis de Dificuldade
+        1.5.8 Verificação da Chamada da IA
 
     1.6 Protocolo e Infraestrutura do Motor
         1.6.1 Fundação de Qualidade

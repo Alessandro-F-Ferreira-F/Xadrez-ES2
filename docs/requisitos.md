@@ -35,7 +35,7 @@ A aplicação oferecerá suporte a múltiplos modos de jogo offline (Multiplayer
 * RF20 - Notação Algébrica: Registro de cada jogada efetuada em notação padrão de xadrez.
 * RF21 - Exportação PGN: Funcionalidade para exportar e salvar o histórico completo da partida no formato PGN vinculada ao histórico do perfil.
 4. Requisitos Não Funcionais (RNF)
-* RNF01 - Latência do Processamento: O tempo de resposta do backend para validações e resposta das jogadas da IA (nos níveis básicos) deve ser inferior a 200 milissegundos.
+* RNF01 - Latência do Processamento: O tempo de resposta do backend para validações deve ser inferior a 200 milissegundos, e o das jogadas da IA deve ser inferior a 200 milissegundos nos níveis Fácil e Médio e a 1 segundo no nível Difícil.
 * RNF02 - Segurança de Autenticação e Server-Side: Armazenamento seguro das senhas com criptografia e validação rigorosa de todas as jogadas no servidor para evitar impersonação ou adulteração de estado.
 * RNF03 - Multiplataforma: O aplicativo desktop deve rodar nativamente em Windows, macOS e Linux.
 * RNF04 - Disponibilidade: O serviço backend deve manter uptime mínimo de 99,5%.

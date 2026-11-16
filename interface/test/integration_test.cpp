@@ -1,0 +1,180 @@
+#include "board.hpp"
+#include "engine_bridge.hpp"
+
+#include <iostream>
+#include <string>
+
+static int g_passed = 0;
+static int g_failed = 0;
+
+#define CHECK(cond, msg)                                                       \
+    do {                                                                       \
+        if (!(cond)) {                                                         \
+            std::cerr << "  [FAIL] " << __func__ << " (linha " << __LINE__     \
+                      << "): " << (msg) << std::endl;                          \
+            g_failed++;                                                        \
+            return;                                                            \
+        }                                                                      \
+    } while (0)
+
+#define RUN_TEST(fn)                                                           \
+    do {                                                                       \
+        int before = g_failed;                                                 \
+        fn();                                                                  \
+        if (g_failed == before) {                                              \
+            g_passed++;                                                        \
+            std::cout << "  [ OK ] " << #fn << std::endl;                      \
+        }                                                                      \
+    } while (0)
+
+static const char* ENGINE_BIN = "../engine/build/main.out";
+
+// 1. Integracao: Handshake UCI + Carregamento dos 20 lances legais iniciais no ChessBoard
+static void test_integration_uci_handshake_and_legalmoves() {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+    CHECK(bridge.sendCommand("uci"), "Envia uci");
+
+    bool uciOk = false;
+    for (int i = 0; i < 10; ++i) {
+        if (bridge.readCommand() == "uciok") {
+            uciOk = true;
+            break;
+        }
+    }
+    CHECK(uciOk, "Motor real deve responder uciok");
+
+    CHECK(bridge.sendCommand("position startpos"), "Envia position startpos");
+    CHECK(bridge.sendCommand("legalmoves"), "Envia legalmoves");
+
+    std::string legalLine = bridge.readCommand();
+    board.processUCICommand(legalLine);
+    CHECK(board.getLegalMoves().size() == 20, "Posicao inicial deve ter exatamente 20 lances legais");
+
+    bridge.stop();
+}
+
+// 2. Integracao Incremental: Clique do Usuario no ChessBoard -> Pipe -> Resposta do Motor -> Tabuleiro
+static void test_integration_mouse_click_turn_with_engine() {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+    CHECK(bridge.sendCommand("isready") && bridge.readCommand() == "readyok", "Motor pronto");
+
+    // 1o clique em e2 (x=450, y=650): consulta legalmoves na engine, seleciona peca e destaca destinos
+    bool turnCompleted = board.playTurnWithEngine(450.f, 650.f, bridge);
+    CHECK(!turnCompleted, "1o clique apenas seleciona a peca em e2");
+    CHECK(board.getSelectedCol() == 4 && board.getSelectedRow() == 6, "Casa e2 selecionada");
+    CHECK(board.getHighlightedSquares().size() == 2, "Motor informou 2 destinos legais para e2 (e3 e e4)");
+
+    // 2o clique em e4 (x=450, y=450): aplica e2e4, envia position + go ao motor e aplica bestmove das pretas
+    turnCompleted = board.playTurnWithEngine(450.f, 450.f, bridge);
+    CHECK(turnCompleted, "2o clique em e4 deve completar o turno Jogador + Engine");
+    CHECK(board.getMoveHistory().size() == 2, "Historico deve ter 2 lances (e2e4 + resposta da engine)");
+    CHECK(board.getMoveHistory()[0] == "e2e4", "1o lance do historico deve ser e2e4");
+    CHECK(board.getCurrentTurn() == PieceColor::WHITE, "Vez voltou para WHITE apos resposta da engine");
+    CHECK(!board.getLegalMoves().empty(), "Lista de lances legais atualizada para o turno 2");
+
+    // Turno 2 (regressao): seleciona cavalo branco em g1 (x=650, y=750) e move para f3 (x=550, y=550)
+    turnCompleted = board.playTurnWithEngine(650.f, 750.f, bridge);
+    CHECK(!turnCompleted, "1o clique do turno 2 apenas seleciona g1");
+    CHECK(board.getSelectedCol() == 6 && board.getSelectedRow() == 7, "g1 selecionado no turno 2");
+    CHECK(board.getHighlightedSquares().size() == 3, "g1 deve ter 3 destinos legais (e2, f3 e h3) apos 1. e4");
+
+    turnCompleted = board.playTurnWithEngine(550.f, 550.f, bridge);
+    CHECK(turnCompleted, "2o clique do turno 2 em f3 deve completar o turno 2");
+    CHECK(board.getMoveHistory().size() == 4, "Historico deve ter 4 lances apos 2 turnos");
+    CHECK(board.getMoveHistory()[2] == "g1f3", "3o lance do historico deve ser g1f3");
+
+    bridge.stop();
+}
+
+// 3. Integracao: Partida ate Xeque-Mate (Mate do Louco) sincronizada entre ChessBoard e Engine
+static void test_integration_fools_mate_state() {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+
+    const std::string cmd = "position startpos moves f2f3 e7e5 g2g4 d8h4";
+    board.processUCICommand(cmd);
+    CHECK(bridge.sendCommand(cmd), "Envia sequencia do Mate do Louco para o motor");
+
+    CHECK(bridge.sendCommand("state"), "Consulta estado da partida no motor");
+    std::string stateLine = bridge.readCommand();
+    CHECK(stateLine.find("check e1") != std::string::npos, "Rei branco em e1 deve estar em xeque");
+    CHECK(stateLine.find("result 0-1") != std::string::npos, "Resultado deve ser 0-1 (vitoria das pretas)");
+    CHECK(stateLine.find("reason checkmate") != std::string::npos, "Motivo deve ser checkmate");
+
+    CHECK(bridge.sendCommand("legalmoves"), "Consulta lances legais no mate");
+    board.processUCICommand(bridge.readCommand());
+    CHECK(board.getLegalMoves().empty(), "Nenhum lance legal disponivel em xeque-mate");
+
+    CHECK(bridge.sendCommand("go"), "Pede go em posicao sem lances");
+    std::string best = bridge.readCommand();
+    CHECK(best == "bestmove 0000", "Motor deve devolver bestmove 0000 no mate");
+    board.processUCICommand(best);
+
+    bridge.stop();
+}
+
+// 4. Integracao: Partida inteira (da posicao inicial ate o fim de jogo real: mate, afogamento ou 50 lances)
+static void test_integration_full_game_until_end() {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+    CHECK(bridge.sendCommand("ucinewgame"), "Inicia nova partida");
+
+    std::string finalState;
+    const int maxPlies = 600;
+    int plies = 0;
+
+    for (; plies < maxPlies; ++plies) {
+        std::string posCmd = "position startpos";
+        if (!board.getMoveHistory().empty()) {
+            posCmd += " moves";
+            for (const auto& m : board.getMoveHistory()) {
+                posCmd += " " + m;
+            }
+        }
+        CHECK(bridge.sendCommand(posCmd), "Envia position");
+        CHECK(bridge.sendCommand("state"), "Consulta state");
+
+        finalState = bridge.readCommand();
+        if (finalState.find("result *") == std::string::npos) {
+            break; // Jogo terminou (1-0, 0-1 ou 1/2-1/2)
+        }
+
+        CHECK(bridge.sendCommand("go"), "Pede proximo lance");
+        std::string best = bridge.readCommand();
+        CHECK(best.rfind("bestmove ", 0) == 0 && best != "bestmove 0000", "Lance valido enquanto result == *");
+        board.processUCICommand(best);
+    }
+
+    CHECK(plies < maxPlies, "Partida deve terminar dentro do limite de 600 meios-lances");
+    CHECK(finalState.find("result *") == std::string::npos, "Estado final nao pode ser '*'");
+    CHECK((bridge.sendCommand("go") && bridge.readCommand() == "bestmove 0000") ||
+          finalState.find("reason fifty-moves") != std::string::npos,
+          "No fim de jogo, ou nao ha lances (bestmove 0000) ou foi empate por 50 lances");
+
+    std::cout << "    [FIM DE JOGO] Partida completa encerrada em " << plies
+              << " meios-lances | " << finalState << std::endl;
+
+    bridge.stop();
+}
+
+int main() {
+    std::cout << "=== [INTEGRATION TESTS] Interface <-> EngineBridge <-> Engine UCI ===" << std::endl;
+
+    RUN_TEST(test_integration_uci_handshake_and_legalmoves);
+    RUN_TEST(test_integration_mouse_click_turn_with_engine);
+    RUN_TEST(test_integration_fools_mate_state);
+    RUN_TEST(test_integration_full_game_until_end);
+
+    std::cout << "=== Resultado Integracao: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
+    return (g_failed == 0) ? 0 : 1;
+}

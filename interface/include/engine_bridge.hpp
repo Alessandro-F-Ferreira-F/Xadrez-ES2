@@ -9,9 +9,11 @@ class EngineBridge{
         int pipe_engine[2];
         int pipe_interface[2];
         int engine_pid;
+        std::string read_buffer;
 
     public:
         EngineBridge();
+        ~EngineBridge();
 
 
         bool start (const std::string &engineFilePath); //Cria o processo da engine de acordo com o caminho passado

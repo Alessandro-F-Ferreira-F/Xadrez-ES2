@@ -1,11 +1,14 @@
 #include "board.hpp"
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <sstream>
-#include <cmath>
 
-ChessBoard::ChessBoard(float boardSideSize) {
-    squareSize = boardSideSize / 8.f;
-
+ChessBoard::ChessBoard(float boardSideSize)
+    : squareSize(boardSideSize / 8.f),
+      selectedCol(-1),
+      selectedRow(-1),
+      currentTurn(PieceColor::WHITE) {
     initSquares();
     loadTextures();
     setupInitialPosition();
@@ -59,6 +62,12 @@ void ChessBoard::placePiece(PieceType type, PieceColor color, int col, int row) 
     pieces[col][row] = std::make_unique<Piece>(type, color, textures[cIdx][tIdx], col, row, squareSize);
 }
 
+void ChessBoard::clearSelection() {
+    selectedCol = -1;
+    selectedRow = -1;
+    highlightedSquares.clear();
+}
+
 void ChessBoard::clearBoard() {
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++) {
@@ -70,6 +79,10 @@ void ChessBoard::clearBoard() {
 
 void ChessBoard::setupInitialPosition() {
     clearBoard();
+    clearSelection();
+    moveHistory.clear();
+    legalMoves.clear();
+    currentTurn = PieceColor::WHITE;
 
     // --- PEÇAS PRETAS (Linhas 0 e 1, no topo da tela) ---
     // Peões pretos na linha 1
@@ -118,6 +131,70 @@ bool ChessBoard::parseSquare(const std::string& sqStr, int& outCol, int& outRow)
     outRow = 8 - (rankChar - '0');
 
     return true;
+}
+
+std::string ChessBoard::squareToCoord(int col, int row) const {
+    if (col < 0 || col > 7 || row < 0 || row > 7) {
+        return "";
+    }
+    char fileChar = static_cast<char>('a' + col);
+    char rankChar = static_cast<char>('8' - row);
+    return std::string{fileChar, rankChar};
+}
+
+bool ChessBoard::pixelToSquare(float x, float y, int& outCol, int& outRow) const {
+    float boardSize = squareSize * 8.f;
+    if (x < 0.f || y < 0.f || x >= boardSize || y >= boardSize) {
+        return false;
+    }
+    outCol = static_cast<int>(x / squareSize);
+    outRow = static_cast<int>(y / squareSize);
+    return (outCol >= 0 && outCol < 8 && outRow >= 0 && outRow < 8);
+}
+
+const Piece* ChessBoard::getPiece(int col, int row) const {
+    if (col < 0 || col > 7 || row < 0 || row > 7) {
+        return nullptr;
+    }
+    return pieces[col][row].get();
+}
+
+void ChessBoard::setLegalMoves(const std::string& legalMovesLine) {
+    legalMoves.clear();
+    std::stringstream ss(legalMovesLine);
+    std::string token;
+    while (ss >> token) {
+        if (token != "legalmoves") {
+            legalMoves.push_back(token);
+        }
+    }
+    updateHighlightsForSelected();
+}
+
+bool ChessBoard::isMoveLegal(const std::string& moveStr) const {
+    if (legalMoves.empty()) {
+        return true;
+    }
+    return std::find(legalMoves.begin(), legalMoves.end(), moveStr) != legalMoves.end();
+}
+
+void ChessBoard::updateHighlightsForSelected() {
+    highlightedSquares.clear();
+    if (selectedCol < 0 || selectedRow < 0) {
+        return;
+    }
+    std::string fromCoord = squareToCoord(selectedCol, selectedRow);
+    for (const auto& m : legalMoves) {
+        if (m.size() >= 4 && m.substr(0, 2) == fromCoord) {
+            int toCol = -1, toRow = -1;
+            if (parseSquare(m.substr(2, 2), toCol, toRow)) {
+                std::pair<int, int> sq{toCol, toRow};
+                if (std::find(highlightedSquares.begin(), highlightedSquares.end(), sq) == highlightedSquares.end()) {
+                    highlightedSquares.push_back(sq);
+                }
+            }
+        }
+    }
 }
 
 bool ChessBoard::applyUCIMove(const std::string& moveStr) {
@@ -190,6 +267,10 @@ bool ChessBoard::applyUCIMove(const std::string& moveStr) {
         placePiece(promoType, color, toCol, toRow);
     }
 
+    moveHistory.push_back(moveStr);
+    currentTurn = (color == PieceColor::WHITE) ? PieceColor::BLACK : PieceColor::WHITE;
+    clearSelection();
+
     return true;
 }
 
@@ -198,7 +279,9 @@ void ChessBoard::processUCICommand(const std::string& command) {
 
     std::stringstream ss(command);
     std::string token;
-    ss >> token;
+    if (!(ss >> token)) {
+        return;
+    }
 
     // Caso 1: Comando de posição "position startpos [moves ...]" ou "position fen ... [moves ...]"
     if (token == "position") {
@@ -233,11 +316,111 @@ void ChessBoard::processUCICommand(const std::string& command) {
         return;
     }
 
-    // Caso 3: Lance direto no formato UCI (ex: "e2e4", "e7e8q")
+    // Caso 3: Resposta do motor "bestmove <lance>"
+    if (token == "bestmove") {
+        std::string move;
+        if (ss >> move && move != "0000") {
+            applyUCIMove(move);
+        }
+        return;
+    }
+
+    // Caso 4: Lista de lances legais "legalmoves <l1> <l2> ..."
+    if (token == "legalmoves") {
+        setLegalMoves(command);
+        return;
+    }
+
+    // Caso 5: Lance direto no formato UCI (ex: "e2e4", "e7e8q")
     if (token.length() >= 4 && token.length() <= 5) {
         applyUCIMove(token);
         return;
     }
+}
+
+std::string ChessBoard::handleMouseClick(float x, float y) {
+    int col = -1, row = -1;
+    if (!pixelToSquare(x, y, col, row)) {
+        clearSelection();
+        return "";
+    }
+
+    // 1o clique: nenhuma peca selecionada ainda
+    if (selectedCol < 0 || selectedRow < 0) {
+        const Piece* clicked = getPiece(col, row);
+        if (clicked != nullptr && clicked->getColor() == currentTurn) {
+            selectedCol = col;
+            selectedRow = row;
+            updateHighlightsForSelected();
+        }
+        return "";
+    }
+
+    // 2o clique na mesma casa: desseleciona
+    if (col == selectedCol && row == selectedRow) {
+        clearSelection();
+        return "";
+    }
+
+    // 2o clique em outra peca da mesma cor: troca a peca selecionada
+    const Piece* clicked = getPiece(col, row);
+    if (clicked != nullptr && clicked->getColor() == currentTurn) {
+        selectedCol = col;
+        selectedRow = row;
+        updateHighlightsForSelected();
+        return "";
+    }
+
+    // Monta o lance candidato UCI
+    std::string candidate = squareToCoord(selectedCol, selectedRow) + squareToCoord(col, row);
+    const Piece* movingPiece = getPiece(selectedCol, selectedRow);
+    if (movingPiece != nullptr && movingPiece->getType() == PieceType::PAWN && (row == 0 || row == 7)) {
+        candidate += 'q';
+    }
+
+    if (!isMoveLegal(candidate)) {
+        return "";
+    }
+
+    if (applyUCIMove(candidate)) {
+        return candidate;
+    }
+    return "";
+}
+
+bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
+    if (legalMoves.empty()) {
+        if (bridge.sendCommand("legalmoves")) {
+            setLegalMoves(bridge.readCommand());
+        }
+    }
+
+    std::string userMove = handleMouseClick(x, y);
+    if (userMove.empty()) {
+        return false;
+    }
+
+    auto syncPositionToEngine = [&]() {
+        std::string posCmd = "position startpos moves";
+        for (const auto& m : moveHistory) {
+            posCmd += " " + m;
+        }
+        bridge.sendCommand(posCmd);
+    };
+
+    syncPositionToEngine();
+
+    if (bridge.sendCommand("go")) {
+        std::string bestLine = bridge.readCommand();
+        processUCICommand(bestLine);
+        syncPositionToEngine();
+    }
+
+    if (bridge.sendCommand("legalmoves")) {
+        setLegalMoves(bridge.readCommand());
+    }
+
+    return true;
 }
 
 void ChessBoard::draw(sf::RenderWindow &window) {
@@ -246,6 +429,22 @@ void ChessBoard::draw(sf::RenderWindow &window) {
         for (int j = 0; j < 8; j++) {
             window.draw(squares[i][j]);
         }
+    }
+
+    // Destaca a casa selecionada
+    if (selectedCol >= 0 && selectedRow >= 0) {
+        sf::RectangleShape selRect(sf::Vector2f(squareSize, squareSize));
+        selRect.setPosition(selectedCol * squareSize, selectedRow * squareSize);
+        selRect.setFillColor(sf::Color(246, 246, 105, 160));
+        window.draw(selRect);
+    }
+
+    // Destaca as casas de destino válidas (Highlight - Issue #5)
+    for (const auto& sq : highlightedSquares) {
+        sf::RectangleShape hlRect(sf::Vector2f(squareSize, squareSize));
+        hlRect.setPosition(sq.first * squareSize, sq.second * squareSize);
+        hlRect.setFillColor(sf::Color(106, 190, 48, 130));
+        window.draw(hlRect);
     }
 
     // Desenha todas as peças que estiverem vivas no tabuleiro

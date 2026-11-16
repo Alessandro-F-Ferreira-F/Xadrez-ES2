@@ -20,6 +20,8 @@
 
 -- quiescenciaAlfaBeta percorre os lances em ordem MVV-LVA (ordenarLances com primeiro = MOVE_NONE, ver ordenarLances.txt). Fora de xeque, as capturas são filtradas para listaCapturas antes de ordenar (na ordem do gerador; a inserção estável dá a mesma ordem de antes, sem ordenar lances que seriam pulados). O stand-pat entra como piso (brancas, alfa) ou teto (pretas, beta) antes dos lances e pode cortar sozinho. Como nunca é a raiz, alfa e beta sempre podem ser atualizados
 
+-- Delta pruning (só quiescenciaAlfaBeta, com deltaAtivo): fora de xeque, a captura é pulada se nem standPat + valorVitima + MARGEM_DELTA alcança alfa (brancas), ou se standPat - valorVitima - MARGEM_DELTA não fica abaixo de beta (pretas). MARGEM_DELTA = 200. valorVitima é VALOR_PECA (ver avaliar.txt) da peça na casa de destino; no en passant, do peão. Promoções ficam de fora (o ganho inclui a peça promovida). O corte depende de alfa e beta, e quiescenciaMinimax não tem como reproduzi-lo: com o delta, as duas deixam de dar o mesmo valor. deltaAtivo começa verdadeiro e só os testes o desligam (ligarDeltaPruning), para o v1 = v2 com a quiescência
+
 -- Com tempo esgotado, valem as regras de minimax.txt: o nó devolve 0 na entrada, e o laço devolve 0 logo após desfazer o lance
 
 função quiescenciaMinimax(estado, profundidade):
@@ -103,6 +105,14 @@ função lanceGarantido(estado):
             retorna verdadeiro
     retorna falso
 
+função podaDelta(xeque, lance):
+    retorna deltaAtivo e não xeque e não move_is_promotion(lance)
+
+função valorVitima(estado, lance):
+    se move_is_ep_capture(lance) então
+        retorna VALOR_PECA[PAWN]
+    retorna VALOR_PECA[PIECE_TYPE(estado.array[move_to(lance)])]
+
 função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
     nosVisitados = nosVisitados + 1
     NOS_QUIESCENCIA = NOS_QUIESCENCIA + 1
@@ -145,6 +155,8 @@ função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
                         retorna melhor
                 listaOrdenada = ordenarLances(estado, listaBusca, MOVE_NONE)
                 para todo lance em listaOrdenada faça
+                    se podaDelta(xeque, lance) e standPat + valorVitima(estado, lance) + MARGEM_DELTA <= alfa então
+                        continuar
                     undo = novo registro
                     make_move(estado, lance, undo)
                     atual = quiescenciaAlfaBeta(estado, profundidade + 1, alfa, beta)
@@ -170,6 +182,8 @@ função quiescenciaAlfaBeta(estado, profundidade, alfa, beta):
                         retorna melhor
                 listaOrdenada = ordenarLances(estado, listaBusca, MOVE_NONE)
                 para todo lance em listaOrdenada faça
+                    se podaDelta(xeque, lance) e standPat - valorVitima(estado, lance) - MARGEM_DELTA >= beta então
+                        continuar
                     undo = novo registro
                     make_move(estado, lance, undo)
                     atual = quiescenciaAlfaBeta(estado, profundidade + 1, alfa, beta)

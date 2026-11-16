@@ -14,4 +14,11 @@ Devolve true só se há lance legal (condição suficiente); false não quer diz
 afogamento, só que a prova falhou e é preciso gerar os lances.
 */
 
+void ligarDeltaPruning(bool ligado);
+/*
+Liga ou desliga o delta pruning da quiescência com poda (ligado por padrão).
+O teste v1 = v2 com a quiescência desliga antes e religa depois: com o delta,
+quiescenciaAlfaBeta deixa de ter o mesmo valor que quiescenciaMinimax.
+*/
+
 #endif

@@ -246,6 +246,28 @@ static int32_t quiescenciaMinimax(Board *board, int profundidade){
     }
 }
 
+// Delta pruning: fora de xeque, a captura é pulada se nem o stand-pat mais o valor da vítima mais a margem
+// alcança alfa (brancas) ou beta (pretas). Promoções ficam de fora (o ganho inclui a peça promovida).
+// Só no alfa-beta: o corte depende de alfa e beta, e quiescenciaMinimax não tem como reproduzi-lo; por isso
+// o v1 = v2 com a quiescência roda com o delta desligado (ligarDeltaPruning, iaTeste.h)
+#define MARGEM_DELTA 200
+
+static bool deltaAtivo = true;
+
+void ligarDeltaPruning(bool ligado){
+    deltaAtivo = ligado;
+}
+
+static bool podaDelta(bool xeque, Move lance){
+    return deltaAtivo && !xeque && !move_is_promotion(lance);
+}
+
+// En passant: a casa de destino está vazia, a vítima é o peão
+static int32_t valorVitima(const Board *board, Move lance){
+    if(move_is_ep_capture(lance)) return VALOR_PECA[PAWN];
+    return VALOR_PECA[PIECE_TYPE(board->array[move_to(lance)])];
+}
+
 // Quiescência com poda, em ordem MVV-LVA. O stand-pat entra como piso (brancas) ou teto (pretas) antes
 // dos lances, e pode cortar sozinho. Nunca é a raiz (profundidade >= limiteIteracao >= 1): alfa e beta
 // sempre podem ser atualizados
@@ -308,6 +330,7 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
 
                 for(int i = 0; i < listaBusca->count; i ++){
                     Move lance = listaOrdenada[i].lance;
+                    if(podaDelta(xeque, lance) && standPat + valorVitima(board, lance) + MARGEM_DELTA <= alfa) continue;
                     Undo undo;
 
                     make_move(board, lance, &undo);
@@ -345,6 +368,7 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
 
                 for(int i = 0; i < listaBusca->count; i ++){
                     Move lance = listaOrdenada[i].lance;
+                    if(podaDelta(xeque, lance) && standPat - valorVitima(board, lance) - MARGEM_DELTA >= beta) continue;
                     Undo undo;
 
                     make_move(board, lance, &undo);

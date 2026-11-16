@@ -340,6 +340,10 @@ static const char *fensLanceGarantido[] = {
 };
 #define PROF_LANCE_GARANTIDO 3
 
+// Delta pruning no kiwipete (alfa-beta com quiescência): prof. 2 custa ~130 mil nós sem o delta
+static const char *fenKiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+#define PROF_DELTA_KIWIPETE 2
+
 // Percorre a árvore até profundidade (como o perft) e confere lanceGarantido em todo nó fora de xeque:
 // true exige lista gerada não vazia. Conta os nós fora de xeque e aqueles em que a prova falhou havendo
 // lance (só informativo: a quiescência gera a lista nesses casos)
@@ -419,10 +423,15 @@ int main(void){
     totalNosMinimax = 0;
     totalNosAlfaBeta = 0;
 
+    // Delta pruning desligado: com ele, quiescenciaAlfaBeta deixa de ter o valor de quiescenciaMinimax
+    ligarDeltaPruning(false);
+
     for(size_t i = 0; i < sizeof(casosV1V2Quiescencia)/sizeof(casosV1V2Quiescencia[0]); i ++){
         executarV1V2(casosV1V2Quiescencia[i].fen, QUIESCENCIA_LIGADA, casosV1V2Quiescencia[i].profundidade,
                      casosV1V2Quiescencia[i].iteracoes, &totalNosMinimax, &totalNosAlfaBeta, &retornoV1V2, &retornoNos);
     }
+
+    ligarDeltaPruning(true);
 
     if(totalNosAlfaBeta >= totalNosMinimax) retornoNos = 1;
 
@@ -582,6 +591,38 @@ int main(void){
 
         if(falha) retornoQuiescencia = 1;
     }
+
+    // Delta pruning: só tira nós. Com ele, cada posição visita no máximo os nós de sem ele, e no total
+    // estritamente menos (senão o delta não está podando). Sem igualdade de lance ou score: o delta pode
+    // mudá-los por construção. Posições do v1 = v2 com a quiescência, mais o kiwipete
+    uint64_t totalSemDelta = 0, totalComDelta = 0;
+
+    for(size_t i = 0; i <= sizeof(casosV1V2Quiescencia)/sizeof(casosV1V2Quiescencia[0]); i ++){
+        bool kiwipete = (i == sizeof(casosV1V2Quiescencia)/sizeof(casosV1V2Quiescencia[0]));
+        const char *fen = kiwipete ? fenKiwipete : casosV1V2Quiescencia[i].fen;
+        int profundidade = kiwipete ? PROF_DELTA_KIWIPETE : casosV1V2Quiescencia[i].profundidade;
+
+        if(!fen_parse(fen, &board)){
+            retornoQuiescencia = 1;
+            continue;
+        }
+        ligarDeltaPruning(false);
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_LIGADA, profundidade, TEMPO_SEM_LIMITE);
+        ligarDeltaPruning(true);
+        int8_t resultadoSem = JOGADA.resultado;
+        uint64_t nosSem = NOS_VISITADOS;
+
+        escolherJogada(&board, VARIANTE_ALFA_BETA, SORTEIO_DESLIGADO, QUIESCENCIA_LIGADA, profundidade, TEMPO_SEM_LIMITE);
+
+        printf(" delta %" PRIu64 " %" PRIu64 "\n", nosSem, NOS_VISITADOS);
+
+        if(resultadoSem != RESULTADO_SUCESSO || JOGADA.resultado != RESULTADO_SUCESSO || NOS_VISITADOS > nosSem) retornoQuiescencia = 1;
+        totalSemDelta += nosSem;
+        totalComDelta += NOS_VISITADOS;
+    }
+
+    printf(" delta total: %" PRIu64 " %" PRIu64 "\n", totalSemDelta, totalComDelta);
+    if(totalComDelta >= totalSemDelta) retornoQuiescencia = 1;
     printf("\n");
 
     // Teste do sorteio: torre preta solta que quatro peças brancas capturam (4 candidatos entre 35 lances legais).

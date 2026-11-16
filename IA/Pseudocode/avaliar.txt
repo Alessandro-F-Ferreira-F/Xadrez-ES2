@@ -1,16 +1,36 @@
 -- Valores atribuídos às peças, em módulo (Valores de centipeão de Michniewski adotados. Brancas > 0 e pretas < 0): Peão = 100, Cavalo = 320, Bispo = 330, Torre = 500, Dama = 900 e Rei = 0 (Rei zero para não afetar os valores de estado dos tabuleiros, visto que o jogo acaba com o xeque-mate, então ele sempre está no tabuleiro)
 
--- Com as ponderações da PSTs de Michniewski para peso por posição, temos o maior valor da diferença, em módulo, retornado pela função avaliar(estado) sendo 10615 (cenário em que um lado tem apenas um rei e o outro tem nove rainhas, com oito delas sendo peões promovidos, duas torres, dois cavalos e dois bispos, todos posicionados nas melhores posições possíveis). Não será implementado ainda, sendo usado agora o limiar de 10400 (com sinal, dependendo do lado), sem as ponderações por peso
-
 -- VALOR_PECA = [0, 100, 320, 330, 500, 900, 0] tal que o índice da tabela é PIECE_TYPE(p). Pública (avaliar.h): o delta pruning da quiescência também a usa
+
+-- Avaliação posicional: PSTs de Michniewski (Simplified Evaluation Function, chessprogramming.org), uma tabela de 64 casas por tipo de peça, do ponto de vista das brancas. As tabelas estão em avaliar.c, escritas como na fonte: a primeira linha é a fileira 8 (a8..h8), a última a fileira 1 (a1..h1). No motor a1 = 0 e h8 = 63, então a peça branca na casa usa o índice casa ^ 56, e a preta (espelhada) usa a própria casa. pst[tipo] vai de EMPTY (zeros) a QUEEN; o rei tem duas tabelas à parte, pstReiMeio e pstReiFinal
+
+-- Rei por interpolação de fase (tapered eval), em vez do critério de final de Michniewski: a troca brusca de tabela fazia o termo do rei saltar (até 60 centipeões para um rei em g1) quando a última dama saía. fase = soma de pesoFase sobre as peças das duas cores, com os pesos do PeSTO (não de Michniewski): cavalo e bispo 1, torre 2, dama 4, peão e rei 0. Na posição inicial a soma é FASE_MAX = 24; com promoções pode passar, e é limitada a FASE_MAX. O termo do rei é (reiMeio * fase + reiFinal * (FASE_MAX - fase)) / FASE_MAX, sobre os termos líquidos (brancas - pretas). A divisão inteira trunca em direção a zero: -x / 24 == -(x / 24), o que mantém a simetria entre as cores
+
+-- Com as PSTs, o maior valor da diferença, em módulo, retornado pela função avaliar(estado) é 10615 (AVALIACAO_MAX): um lado tem apenas o rei, o outro nove damas (oito delas peões promovidos), duas torres, dois cavalos e dois bispos, todos nas melhores casas (10400 de material + 125 de PST), e os reis nos extremos das tabelas (+40 do próprio, +50 do adversário). A interpolação nunca passa do maior valor das duas tabelas do rei
 
 função avaliar(estado):
     totBrancas = 0
     totPretas = 0
+    fase = 0
+    reiBranco = 0
+    reiPreto = 0
     para toda casa = 0...63:
         se estado.array[casa] != EMPTY então
+            tipo = PIECE_TYPE(estado.array[casa])
+            fase += pesoFase[tipo]
             se PIECE_COLOR(estado.array[casa]) == WHITE então
-                totBrancas += VALOR_PECA[PIECE_TYPE(estado.array[casa])]
-            senão totPretas += VALOR_PECA[PIECE_TYPE(estado.array[casa])]
+                se tipo == KING então
+                    reiBranco = casa
+                senão totBrancas += VALOR_PECA[tipo] + pst[tipo][casa ^ 56]
+            senão
+                se tipo == KING então
+                    reiPreto = casa
+                senão totPretas += VALOR_PECA[tipo] + pst[tipo][casa]
 
-    retorna totBrancas - totPretas
+    se fase > FASE_MAX então
+        fase = FASE_MAX
+    reiMeio = pstReiMeio[reiBranco ^ 56] - pstReiMeio[reiPreto]
+    reiFinal = pstReiFinal[reiBranco ^ 56] - pstReiFinal[reiPreto]
+    rei = (reiMeio * fase + reiFinal * (FASE_MAX - fase)) / FASE_MAX
+
+    retorna totBrancas - totPretas + rei

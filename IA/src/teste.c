@@ -59,29 +59,77 @@ typedef struct CasoAvaliacao{
     int32_t esperado;
 } CasoAvaliacao;
 
+// Esperados calculados à mão a partir das tabelas de Michniewski (ver avaliar.txt). Peça branca: valor da
+// tabela na própria casa; peça preta: na casa espelhada (fileira r vira 9 - r). Rei: (meio * fase +
+// final * (24 - fase)) / 24 sobre o termo líquido, com truncamento em direção a zero. Reis em e1 e e8 se
+// anulam nas duas tabelas
 static const CasoAvaliacao casosAvaliacao[] = {
     // Posição inicial (simetria)
     {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",  0},
 
-    // Extremos de material (v1)
-    {"k7/8/8/8/8/1NBB4/1QQQRR1N/1QQQQQQK w - - 0 1",              10400},
-    {"1qqqqqqk/1qqqrr1n/1nbb4/8/8/8/8/K7 b - - 0 1",             -10400},
+    // Extremos de material: 10400 de material; PST cavalos b3 5, h2 -40; bispos c3 10, d3 10; damas b2 0,
+    // c2 5, d2 0, b1..g1 -10 -10 -5 -5 -10 -10; torres e2 0, f2 0: total -60. Fase 44, limitada a 24;
+    // reis h1 e a8 (espelho a1) se anulam
+    {"k7/8/8/8/8/1NBB4/1QQQRR1N/1QQQQQQK w - - 0 1",              10340},
+    {"1qqqqqqk/1qqqrr1n/1nbb4/8/8/8/8/K7 b - - 0 1",             -10340},
 
-    // Varredura inclui a1 e h8
-    {"7R/8/8/3k4/8/8/8/R3K3 w - - 0 1",                           1000},
+    // Varredura inclui a1 e h8: torres h8 0 e a1 0, 1000. Fase 4; rei preto d5 (espelho d4): meio 0 - (-40)
+    // = 40, final -30 - 40 = -70; (40 * 4 - 70 * 20) / 24 = -1240 / 24 = -51 (truncado). Espelho: -949
+    {"7R/8/8/3k4/8/8/8/R3K3 w - - 0 1",                           949},
+    {"r3k3/8/8/8/3K4/8/8/7r b - - 0 1",                          -949},
 
-    // Uma peça por vez, nos dois ramos de cor
-    {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",                           100},
-    {"4k3/4p3/8/8/8/8/8/4K3 w - - 0 1",                          -100},
-    {"4k3/8/8/8/8/8/8/1N2K3 w - - 0 1",                           320},
-    {"1n2k3/8/8/8/8/8/8/4K3 w - - 0 1",                          -320},
-    {"4k3/8/8/8/8/8/8/2B1K3 w - - 0 1",                           330},
-    {"2b1k3/8/8/8/8/8/8/4K3 w - - 0 1",                          -330},
-    {"4k3/8/8/8/8/8/8/R3K3 w - - 0 1",                            500},
+    // Só os reis, fase 0: só a tabela de final, -30 - 40 = -70. Espelho: 70
+    {"8/8/8/3k4/8/8/8/4K3 w - - 0 1",                             -70},
+    {"4k3/8/8/8/3K4/8/8/8 b - - 0 1",                              70},
+
+    // Fase 24, branco rocado: em relação à inicial, as brancas trocam Bf1 (-10), Cg1 (-40) e Th1 (0) por
+    // Bc4 (10), Cf3 (10) e Tf1 (0): +70. Rei g1 no meio-jogo 30, contra e8 (espelho e1) 0: +30. Espelho: -100
+    {"rnbqkbnr/pppppppp/8/8/2B5/5N2/PPPPPPPP/RNBQ1RK1 w kq - 0 1", 100},
+    {"rnbq1rk1/pppppppp/5n2/2b5/8/8/PPPPPPPP/RNBQKBNR b KQ - 0 1", -100},
+
+    // Uma peça por vez, nos dois ramos de cor (reis e1 e e8)
+    {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",                           80},  // 100 + e2 -20
+    {"4k3/4p3/8/8/8/8/8/4K3 w - - 0 1",                          -80},
+    {"4k3/8/8/8/8/8/8/1N2K3 w - - 0 1",                           280}, // 320 + b1 -40
+    {"1n2k3/8/8/8/8/8/8/4K3 w - - 0 1",                          -280},
+    {"4k3/8/8/8/8/8/8/2B1K3 w - - 0 1",                           320}, // 330 + c1 -10
+    {"2b1k3/8/8/8/8/8/8/4K3 w - - 0 1",                          -320},
+    {"4k3/8/8/8/8/8/8/R3K3 w - - 0 1",                            500}, // 500 + a1 0
     {"r3k3/8/8/8/8/8/8/4K3 w - - 0 1",                           -500},
-    {"4k3/8/8/8/8/8/8/3QK3 w - - 0 1",                            900},
-    {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1",                           -900},
+    {"4k3/8/8/8/8/8/8/3QK3 w - - 0 1",                            895}, // 900 + d1 -5
+    {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1",                           -895},
 };
+
+// Simetria do avaliar: espelhar as fileiras e trocar as cores inverte o sinal. Percorre as árvores como o
+// perft (mesmas FENs do lanceGarantido)
+#define PROF_SIMETRIA 3
+
+// avaliar só lê board->array: a cópia espelhada só precisa dele
+static void espelharCores(const Board *board, Board *espelho){
+    *espelho = *board;
+    for(int casa = 0; casa < 64; casa ++){
+        Piece peca = board->array[casa];
+        espelho->array[casa ^ 56] = (peca == EMPTY) ? peca
+                                  : PIECE_MAKE(PIECE_COLOR(peca) == WHITE ? BLACK : WHITE, PIECE_TYPE(peca));
+    }
+}
+
+static void percorrerSimetria(Board *board, int profundidade, bool *falha, uint64_t *nos){
+    Board espelho;
+    espelharCores(board, &espelho);
+    (*nos) ++;
+    if(avaliar(&espelho) != -avaliar(board)) *falha = true;
+    if(profundidade == 0) return;
+
+    MoveList lista;
+    generate_legal_moves(board, &lista);
+    for(int i = 0; i < lista.count; i ++){
+        Undo undo;
+        make_move(board, lista.moves[i], &undo);
+        percorrerSimetria(board, profundidade - 1, falha, nos);
+        unmake_move(board, lista.moves[i], &undo);
+    }
+}
 
 // Profundidade dos testes de busca (go depth), sem limite de tempo
 #define PROF_TESTE 4
@@ -176,7 +224,7 @@ static const CasoV1V2Quiescencia casosV1V2Quiescencia[] = {
     {"4k3/8/8/3q4/8/8/8/3QK3 w - - 0 1",                                        3, 3},
     {"3qk3/8/8/8/3Q4/8/8/4K3 b - - 0 1",                                        3, 3},
 
-    // Rica em capturas (FEN do sorteio: torre solta, quatro peças a capturam)
+    // Rica em capturas (torre solta, quatro peças a capturam; era a FEN do sorteio antes da PST)
     {"7k/8/8/3r4/5N2/1BN5/8/3QK3 w - - 0 1",                                    3, 3},
 };
 
@@ -625,12 +673,13 @@ int main(void){
     if(totalComDelta >= totalSemDelta) retornoQuiescencia = 1;
     printf("\n");
 
-    // Teste do sorteio: torre preta solta que quatro peças brancas capturam (4 candidatos entre 35 lances legais).
+    // Teste do sorteio: três mates em 1 distintos (Ta8, Tb8, Tc8), empatados em MATE - 1 independentemente da
+    // avaliação (com a PST, as capturas de uma mesma peça deixam de empatar). Para na iteração 1 (mate achado).
     // Desligado: o lance é o primeiro candidato. Ligado: o lance está entre os candidatos, o score
     // não muda, a mesma semente repete o lance e sementes diferentes não dão sempre o mesmo lance
 
     int retornoSorteio = 0;
-    const char *fenSorteio = "7k/8/8/3r4/5N2/1BN5/8/3QK3 w - - 0 1";
+    const char *fenSorteio = "6k1/5ppp/8/8/8/8/8/RRR3K1 w - - 0 1";
 
     fen_parse(fenSorteio, &board);
     generate_legal_moves(&board, &lancesRaiz);
@@ -764,6 +813,21 @@ int main(void){
             retornoParser = 1;
         }
 
+    }
+
+    for(size_t i = 0; i < sizeof(fensLanceGarantido)/sizeof(fensLanceGarantido[0]); i ++){
+        if(!fen_parse(fensLanceGarantido[i], &board)){
+            retornoParser = 1;
+            continue;
+        }
+        bool falha = false;
+        uint64_t nos = 0;
+
+        percorrerSimetria(&board, PROF_SIMETRIA, &falha, &nos);
+
+        printf(" simetria %" PRIu64 " %d\n", nos, (int) falha);
+
+        if(falha) retornoEvaluation = 1;
     }
 
     printf("\n");

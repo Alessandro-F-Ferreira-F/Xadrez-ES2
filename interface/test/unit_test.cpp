@@ -384,6 +384,86 @@ static void test_capture_and_invalid_move_alerts() {
     CHECK(board.getSelectedCol() == -1, "Clique no [X] nao deve selecionar peca por baixo");
 }
 
+// 11. Teste de Unidade (Issue #8): Relogios da Partida (RF07), Formatacao MM:SS e Timeout
+static void test_hud_clocks_and_timeout() {
+    ChessBoard board(800.f);
+
+    // Estado inicial: 10:00 (600s) para cada lado
+    CHECK(board.getRemainingTimeSec(PieceColor::WHITE) == 600.f, "Brancas iniciam com 600s");
+    CHECK(board.getRemainingTimeSec(PieceColor::BLACK) == 600.f, "Pretas iniciam com 600s");
+    CHECK(ChessBoard::formatClock(600.f) == "10:00", "600s -> 10:00");
+    CHECK(ChessBoard::formatClock(65.f) == "01:05", "65s -> 01:05");
+    CHECK(ChessBoard::formatClock(0.f) == "00:00", "0s -> 00:00");
+    CHECK(ChessBoard::formatClock(-5.f) == "00:00", "Negativo -> 00:00");
+
+    // Desconta tempo apenas do jogador da vez (WHITE)
+    board.advanceClock(15.f);
+    CHECK(board.getRemainingTimeSec(PieceColor::WHITE) == 585.f, "Relogio branco descontou 15s");
+    CHECK(board.getRemainingTimeSec(PieceColor::BLACK) == 600.f, "Relogio preto permaneceu parado");
+
+    // Apos lance das brancas, passa a descontar das pretas
+    board.applyUCIMove("e2e4");
+    board.advanceClock(20.f);
+    CHECK(board.getRemainingTimeSec(PieceColor::WHITE) == 585.f, "Relogio branco parou na vez das pretas");
+    CHECK(board.getRemainingTimeSec(PieceColor::BLACK) == 580.f, "Relogio preto descontou 20s");
+
+    // Estouro de tempo (timeout) das pretas
+    board.setRemainingTimeSec(PieceColor::BLACK, 2.f);
+    board.advanceClock(5.f);
+    CHECK(board.getRemainingTimeSec(PieceColor::BLACK) == 0.f, "Relogio preto trava em 0s");
+    CHECK(board.isGameOver(), "Timeout deve encerrar a partida");
+    CHECK(board.getGameResult() == "1-0", "Timeout das pretas da vitoria 1-0 para as brancas");
+    CHECK(board.getGameReason() == "timeout", "Motivo deve ser timeout");
+    CHECK(board.getAlertMessage().find("Tempo esgotado") != std::string::npos,
+          "Pop-up deve anunciar Tempo esgotado");
+}
+
+// 12. Teste de Unidade (Issue #8): Indicador de Turno, Historico Formatado, Scroll e Botoes (Desistir / Nova Partida)
+static void test_hud_turn_history_and_buttons() {
+    ChessBoard board(800.f);
+
+    CHECK(board.getTurnIndicatorText() == "Vez das Brancas", "Indicador inicial deve ser Vez das Brancas");
+    CHECK(board.getFormattedMoveHistory().empty(), "Historico formatado inicia vazio");
+
+    board.processUCICommand("position startpos moves e2e4 e7e5 g1f3");
+    CHECK(board.getTurnIndicatorText() == "Vez das Pretas", "Apos 3 meios-lances, vez das Pretas");
+
+    auto lines = board.getFormattedMoveHistory();
+    CHECK(lines.size() == 2, "3 meios-lances geram 2 linhas numeradas");
+    CHECK(lines[0].find("1.") != std::string::npos &&
+          lines[0].find("e2e4") != std::string::npos &&
+          lines[0].find("e7e5") != std::string::npos,
+          "Linha 1 deve conter '1. e2e4 ... e7e5'");
+    CHECK(lines[1].find("2.") != std::string::npos &&
+          lines[1].find("g1f3") != std::string::npos,
+          "Linha 2 deve conter '2. g1f3'");
+
+    // Teste de scroll do historico
+    for (int i = 0; i < 15; ++i) {
+        board.setLegalMoves("");
+    }
+    board.scrollHistory(-2);
+    CHECK(board.getHistoryScrollOffset() >= 0, "Scroll offset nunca fica negativo");
+
+    // Clique no botao Desistir do HUD lateral
+    const sf::FloatRect& resignRect = board.getResignButtonBounds();
+    CHECK(board.handleMouseClick(resignRect.left + 10.f, resignRect.top + 10.f).empty(),
+          "Clique em Desistir nao retorna lance UCI");
+    CHECK(board.isGameOver(), "Desistir encerra a partida");
+    CHECK(board.getGameResult() == "1-0", "Desistencia na vez das Pretas da vitoria 1-0 para as Brancas");
+    CHECK(board.getGameReason() == "resign", "Motivo deve ser resign");
+    CHECK(board.getTurnIndicatorText() == "Partida Encerrada", "Indicador mostra Partida Encerrada");
+    CHECK(board.getAlertMessage().find("Desistencia") != std::string::npos, "Pop-up anuncia Desistencia");
+
+    // Clique no botao Nova Partida do HUD lateral (funciona mesmo com partida encerrada)
+    const sf::FloatRect& newGameRect = board.getNewGameButtonBounds();
+    board.handleMouseClick(newGameRect.left + 10.f, newGameRect.top + 10.f);
+    CHECK(!board.isGameOver(), "Botao Nova Partida reinicia o jogo");
+    CHECK(board.getMoveHistory().empty(), "Historico limpo apos Nova Partida");
+    CHECK(board.getRemainingTimeSec(PieceColor::WHITE) == 600.f, "Relogio branco resetado para 600s");
+    CHECK(board.getTurnIndicatorText() == "Vez das Brancas", "Turno volta para Brancas");
+}
+
 int main() {
     std::cout << "=== [UNIT TESTS] Interface (Caixa Branca, Fronteiras e Stubs) ===" << std::endl;
 
@@ -397,6 +477,8 @@ int main() {
     RUN_TEST(test_engine_bridge_with_stub);
     RUN_TEST(test_game_state_alerts_and_lock);
     RUN_TEST(test_capture_and_invalid_move_alerts);
+    RUN_TEST(test_hud_clocks_and_timeout);
+    RUN_TEST(test_hud_turn_history_and_buttons);
 
     std::cout << "=== Resultado Unidade: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
     return (g_failed == 0) ? 0 : 1;

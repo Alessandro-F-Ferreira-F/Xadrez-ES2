@@ -1,50 +1,11 @@
 #include "board.hpp"
+#include "ui_helpers.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <sstream>
 
-namespace {
-void drawRoundedRect(sf::RenderWindow& window,
-                     float x, float y, float w, float h, float radius,
-                     const sf::Color& fill,
-                     float outlineThickness = 0.f,
-                     const sf::Color& outline = sf::Color::Transparent) {
-    const int cornerPoints = 8;
-    float r = std::min(radius, std::min(w, h) * 0.5f);
-    sf::ConvexShape shape(cornerPoints * 4);
-
-    const float cx[4] = { x + w - r, x + r,     x + r,     x + w - r };
-    const float cy[4] = { y + r,     y + r,     y + h - r, y + h - r };
-    const float startAngle[4] = { -1.5707963f, 3.1415926f, 1.5707963f, 0.f };
-    // Ordem horária: topo-dir (270..360), baixo-dir (0..90), baixo-esq (90..180), topo-esq (180..270)
-    const int order[4] = { 0, 3, 2, 1 };
-    const float angles[4] = { -1.5707963f, 0.f, 1.5707963f, 3.1415926f };
-    (void)startAngle;
-
-    int idx = 0;
-    for (int c = 0; c < 4; ++c) {
-        int corner = order[c];
-        for (int i = 0; i < cornerPoints; ++i) {
-            float a = angles[c] + (1.5707963f * i) / (cornerPoints - 1);
-            shape.setPoint(idx++, sf::Vector2f(cx[corner] + r * std::cos(a),
-                                               cy[corner] + r * std::sin(a)));
-        }
-    }
-
-    shape.setFillColor(fill);
-    shape.setOutlineThickness(outlineThickness);
-    shape.setOutlineColor(outline);
-    window.draw(shape);
-}
-
-sf::Uint8 scaleAlpha(sf::Uint8 baseAlpha, float factor) {
-    float clamped = std::max(0.f, std::min(1.f, factor));
-    return static_cast<sf::Uint8>(baseAlpha * clamped);
-}
-} // namespace
-
-ChessBoard::ChessBoard(float boardSideSize)
+ChessBoard::ChessBoard(float boardSideSize, float hudSideWidth)
     : squareSize(boardSideSize / 8.f),
       selectedCol(-1),
       selectedRow(-1),
@@ -58,7 +19,8 @@ ChessBoard::ChessBoard(float boardSideSize)
       alertVisible(false),
       alertIsCritical(false),
       alertDurationSec(0.f),
-      fontLoaded(false) {
+      fontLoaded(false),
+      hud(boardSideSize, hudSideWidth, boardSideSize) {
     initSquares();
     loadTextures();
     loadAlertFont();
@@ -206,6 +168,7 @@ void ChessBoard::setupInitialPosition() {
     alertVisible = false;
     alertIsCritical = false;
     alertDurationSec = 0.f;
+    hud.reset();
 
     // --- PEÇAS PRETAS (Linhas 0 e 1, no topo da tela) ---
     // Peões pretos na linha 1
@@ -280,6 +243,61 @@ const Piece* ChessBoard::getPiece(int col, int row) const {
         return nullptr;
     }
     return pieces[col][row].get();
+}
+
+float ChessBoard::getRemainingTimeSec(PieceColor color) const {
+    return hud.getRemainingTimeSec(color);
+}
+
+void ChessBoard::setRemainingTimeSec(PieceColor color, float seconds) {
+    hud.setRemainingTimeSec(color, seconds);
+}
+
+void ChessBoard::handleTimeout() {
+    gameResult = (currentTurn == PieceColor::WHITE) ? "0-1" : "1-0";
+    gameReason = "timeout";
+    clearSelection();
+    std::string winner = (currentTurn == PieceColor::WHITE) ? "Pretas vencem" : "Brancas vencem";
+    showAlert("Tempo esgotado! " + winner, -1.f, true);
+}
+
+void ChessBoard::advanceClock(float deltaSec) {
+    if (hud.advanceClock(currentTurn, isGameOver(), deltaSec)) {
+        handleTimeout();
+    }
+}
+
+void ChessBoard::tickClock() {
+    if (hud.tickClock(currentTurn, isGameOver())) {
+        handleTimeout();
+    }
+}
+
+std::string ChessBoard::formatClock(float seconds) {
+    return HudPanel::formatClock(seconds);
+}
+
+std::string ChessBoard::getTurnIndicatorText() const {
+    return HudPanel::getTurnIndicatorText(currentTurn, isGameOver());
+}
+
+std::vector<std::string> ChessBoard::getFormattedMoveHistory() const {
+    return HudPanel::getFormattedMoveHistory(moveHistory);
+}
+
+void ChessBoard::scrollHistory(int deltaLines) {
+    hud.scrollHistory(deltaLines, moveHistory.size());
+}
+
+void ChessBoard::resign() {
+    if (isGameOver()) {
+        return;
+    }
+    gameResult = (currentTurn == PieceColor::WHITE) ? "0-1" : "1-0";
+    gameReason = "resign";
+    clearSelection();
+    std::string winner = (currentTurn == PieceColor::WHITE) ? "Pretas vencem" : "Brancas vencem";
+    showAlert("Desistencia! " + winner, -1.f, true);
 }
 
 void ChessBoard::setLegalMoves(const std::string& legalMovesLine) {
@@ -393,6 +411,7 @@ bool ChessBoard::applyUCIMove(const std::string& moveStr) {
     }
 
     moveHistory.push_back(moveStr);
+    hud.onMovePlayed(moveHistory.size());
     currentTurn = (color == PieceColor::WHITE) ? PieceColor::BLACK : PieceColor::WHITE;
     clearSelection();
     invalidMoveCol = -1;
@@ -511,6 +530,16 @@ std::string ChessBoard::handleMouseClick(float x, float y) {
         return "";
     }
 
+    if (hud.isNewGameClicked(x, y)) {
+        resetGame();
+        return "";
+    }
+
+    if (hud.isResignClicked(x, y)) {
+        resign();
+        return "";
+    }
+
     if (isGameOver()) {
         clearSelection();
         return "";
@@ -574,6 +603,22 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
         return false;
     }
 
+    if (hud.isNewGameClicked(x, y)) {
+        resetGame();
+        bridge.sendCommand("ucinewgame");
+        bridge.sendCommand("position startpos");
+        if (bridge.sendCommand("legalmoves")) {
+            setLegalMoves(bridge.readCommand());
+        }
+        return false;
+    }
+
+    if (hud.isResignClicked(x, y)) {
+        resign();
+        setLegalMoves("legalmoves");
+        return false;
+    }
+
     if (isGameOver()) {
         return false;
     }
@@ -625,6 +670,7 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
 }
 
 void ChessBoard::draw(sf::RenderWindow &window) {
+    tickClock();
     updateAlert();
 
     // Desenha as 64 casas do tabuleiro
@@ -697,27 +743,27 @@ void ChessBoard::draw(sf::RenderWindow &window) {
         float cardY = (gameOver ? (boardSize - cardH) * 0.5f : 12.f) + slideY;
 
         // Sombra suave
-        drawRoundedRect(window, cardX + 3.f, cardY + 5.f, cardW, cardH, 14.f,
-                        sf::Color(0, 0, 0, scaleAlpha(110, alphaFactor)));
+        ui::drawRoundedRect(window, cardX + 3.f, cardY + 5.f, cardW, cardH, 14.f,
+                            sf::Color(0, 0, 0, ui::scaleAlpha(110, alphaFactor)));
 
         // Card principal arredondado
         sf::Color bg = alertIsCritical
-            ? sf::Color(36, 20, 24, scaleAlpha(235, alphaFactor))
-            : sf::Color(24, 30, 40, scaleAlpha(232, alphaFactor));
+            ? sf::Color(36, 20, 24, ui::scaleAlpha(235, alphaFactor))
+            : sf::Color(24, 30, 40, ui::scaleAlpha(232, alphaFactor));
         sf::Color border = alertIsCritical
-            ? sf::Color(230, 80, 80, scaleAlpha(255, alphaFactor))
-            : sf::Color(110, 175, 240, scaleAlpha(255, alphaFactor));
-        drawRoundedRect(window, cardX, cardY, cardW, cardH, 14.f, bg, 2.f, border);
+            ? sf::Color(230, 80, 80, ui::scaleAlpha(255, alphaFactor))
+            : sf::Color(110, 175, 240, ui::scaleAlpha(255, alphaFactor));
+        ui::drawRoundedRect(window, cardX, cardY, cardW, cardH, 14.f, bg, 2.f, border);
 
         // Botao [X] arredondado
-        drawRoundedRect(window,
-                        closeButtonBounds.left, closeButtonBounds.top + slideY,
-                        closeButtonBounds.width, closeButtonBounds.height, 7.f,
-                        sf::Color(185, 60, 60, scaleAlpha(225, alphaFactor)));
+        ui::drawRoundedRect(window,
+                            closeButtonBounds.left, closeButtonBounds.top + slideY,
+                            closeButtonBounds.width, closeButtonBounds.height, 7.f,
+                            sf::Color(185, 60, 60, ui::scaleAlpha(225, alphaFactor)));
 
         if (fontLoaded) {
-            sf::Color txtWhite(255, 255, 255, scaleAlpha(255, alphaFactor));
-            sf::Color txtSub(210, 215, 225, scaleAlpha(255, alphaFactor));
+            sf::Color txtWhite(255, 255, 255, ui::scaleAlpha(255, alphaFactor));
+            sf::Color txtSub(210, 215, 225, ui::scaleAlpha(255, alphaFactor));
 
             sf::Text title(alertMessage, alertFont, gameOver ? 24 : 18);
             title.setFillColor(txtWhite);
@@ -746,4 +792,6 @@ void ChessBoard::draw(sf::RenderWindow &window) {
             window.draw(xTxt);
         }
     }
+
+    hud.draw(window, alertFont, fontLoaded, currentTurn, isGameOver(), moveHistory);
 }

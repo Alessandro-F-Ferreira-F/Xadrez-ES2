@@ -202,6 +202,33 @@ static void test_integration_full_game_until_end() {
     bridge.stop();
 }
 
+// 6. Integracao (Issue #8): Botoes do HUD Lateral (Desistir e Nova Partida) sincronizados com a Engine
+static void test_integration_hud_buttons_with_engine() {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+
+    // Joga 1o turno: e2 -> e4
+    board.playTurnWithEngine(450.f, 650.f, bridge);
+    CHECK(board.playTurnWithEngine(450.f, 450.f, bridge), "Joga 1. e4 e recebe resposta");
+    CHECK(board.getFormattedMoveHistory().size() == 1, "1 linha completa no historico do HUD");
+
+    // Clica em Desistir no HUD via playTurnWithEngine
+    const sf::FloatRect& resignRect = board.getResignButtonBounds();
+    board.playTurnWithEngine(resignRect.left + 10.f, resignRect.top + 10.f, bridge);
+    CHECK(board.isGameOver() && board.getGameReason() == "resign", "Partida encerrada por desistencia");
+
+    // Clica em Nova Partida no HUD via playTurnWithEngine: reseta tabuleiro e ressincroniza engine
+    const sf::FloatRect& newGameRect = board.getNewGameButtonBounds();
+    board.playTurnWithEngine(newGameRect.left + 10.f, newGameRect.top + 10.f, bridge);
+    CHECK(!board.isGameOver(), "Nova Partida desbloqueia o jogo");
+    CHECK(board.getMoveHistory().empty(), "Historico zerado");
+    CHECK(board.getLegalMoves().size() == 20, "Engine ressincronizada com os 20 lances iniciais");
+
+    bridge.stop();
+}
+
 int main() {
     std::cout << "=== [INTEGRATION TESTS] Interface <-> EngineBridge <-> Engine UCI ===" << std::endl;
 
@@ -210,6 +237,7 @@ int main() {
     RUN_TEST(test_integration_fools_mate_state);
     RUN_TEST(test_integration_full_game_until_end);
     RUN_TEST(test_integration_checkmate_via_play_turn);
+    RUN_TEST(test_integration_hud_buttons_with_engine);
 
     std::cout << "=== Resultado Integracao: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
     return (g_failed == 0) ? 0 : 1;

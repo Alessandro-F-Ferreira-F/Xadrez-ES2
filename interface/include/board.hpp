@@ -8,6 +8,7 @@
 #include <vector>
 #include "piece.hpp"
 #include "engine_bridge.hpp"
+#include "hud_panel.hpp"
 
 #define DEFAULT_BOARD_SIDE_SIZE 800
 
@@ -46,6 +47,8 @@ private:
     sf::Font alertFont;
     bool fontLoaded;
 
+    HudPanel hud;
+
     void initSquares();
     void loadTextures();
     void loadAlertFont();
@@ -53,11 +56,14 @@ private:
     void updateHighlightsForSelected();
     void showAlert(const std::string& message, float durationSec, bool critical);
     void updateCloseButtonBounds();
+    void handleTimeout();
 
 public:
-    explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE);
+    explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE,
+                        float hudSideWidth = DEFAULT_HUD_WIDTH);
 
     float getSquareSize() const { return squareSize; }
+    float getHudWidth() const { return hud.getWidth(); }
 
     // Converte notação algébrica (ex: "e2") em coordenadas de matriz (col=4, row=6)
     bool parseSquare(const std::string& sqStr, int& outCol, int& outRow) const;
@@ -94,6 +100,20 @@ public:
     const std::string& getAlertMessage() const { return alertMessage; }
     bool isAlertVisible() const { return alertVisible; }
     const sf::FloatRect& getCloseButtonBounds() const { return closeButtonBounds; }
+
+    // Metodos do HUD Lateral (Issue #8)
+    float getRemainingTimeSec(PieceColor color) const;
+    void setRemainingTimeSec(PieceColor color, float seconds);
+    void advanceClock(float deltaSec);
+    void tickClock();
+    static std::string formatClock(float seconds);
+    std::string getTurnIndicatorText() const;
+    std::vector<std::string> getFormattedMoveHistory() const;
+    void scrollHistory(int deltaLines);
+    int getHistoryScrollOffset() const { return hud.getHistoryScrollOffset(); }
+    void resign();
+    const sf::FloatRect& getResignButtonBounds() const { return hud.getResignButtonBounds(); }
+    const sf::FloatRect& getNewGameButtonBounds() const { return hud.getNewGameButtonBounds(); }
 
     // Recebe a linha "legalmoves e2e4 d2d4 ..." do motor e atualiza a lista de lances legais
     void setLegalMoves(const std::string& legalMovesLine);

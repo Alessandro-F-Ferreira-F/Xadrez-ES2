@@ -10,10 +10,14 @@
 #include "engine_bridge.hpp"
 
 #define DEFAULT_BOARD_SIDE_SIZE 800
+#define DEFAULT_HUD_WIDTH 320
+#define DEFAULT_CLOCK_SECONDS 600.f
+#define HUD_VISIBLE_HISTORY_ROWS 12
 
 class ChessBoard {
 private:
     float squareSize;
+    float hudWidth;
     
     sf::RectangleShape squares[8][8];
 
@@ -46,18 +50,29 @@ private:
     sf::Font alertFont;
     bool fontLoaded;
 
+    // HUD Lateral: Relogios, Historico e Botoes (Issue #8)
+    float remainingTimeSec[2];
+    std::chrono::steady_clock::time_point lastClockTick;
+    int historyScrollOffset;
+    sf::FloatRect resignButtonBounds;
+    sf::FloatRect newGameButtonBounds;
+
     void initSquares();
+    void initHudBounds();
     void loadTextures();
     void loadAlertFont();
     void placePiece(PieceType type, PieceColor color, int col, int row);
     void updateHighlightsForSelected();
     void showAlert(const std::string& message, float durationSec, bool critical);
     void updateCloseButtonBounds();
+    void drawHud(sf::RenderWindow& window);
 
 public:
-    explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE);
+    explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE,
+                        float hudSideWidth = DEFAULT_HUD_WIDTH);
 
     float getSquareSize() const { return squareSize; }
+    float getHudWidth() const { return hudWidth; }
 
     // Converte notação algébrica (ex: "e2") em coordenadas de matriz (col=4, row=6)
     bool parseSquare(const std::string& sqStr, int& outCol, int& outRow) const;
@@ -94,6 +109,20 @@ public:
     const std::string& getAlertMessage() const { return alertMessage; }
     bool isAlertVisible() const { return alertVisible; }
     const sf::FloatRect& getCloseButtonBounds() const { return closeButtonBounds; }
+
+    // Metodos do HUD Lateral (Issue #8)
+    float getRemainingTimeSec(PieceColor color) const;
+    void setRemainingTimeSec(PieceColor color, float seconds);
+    void advanceClock(float deltaSec);
+    void tickClock();
+    static std::string formatClock(float seconds);
+    std::string getTurnIndicatorText() const;
+    std::vector<std::string> getFormattedMoveHistory() const;
+    void scrollHistory(int deltaLines);
+    int getHistoryScrollOffset() const { return historyScrollOffset; }
+    void resign();
+    const sf::FloatRect& getResignButtonBounds() const { return resignButtonBounds; }
+    const sf::FloatRect& getNewGameButtonBounds() const { return newGameButtonBounds; }
 
     // Recebe a linha "legalmoves e2e4 d2d4 ..." do motor e atualiza a lista de lances legais
     void setLegalMoves(const std::string& legalMovesLine);

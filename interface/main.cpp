@@ -7,9 +7,12 @@
 
 int main()
 {
-    sf::RenderWindow window(sf::VideoMode(BOARD_SIDE_SIZE, BOARD_SIDE_SIZE), "Xadrez - ES2");
+    sf::RenderWindow window(
+        sf::VideoMode(BOARD_SIDE_SIZE + DEFAULT_HUD_WIDTH, BOARD_SIDE_SIZE),
+        "Xadrez - ES2"
+    );
 
-    ChessBoard board(BOARD_SIDE_SIZE);
+    ChessBoard board(BOARD_SIDE_SIZE, DEFAULT_HUD_WIDTH);
     EngineBridge bridge;
 
     if (bridge.start("../engine/build/main.out")) {
@@ -38,6 +41,8 @@ int main()
                     static_cast<float>(event.mouseButton.y),
                     bridge
                 );
+            } else if (event.type == sf::Event::MouseWheelScrolled) {
+                board.scrollHistory(event.mouseWheelScroll.delta > 0 ? -1 : 1);
             } else if (event.type == sf::Event::KeyPressed &&
                        event.key.code == sf::Keyboard::R) {
                 board.resetGame();

@@ -24,7 +24,8 @@ conferidas** contra o CPW: idênticas (§3.19). Recomendações pequenas aplicad
 atualização). **Complemento ao dev enviado** (§8). Suíte passando (~6 s), nenhum aviso vindo
 de `IA/`. **Pacote 1.5 da EAP detalhado** (`60e18aa`, §10): 19 folhas, **17 concluídas**;
 faltam o 1.5.2.2 e o 1.5.2.3 (integração), que dependem do dev das regras.
-**Próximo passo:** aguardar a resposta do dev e fazer a integração (§9).
+**Próximo passo:** aguardar a resposta do dev e fazer a integração (§9); tarefas do grupo de
+20/11 e a parte da IA na §9.1.
 
 ---
 
@@ -895,6 +896,34 @@ IA no `sprints.md`~~ (`60e18aa`, §10).
 - Medir a profundidade alcançada antes da ordenação (§7.10, herdado).
 - Pequena, no teste: a FEN inicial aparece 18 vezes no `teste.c` (`fenInicial`,
   `fensLanceGarantido`, `casosV1V2`, casos da verificação...), como a do kiwipete aparecia.
+
+### 9.1 Lista de tarefas do grupo (20/11) e a parte da IA
+
+Lista que circulou no grupo em 20/11, avaliada contra o repositório (`origin/main` em `1277cf6`):
+
+| Tarefa | Necessária? | Estado real |
+|---|---|---|
+| Testes unitários | **Sim** (1.2.5, Sprint 5, cobrado na 3ª apresentação) | Motor: `make test`. Interface: `interface/test/unit_test.cpp`. IA: `teste.c` completo, mas é `main` avulsa, fora de qualquer build |
+| Testes de integração | **Sim** (1.2.5) | Interface: `interface/test/integration_test.cpp`. IA: só depois da ligação ao `go` |
+| Documentar estratégia de testes | **Sim** (relatório de unidade/integração/sistema/aceitação + cobertura) | Nenhum documento ainda |
+| Terminar fluxo CI | Recomendável (EAP 1.6.1; `docs/descricao.md` cita GitHub Actions) | **Não existe** `.github/workflows/`: é do zero, não "terminar" |
+| Menu na engine (dificuldade, partidas) | **Não** | Seletor de dificuldade é da interface (1.3.4); o motor só precisa receber o nível (`setoption name Difficulty`, já reservado em `uci.c`, etapa P5). REPL do motor está desativado |
+| Engine em .so/.dll | **Não** | A arquitetura é subprocesso + texto UCI; fora da EAP |
+| Integração cliente ↔ engine | Quase | POSIX pronto (PR #43: `readCommand`, `stop`); ramo **Win32** de `engine_bridge.cpp` ainda `TODO` → demo em Linux/WSL ou alguém implementa |
+
+**A lista não tem a tarefa crítica:** ligar a IA ao `go` (1.5.2.2/1.5.2.3, §8). Sem ela, o
+modo vs. IA da demo joga lances sorteados.
+
+**O que cabe à IA** (CI, menus, .dll e Win32 são do motor/interface, pelos CODEOWNERS):
+1. **Integração IA ↔ `go`** (prioridade). Se o dev não responder a tempo, combinar com ele de
+   eu mesmo fazer: `ia.c`, `avaliar.c`, `ordenar.c`, `niveis.c` no Makefile do motor; trocar
+   `uci_pick_move` por `escolherJogada`; `setoption` do nível.
+2. **Testes da IA no fluxo oficial:** alvo `make` para o `teste.c`, para entrar na CI e no
+   relatório. Não depende de ninguém.
+3. **Seção da IA no documento de estratégia de testes**, a partir da §7 (v1 = v2,
+   determinismo, tempo, quiescência, simetria da avaliação, medições).
+4. **Testes de integração da IA pelo protocolo**, depois da 1 (ex.: `go depth N` devolve lance
+   legal e acha mate em 1), no padrão do `engine/test/protocol/run.py`.
 
 ---
 

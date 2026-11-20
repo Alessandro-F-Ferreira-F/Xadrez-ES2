@@ -2,7 +2,7 @@
 #include "niveis.h"
 #include "../include/fen.h"
 #include "../include/movegen.h"
-#include "../../tools/ctest/test_api.h"
+#include "ctest/test_api.h"
 
 TEST(search_real_draw_adapter) {
     const struct { const char *fen; int result; } cases[] = {

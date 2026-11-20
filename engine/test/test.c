@@ -5,7 +5,7 @@
 #include "../include/movegen.h"
 #include "../include/square.h"
 #include "../include/perft.h"
-#include "../../tools/ctest/test_api.h" // API DE TESTES
+#include "ctest/test_api.h" // API DE TESTES
 
 #include <stdio.h>
 #include <stdlib.h>

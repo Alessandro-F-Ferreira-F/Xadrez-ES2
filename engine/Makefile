@@ -17,7 +17,7 @@ STD      := -std=c11
 WARN     := -Wall -Wextra -Wpedantic -Wstrict-prototypes -Wmissing-prototypes
 SRC_MAIN      := $(wildcard src/*.c)
 SRC_IA        := ../IA/src/ia.c ../IA/src/avaliar.c ../IA/src/ordenar.c ../IA/src/niveis.c ../IA/src/regras.c
-SRC_TEST := $(wildcard test/*.c) $(filter-out src/main.c, $(SRC_MAIN)) $(SRC_IA) $(wildcard ../tools/ctest/*.c)
+SRC_TEST := $(wildcard test/*.c) $(filter-out src/main.c, $(SRC_MAIN)) $(SRC_IA) $(wildcard test/ctest/*.c)
 CPPFLAGS := -Iinclude -I../IA/header
 
 ifeq ($(OS),Windows_NT)

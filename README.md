@@ -1,101 +1,71 @@
 # Xadrez-ES2
 
-Xadrez desenvolvido como trabalho da disciplina de Engenharia de Software 2 — 2026.2.
+Jogo de xadrez desenvolvido para a disciplina de Engenharia de Software 2 — 2026.2.
 
-# AVISO!!
-O arquivo [`estado-do-projeto`](engine/docs/onboarding-motor.md) contém o estado atual do motor, escrito para quem não programa em C (§6).<br>
-Leiam para entender o que já foi feito até o momento.
+## Visão Geral
 
-O estado técnico detalhado está em [`project_context`](engine/docs/project_context.md), e os próximos passos — até o protocolo UCI e, depois dele, a otimização — em [`project_context` §5](engine/docs/project_context.md#5-possíveis-melhorias).<br>
-O protocolo está em [`uci-comandos`](engine/docs/uci-comandos.md).
+O projeto é dividido em módulos independentes que se comunicam por protocolo de texto no estilo UCI (`stdin`/`stdout`):
 
-## O projeto
-
-O sistema é dividido em duas partes que conversam por um protocolo de texto:
-
-- **Motor de regras e IA**, escrito em C, neste repositório sob `engine/`.
-- **Cliente gráfico**, que desenha o tabuleiro e recebe os lances do jogador.
-
-O motor é um executável que lê comandos por `stdin` e responde por `stdout`, uma linha por
-mensagem, em protocolo no estilo UCI. O cliente o executa como subprocesso. Essa fronteira
-é deliberada: o motor não sabe nada sobre interface, e o cliente não sabe nada sobre as
-regras do xadrez.
-
-A posição é sempre trafegada como **FEN completa**, e não como histórico incremental — o
-que torna qualquer posição reproduzível isoladamente em teste.
+- **`Backend/`** — motor de regras (`Backend/engine/`) e busca minimax/alfa-beta (`Backend/IA/`) em C11, compilados em um único executável (`Backend/build/main.out`).
+- **`interface/`** — cliente gráfico em C++17 com SFML 2 (`interface/build/xadrez`), que executa o backend como subprocesso via `EngineBridge`.
+- **`tools/ctest/`** — biblioteca leve de testes em C/C++ compartilhada entre `Backend/` e `interface/`.
+- **`agent/`** — API FastAPI opcional (Scrum Master via OpenRouter / GitHub MCP / WhatsApp).
 
 ## Estrutura
 
-```
-engine/          Motor de regras, em C
-  include/       Headers
-  src/           Código-fonte
-  test/          Teste de aplicar/desfazer lances
-  docs/          Documentação técnica
-IA/              Busca e avaliação, em C (usa os headers de engine/)
-interface/       Cliente gráfico, em C++ com SFML
-README.md
-LICENSE
+```text
+Backend/
+  Makefile             Compila engine + IA e suas suítes de teste
+  engine/              Regras, FEN, perft, protocolo UCI e testes de protocolo (Python)
+  IA/                  Busca minimax/alfa-beta, avaliação, níveis e suítes de teste
+interface/
+  Makefile             Compila o cliente gráfico SFML 2 e os testes de interface
+  src/                 Tabuleiro, peças, HUD e ponte de comunicação (EngineBridge)
+  test/                Testes de smoke, unidade, integração e sistema
+tools/
+  ctest/               Runner e macros de asserção compartilhados (test_api.h)
+agent/                 Serviço FastAPI opcional de apoio ao time
+Makefile               Makefile global na raiz do repositório
 ```
 
-## Compilando o motor
+## Pré-requisitos
 
-Requer `gcc` e `make`.
+- `gcc`, `g++` (C11 / C++17), `make` e `python3`
+- **SFML 2** (headers de desenvolvimento: `libsfml-dev` no Debian/Ubuntu)
+
+## Como compilar, rodar e testar
+
+Todos os comandos abaixo são executados a partir da **raiz do repositório**:
 
 ```sh
-cd engine
-make            # build de desenvolvimento
-make run        # executa
-make debug      # build com sanitizers (ASan/UBSan) — use este para testar
-make release    # build otimizado (-O3)
-make test       # teste de ida e volta make/unmake — QUEBRADO em 04/10, ver abaixo
-make clean
+make                 # compila Backend (Backend/build/main.out) e Interface (interface/build/xadrez)
+make run             # compila e abre o jogo gráfico conectado à IA
+make test            # roda toda a suíte (Backend/engine com perft d3 + IA + protocolo UCI + interface)
+make test-full       # roda toda a suíte com perft completo (profundidade 5)
+make clean           # remove os binários de Backend/build e interface/build
 ```
 
-O binário sai em `engine/build/main.exe` no Windows e `engine/build/main.out`
-nos demais sistemas. No Windows, compile e execute com `mingw32-make all` e
-`mingw32-make run`; nos demais sistemas, use `make all` e `make run`.
+Alvos individuais disponíveis:
 
-Hoje o binário abre um menu de teste. A opção 12 roda o teste de ida e volta make/unmake
-(o `make test` não linka no momento — `project_context.md` §5, Bug #4), e as opções 10 e 13
-rodam o perft e o perft *divide*. A lista de FENs do teste fica em `engine/test/test.c` e
-pode ser ampliada adicionando posições ao vetor.
+```sh
+make test-backend    # testes C da engine + IA
+make test-engine     # apenas a suíte de regras/busca da engine
+make test-ia         # apenas os testes de unidade, integração e sistema da IA
+make test-protocol   # suíte Python do protocolo UCI (Backend/engine/test/protocol/run.py)
+make test-interface  # testes de smoke, unidade, integração e sistema da interface
+```
 
-## Estado atual (4 de outubro de 2026)
-
-**As regras do xadrez estão completas e provadas.** O que já funciona:
-
-- Leitura e escrita de FEN, com os seis campos e validação completa.
-- Geração de todos os lances — todas as peças, roque, en passant, promoção nas quatro peças.
-- Aplicar e desfazer lances, testado em mais de 11 milhões de posições sem falha.
-- Filtro de legalidade: o motor descarta lances que deixam o próprio rei em xeque, incluindo
-  as regras especiais do roque.
-- **Perft exato** nas seis posições de referência da Chess Programming Wiki (a posição
-  inicial até a profundidade 7: 3 195 901 860 nós). Os números estão em
-  [`engine/test/test.c`](engine/test/test.c).
-
-Em desenvolvimento:
-
-- Protocolo `stdin`/`stdout` no estilo UCI — o motor ainda não responde aos comandos da
-  interface. É o próximo passo.
-- Detecção de fim de partida (mate, afogamento) e empates por regra.
-- Ligação da IA (`IA/`) com o motor.
-- Depois do protocolo: otimização, com etapas medidas ([`project_context.md`](engine/docs/project_context.md), §5).
+Também é possível compilar cada módulo diretamente com `make -C Backend` ou `make -C interface`.
 
 ## Documentação
 
-- [`engine/docs/project_context.md`](engine/docs/project_context.md) — visão geral do motor:
-  estado atual verificado, decisões arquiteturais e o raciocínio por trás delas, mapa dos
-  módulos, bugs abertos. **Comece por aqui** se for mexer no motor.
-- [`engine/docs/uci-comandos.md`](engine/docs/uci-comandos.md) — protocolo do motor:
-  comandos, respostas, erros e uma sessão de exemplo.
-- [`engine/docs/onboarding-motor.md`](engine/docs/onboarding-motor.md) — guia de contexto
-  para quem está chegando, sem exigir C.
+- [`Backend/engine/docs/project_context.md`](Backend/engine/docs/project_context.md) — arquitetura do motor, decisões técnicas e contrato com a IA.
+- [`Backend/engine/docs/uci-comandos.md`](Backend/engine/docs/uci-comandos.md) — especificação do protocolo UCI implementado.
+- [`Backend/engine/docs/onboarding-motor.md`](Backend/engine/docs/onboarding-motor.md) — guia introdutório sobre o funcionamento do motor.
 
 ## Convenções
 
-- **C11**, compilado sempre com warnings ligados: `-Wall -Wextra -Wpedantic`.
-- Builds de depuração rodam sob sanitizers (`-fsanitize=address,undefined`).
-- Mensagens de commit em português.
-- O histórico de `engine/` anterior a este repositório foi importado de um repositório de
-  desenvolvimento separado, o que explica as mensagens em inglês nos commits mais antigos.
+- **Backend:** C11 com `-Wall -Wextra -Wpedantic -Wstrict-prototypes -Wmissing-prototypes`.
+- **Interface:** C++17 com `-Wall -Wextra` e SFML 2.
+- **Testes:** padronizados com `tools/ctest/test_api.h` (`TEST`, `EXPECT_*`, `ASSERT_*`).
+- **Commits:** mensagens claras e em português.

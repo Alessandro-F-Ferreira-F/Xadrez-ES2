@@ -10,7 +10,11 @@ static int fail(const std::string& msg) {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    const std::string enginePath = (argc > 1) ? argv[1] : "../engine/build/main.exe";
+#else
     const std::string enginePath = (argc > 1) ? argv[1] : "../engine/build/main.out";
+#endif
 
     std::cout << "[SMOKE] Iniciando motor: " << enginePath << std::endl;
 

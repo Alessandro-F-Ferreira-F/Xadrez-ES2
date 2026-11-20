@@ -28,7 +28,11 @@ static int g_failed = 0;
         }                                                                      \
     } while (0)
 
+#ifdef _WIN32
+static const char* ENGINE_BIN = "../engine/build/main.exe";
+#else
 static const char* ENGINE_BIN = "../engine/build/main.out";
+#endif
 
 // 1. Teste de Sistema - Recuperacao (Slide 60):
 // Forca situacoes extremas (binario invalido, comando corrompido, lance ilegal e reinicio do pipe)
@@ -37,9 +41,16 @@ static void test_system_recovery() {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
-    // 1.1 Tentativa de abrir executavel inexistente: o processo filho encerra com exit(1) e EOF no pipe
-    CHECK(bridge.start("/caminho/inexistente/engine_fantasma"), "Fork ocorre mesmo com binario invalido");
+    // 1.1 Tentativa de abrir executavel inexistente
+#ifdef _WIN32
+    CHECK(!bridge.start("C:\\caminho\\inexistente\\engine_fantasma.exe"),
+          "CreateProcess deve falhar sem iniciar processo invalido");
+    CHECK(bridge.readCommand().empty(), "Nenhuma resposta deve existir para processo invalido");
+#else
+    CHECK(bridge.start("/caminho/inexistente/engine_fantasma"),
+          "Fork ocorre mesmo com binario invalido");
     CHECK(bridge.readCommand().empty(), "Pipe de processo invalido deve retornar EOF vazio sem travar");
+#endif
     CHECK(bridge.stop(), "Deve recolher o processo invalido e limpar os descritores");
 
     // 1.2 Recuperacao: sobe o motor valido na mesma instancia de EngineBridge

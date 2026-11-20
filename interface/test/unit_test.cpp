@@ -283,13 +283,16 @@ static void test_engine_bridge_with_stub() {
     CHECK(bridge.readCommand().empty(), "readCommand sem processo deve retornar vazio");
     CHECK(!bridge.sendCommand("noop"), "sendCommand sem processo deve retornar false");
 
-    // Usa /bin/cat como Stub de eco para testar os pipes isolados do motor de xadrez
-    CHECK(bridge.start("/bin/cat"), "Deve iniciar stub /bin/cat");
-    // Reiniciar com processo ativo deve parar o anterior automaticamente
-    CHECK(bridge.start("/bin/cat"), "Re-start deve encerrar o anterior e abrir novo stub");
-    CHECK(bridge.sendCommand("ping_stub_1\r\nping_stub_2"), "Envia 2 linhas (com CRLF) ao stub");
-    CHECK(bridge.readCommand() == "ping_stub_1", "Le 1a linha removendo CR do buffer do pipe");
-    CHECK(bridge.readCommand() == "ping_stub_2", "Le 2a linha do buffer do pipe");
+    // Usa o motor como stub UCI portavel para testar os pipes isoladamente
+#ifdef _WIN32
+    const char* engine = "../engine/build/main.exe";
+#else
+    const char* engine = "../engine/build/main.out";
+#endif
+    CHECK(bridge.start(engine), "Deve iniciar stub UCI");
+    CHECK(bridge.start(engine), "Re-start deve encerrar o anterior e abrir novo stub");
+    CHECK(bridge.sendCommand("isready"), "Envia isready ao stub");
+    CHECK(bridge.readCommand() == "readyok", "Le readyok do stub");
     CHECK(bridge.stop(), "Encerra o stub com sucesso");
 }
 

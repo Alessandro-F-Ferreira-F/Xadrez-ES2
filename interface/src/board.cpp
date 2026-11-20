@@ -2,8 +2,53 @@
 #include "ui_helpers.hpp"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
+static std::filesystem::path getExecutableDirectory() {
+    namespace fs = std::filesystem;
+#ifdef _WIN32
+    char buffer[MAX_PATH];
+    DWORD length = GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    if (length > 0 && length < MAX_PATH) {
+        return fs::absolute(fs::path(buffer)).parent_path();
+    }
+#else
+    char buffer[4096];
+    ssize_t length = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    if (length > 0) {
+        buffer[length] = '\0';
+        return fs::absolute(fs::path(buffer)).parent_path();
+    }
+#endif
+    return fs::current_path();
+}
+
+static std::filesystem::path findAssetDirectory() {
+    namespace fs = std::filesystem;
+    fs::path exeDir = getExecutableDirectory();
+    std::vector<fs::path> candidates = {
+        fs::current_path() / "assets",
+        exeDir / "assets",
+        exeDir / ".." / "assets",
+        exeDir / ".." / ".." / "assets"
+    };
+
+    std::error_code ec;
+    for (const fs::path &candidate : candidates) {
+        if (fs::exists(candidate, ec)) {
+            return candidate;
+        }
+    }
+    return fs::path("./assets");
+}
 
 ChessBoard::ChessBoard(float boardSideSize, float hudSideWidth)
     : squareSize(boardSideSize / 8.f),
@@ -28,13 +73,25 @@ ChessBoard::ChessBoard(float boardSideSize, float hudSideWidth)
 }
 
 void ChessBoard::loadAlertFont() {
+    namespace fs = std::filesystem;
+    fs::path assetDir = findAssetDirectory();
+    fs::path exeDir = getExecutableDirectory();
     const char* candidates[] = {
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "./assets/font.ttf"
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
     };
     for (const char* path : candidates) {
         if (alertFont.loadFromFile(path)) {
+            fontLoaded = true;
+            return;
+        }
+    }
+    for (const fs::path &path : {
+             assetDir / "font.ttf",
+             exeDir / "assets" / "font.ttf",
+             exeDir / ".." / "assets" / "font.ttf",
+             exeDir / ".." / ".." / "assets" / "font.ttf"}) {
+        if (alertFont.loadFromFile(path.string())) {
             fontLoaded = true;
             return;
         }
@@ -60,7 +117,8 @@ void ChessBoard::initSquares() {
 }
 
 void ChessBoard::loadTextures() {
-    const std::string basePath = "./assets/pieces/";
+    namespace fs = std::filesystem;
+    fs::path piecesDir = findAssetDirectory() / "pieces";
 
     const std::string typeNames[6] = {
         "pawn", "knight", "bishop", "rook", "queen", "king"
@@ -71,7 +129,7 @@ void ChessBoard::loadTextures() {
 
     for (int c = 0; c < 2; c++) {
         for (int t = 0; t < 6; t++) {
-            std::string filePath = basePath + colorPrefix[c] + typeNames[t] + ".png";
+            std::string filePath = (piecesDir / (std::string(colorPrefix[c]) + typeNames[t] + ".png")).string();
             if (!textures[c][t].loadFromFile(filePath)) {
                 std::cerr << "[Erro] Nao foi possivel carregar a textura: " << filePath << std::endl;
             } else {

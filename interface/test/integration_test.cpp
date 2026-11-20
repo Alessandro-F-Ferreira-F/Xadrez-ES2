@@ -27,7 +27,11 @@ static int g_failed = 0;
         }                                                                      \
     } while (0)
 
+#ifdef _WIN32
+static const char* ENGINE_BIN = "../engine/build/main.exe";
+#else
 static const char* ENGINE_BIN = "../engine/build/main.out";
+#endif
 
 // 1. Integracao: Handshake UCI + Carregamento dos 20 lances legais iniciais no ChessBoard
 static void test_integration_uci_handshake_and_legalmoves() {

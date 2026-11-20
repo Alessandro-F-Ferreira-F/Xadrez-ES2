@@ -1,11 +1,48 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <filesystem>
+#include <vector>
 #include "board.hpp"
 #include "engine_bridge.hpp"
 
 #define BOARD_SIDE_SIZE 800
 
-int main()
+static std::string findEngineExecutable(int argc, char **argv) {
+#ifdef _WIN32
+    const char *relativeName = "main.exe";
+#else
+    const char *relativeName = "main.out";
+#endif
+
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    candidates.emplace_back(fs::path("engine") / "build" / relativeName);
+    candidates.emplace_back(fs::path("..") / "engine" / "build" / relativeName);
+    candidates.emplace_back(fs::path("..") / ".." / "engine" / "build" / relativeName);
+
+    if (std::filesystem::exists(fs::current_path() / candidates[0])) {
+        return (fs::current_path() / candidates[0]).string();
+    }
+
+    std::error_code ec;
+    fs::path exePath = argc > 0 ? fs::absolute(fs::path(argv[0]), ec) : fs::absolute(fs::path(), ec);
+    fs::path exeDir = exePath.parent_path();
+    candidates.clear();
+    candidates.emplace_back(exeDir / "engine" / "build" / relativeName);
+    candidates.emplace_back(exeDir / ".." / "engine" / "build" / relativeName);
+    candidates.emplace_back(exeDir / ".." / ".." / "engine" / "build" / relativeName);
+    candidates.emplace_back(exeDir / ".." / ".." / ".." / "engine" / "build" / relativeName);
+
+    for (const fs::path &candidate : candidates) {
+        if (fs::exists(candidate, ec)) {
+            return fs::absolute(candidate, ec).string();
+        }
+    }
+
+    return candidates[1].string();
+}
+
+int main(int argc, char **argv)
 {
     sf::RenderWindow window(
         sf::VideoMode(BOARD_SIDE_SIZE + DEFAULT_HUD_WIDTH, BOARD_SIDE_SIZE),
@@ -14,8 +51,9 @@ int main()
 
     ChessBoard board(BOARD_SIDE_SIZE, DEFAULT_HUD_WIDTH);
     EngineBridge bridge;
+    std::string enginePath = findEngineExecutable(argc, argv);
 
-    if (bridge.start("../engine/build/main.out")) {
+    if (bridge.start(enginePath)) {
         bridge.sendCommand("uci");
         for (int i = 0; i < 10; ++i) {
             if (bridge.readCommand() == "uciok") break;
@@ -24,7 +62,7 @@ int main()
         bridge.sendCommand("legalmoves");
         board.setLegalMoves(bridge.readCommand());
     } else {
-        std::cerr << "[Aviso] Nao foi possivel iniciar ../engine/build/main.out" << std::endl;
+        std::cerr << "[Aviso] Nao foi possivel iniciar o motor: " << enginePath << std::endl;
     }
 
     while (window.isOpen())

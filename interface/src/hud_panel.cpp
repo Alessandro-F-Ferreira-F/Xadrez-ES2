@@ -10,13 +10,32 @@ HudPanel::HudPanel(float posX, float width, float height)
       hudWidth(width),
       hudHeight(height),
       remainingTimeSec{DEFAULT_CLOCK_SECONDS, DEFAULT_CLOCK_SECONDS},
-      historyScrollOffset(0) {
+      historyScrollOffset(0),
+      aiDepth(AI_DEPTH_DEFAULT) {
     float btnW = (hudWidth - 42.f) * 0.5f;
     float btnH = 44.f;
     float btnY = hudHeight - btnH - 20.f;
     resignButtonBounds = sf::FloatRect(hudX + 16.f, btnY, btnW, btnH);
     newGameButtonBounds = sf::FloatRect(hudX + 26.f + btnW, btnY, btnW, btnH);
+
+    // Painel de profundidade logo acima dos botoes: [-] N [+] alinhados a direita
+    const float pad = 16.f;
+    const float innerW = hudWidth - 2.f * pad;
+    const float stepSize = 30.f;
+    const float valueGap = 36.f;
+    depthPanelH = 64.f;
+    depthPanelY = btnY - 16.f - depthPanelH;
+    float stepY = depthPanelY + (depthPanelH - stepSize) * 0.5f;
+    float upX = hudX + pad + innerW - 10.f - stepSize;
+    float downX = upX - valueGap - stepSize;
+    depthDownButtonBounds = sf::FloatRect(downX, stepY, stepSize, stepSize);
+    depthUpButtonBounds = sf::FloatRect(upX, stepY, stepSize, stepSize);
+
     reset();
+}
+
+void HudPanel::setAiDepth(int depth) {
+    aiDepth = std::max(AI_DEPTH_MIN, std::min(AI_DEPTH_MAX, depth));
 }
 
 void HudPanel::reset() {
@@ -109,7 +128,8 @@ void HudPanel::draw(sf::RenderWindow& window,
                     bool fontLoaded,
                     PieceColor currentTurn,
                     bool isGameOver,
-                    const std::vector<std::string>& moveHistory) const {
+                    const std::vector<std::string>& moveHistory,
+                    bool engineThinking) const {
     sf::RectangleShape hudBg(sf::Vector2f(hudWidth, hudHeight));
     hudBg.setPosition(hudX, 0.f);
     hudBg.setFillColor(sf::Color(22, 26, 34));
@@ -185,7 +205,7 @@ void HudPanel::draw(sf::RenderWindow& window,
 
     // 3. Historico de Lances (RF20)
     const float histY = 178.f;
-    const float histH = resignButtonBounds.top - histY - 16.f;
+    const float histH = depthPanelY - histY - 12.f;
     ui::drawRoundedRect(window, hudX + pad, histY, innerW, histH, 10.f,
                         sf::Color(28, 33, 43), 1.5f, sf::Color(55, 65, 82));
 
@@ -219,7 +239,53 @@ void HudPanel::draw(sf::RenderWindow& window,
         }
     }
 
-    // 4. Botoes de Controle: Desistir e Nova Partida
+    // 4. Profundidade da IA: [-] N [+], e "IA pensando..." enquanto o motor busca
+    ui::drawRoundedRect(window, hudX + pad, depthPanelY, innerW, depthPanelH, 10.f,
+                        sf::Color(28, 33, 43), 1.5f, sf::Color(55, 65, 82));
+
+    const sf::FloatRect* steps[2] = {&depthDownButtonBounds, &depthUpButtonBounds};
+    const bool stepEnabled[2] = {aiDepth > AI_DEPTH_MIN, aiDepth < AI_DEPTH_MAX};
+    for (int i = 0; i < 2; ++i) {
+        ui::drawRoundedRect(window, steps[i]->left, steps[i]->top,
+                            steps[i]->width, steps[i]->height, 7.f,
+                            stepEnabled[i] ? sf::Color(52, 92, 150) : sf::Color(44, 50, 62),
+                            1.5f,
+                            stepEnabled[i] ? sf::Color(110, 160, 230) : sf::Color(70, 78, 92));
+    }
+
+    if (fontLoaded) {
+        sf::Text depthLbl("Profundidade da IA", font, 14);
+        depthLbl.setFillColor(sf::Color(190, 200, 220));
+        depthLbl.setPosition(hudX + pad + 14.f, depthPanelY + 11.f);
+        window.draw(depthLbl);
+
+        sf::Text depthSub(engineThinking ? "IA pensando..." : "max. 10 s por lance", font, 12);
+        depthSub.setFillColor(engineThinking ? sf::Color(240, 190, 80) : sf::Color(140, 150, 170));
+        depthSub.setPosition(hudX + pad + 14.f, depthPanelY + 37.f);
+        window.draw(depthSub);
+
+        const char* stepLabels[2] = {"-", "+"};
+        for (int i = 0; i < 2; ++i) {
+            sf::Text stepTxt(stepLabels[i], font, 20);
+            stepTxt.setFillColor(stepEnabled[i] ? sf::Color::White : sf::Color(110, 118, 132));
+            sf::FloatRect sb = stepTxt.getLocalBounds();
+            stepTxt.setPosition(steps[i]->left + (steps[i]->width - sb.width) * 0.5f - sb.left,
+                                steps[i]->top + (steps[i]->height - sb.height) * 0.5f - sb.top);
+            window.draw(stepTxt);
+        }
+
+        sf::Text valueTxt(std::to_string(aiDepth), font, 20);
+        valueTxt.setFillColor(sf::Color::White);
+        sf::FloatRect vb = valueTxt.getLocalBounds();
+        float gapLeft = depthDownButtonBounds.left + depthDownButtonBounds.width;
+        float gapWidth = depthUpButtonBounds.left - gapLeft;
+        valueTxt.setPosition(gapLeft + (gapWidth - vb.width) * 0.5f - vb.left,
+                             depthDownButtonBounds.top
+                                 + (depthDownButtonBounds.height - vb.height) * 0.5f - vb.top);
+        window.draw(valueTxt);
+    }
+
+    // 5. Botoes de Controle: Desistir e Nova Partida
     ui::drawRoundedRect(window,
                         resignButtonBounds.left, resignButtonBounds.top,
                         resignButtonBounds.width, resignButtonBounds.height, 9.f,

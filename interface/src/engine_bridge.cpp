@@ -1,11 +1,14 @@
 #include "engine_bridge.hpp"
+#include <chrono>
 #include <cstdlib>
+#include <thread>
 
 #ifdef _WIN32
     #include <windows.h>
 #else
     #include <cerrno>
     #include <csignal>
+    #include <poll.h>
     #include <sys/wait.h>
     #include <unistd.h>
 #endif
@@ -114,6 +117,19 @@ bool EngineBridge::sendCommand(const std::string &command){
     #endif
 }
 
+bool EngineBridge::takeBufferedLine(std::string &out) {
+    size_t nl = read_buffer.find('\n');
+    if (nl == std::string::npos) {
+        return false;
+    }
+    out = read_buffer.substr(0, nl);
+    read_buffer.erase(0, nl + 1);
+    if (!out.empty() && out.back() == '\r') {
+        out.pop_back();
+    }
+    return true;
+}
+
 std::string EngineBridge::readCommand() {
     #ifdef _WIN32
         // TODO: Implementar leitura via ReadFile no Windows
@@ -124,14 +140,9 @@ std::string EngineBridge::readCommand() {
         }
 
         while (true) {
-            size_t nl = read_buffer.find('\n');
-            if (nl != std::string::npos) {
-                std::string line = read_buffer.substr(0, nl);
-                read_buffer.erase(0, nl + 1);
-                if (!line.empty() && line.back() == '\r') {
-                    line.pop_back();
-                }
-                return line;
+            std::string buffered;
+            if (takeBufferedLine(buffered)) {
+                return buffered;
             }
 
             char buf[512];
@@ -155,6 +166,57 @@ std::string EngineBridge::readCommand() {
     #endif
 }
 
+// Mesma montagem de linhas do readCommand, mas sem esperar: o poll com timeout 0 so
+// diz se ha algo para ler, e o read seguinte nao bloqueia. Usado pela janela, que
+// precisa continuar desenhando enquanto o motor pensa.
+EngineBridge::ReadStatus EngineBridge::tryReadLine(std::string &out) {
+    #ifdef _WIN32
+        // TODO: Implementar junto com o resto do ramo Windows
+        (void)out;
+        return ReadStatus::Closed;
+    #else
+        if (takeBufferedLine(out)) {
+            return ReadStatus::Line;
+        }
+        if (pipe_interface[0] < 0) {
+            return ReadStatus::Closed;
+        }
+
+        struct pollfd pfd;
+        pfd.fd = pipe_interface[0];
+        pfd.events = POLLIN;
+        pfd.revents = 0;
+        int ready = poll(&pfd, 1, 0);
+        if (ready == 0 || (ready < 0 && errno == EINTR)) {
+            return ReadStatus::Pending;
+        }
+        if (ready < 0) {
+            return ReadStatus::Closed;
+        }
+
+        char buf[512];
+        ssize_t n = read(pipe_interface[0], buf, sizeof(buf));
+        if (n > 0) {
+            read_buffer.append(buf, static_cast<size_t>(n));
+            return takeBufferedLine(out) ? ReadStatus::Line : ReadStatus::Pending;
+        }
+        if (n < 0 && (errno == EINTR || errno == EAGAIN)) {
+            return ReadStatus::Pending;
+        }
+
+        // EOF ou erro: o que sobrou no buffer sai como ultima linha
+        if (!read_buffer.empty()) {
+            out = read_buffer;
+            read_buffer.clear();
+            if (!out.empty() && out.back() == '\r') {
+                out.pop_back();
+            }
+            return ReadStatus::Line;
+        }
+        return ReadStatus::Closed;
+    #endif
+}
+
 bool EngineBridge::stop() {
     #ifdef _WIN32
         // TODO: Implementar encerramento do processo no Windows
@@ -175,7 +237,16 @@ bool EngineBridge::stop() {
                 pipe_interface[0] = -1;
             }
             if (exited == 0) {
-                waitpid(engine_pid, &status, 0);
+                // Durante um go (ate 10 s) o motor nao le a stdin, entao o quit so seria
+                // atendido no fim da busca. Espera um pouco e, se ele ainda estiver
+                // pensando, encerra o processo para a janela fechar na hora.
+                for (int i = 0; i < 50 && waitpid(engine_pid, &status, WNOHANG) == 0; ++i) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+                if (waitpid(engine_pid, &status, WNOHANG) == 0) {
+                    kill(engine_pid, SIGKILL);
+                    waitpid(engine_pid, &status, 0);
+                }
             }
             engine_pid = -1;
         }

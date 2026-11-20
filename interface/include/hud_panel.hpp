@@ -10,6 +10,13 @@
 #define DEFAULT_CLOCK_SECONDS 600.f
 #define HUD_VISIBLE_HISTORY_ROWS 12
 
+// Profundidade pedida ao motor (go depth N), ajustada pelos botoes -/+ da HUD. O
+// motor para no teto de 10 s mesmo que a profundidade nao termine; acima de ~7 e
+// quase sempre o teto que decide.
+#define AI_DEPTH_MIN 1
+#define AI_DEPTH_MAX 12
+#define AI_DEPTH_DEFAULT 3
+
 class HudPanel {
 private:
     float hudX;
@@ -22,6 +29,13 @@ private:
 
     sf::FloatRect resignButtonBounds;
     sf::FloatRect newGameButtonBounds;
+
+    // Controle de profundidade da IA (nao volta ao padrao em reset: e preferencia do jogador)
+    int aiDepth;
+    float depthPanelY;
+    float depthPanelH;
+    sf::FloatRect depthDownButtonBounds;
+    sf::FloatRect depthUpButtonBounds;
 
 public:
     HudPanel(float posX, float width, float height);
@@ -49,10 +63,19 @@ public:
     const sf::FloatRect& getResignButtonBounds() const { return resignButtonBounds; }
     const sf::FloatRect& getNewGameButtonBounds() const { return newGameButtonBounds; }
 
+    int getAiDepth() const { return aiDepth; }
+    // Limita a [AI_DEPTH_MIN, AI_DEPTH_MAX]
+    void setAiDepth(int depth);
+    bool isDepthDownClicked(float x, float y) const { return depthDownButtonBounds.contains(x, y); }
+    bool isDepthUpClicked(float x, float y) const { return depthUpButtonBounds.contains(x, y); }
+    const sf::FloatRect& getDepthDownButtonBounds() const { return depthDownButtonBounds; }
+    const sf::FloatRect& getDepthUpButtonBounds() const { return depthUpButtonBounds; }
+
     void draw(sf::RenderWindow& window,
               const sf::Font& font,
               bool fontLoaded,
               PieceColor currentTurn,
               bool isGameOver,
-              const std::vector<std::string>& moveHistory) const;
+              const std::vector<std::string>& moveHistory,
+              bool engineThinking = false) const;
 };

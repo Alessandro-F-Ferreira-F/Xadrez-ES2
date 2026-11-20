@@ -49,6 +49,9 @@ private:
 
     HudPanel hud;
 
+    // go enviado e bestmove ainda nao recebido (a janela segue desenhando enquanto isso)
+    bool awaitingEngine;
+
     void initSquares();
     void loadTextures();
     void loadAlertFont();
@@ -57,6 +60,10 @@ private:
     void showAlert(const std::string& message, float durationSec, bool critical);
     void updateCloseButtonBounds();
     void handleTimeout();
+    bool handleDepthButtons(float x, float y);
+    void syncPositionToEngine(EngineBridge& bridge);
+    void finishEngineTurn(const std::string& bestLine, EngineBridge& bridge);
+    void waitForEngine(EngineBridge& bridge);
 
 public:
     explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE,
@@ -134,7 +141,20 @@ public:
     // Processa um clique do mouse em pixels (x, y). Retorna o lance UCI executado (ex: "e2e4") ou "" se apenas selecionou/inválido
     std::string handleMouseClick(float x, float y);
 
-    // Orquestra o clique do jogador integrado ao motor via pipe (valida com legalmoves, envia position + go e aplica bestmove)
+    // Profundidade da IA (botoes -/+ da HUD), enviada como "go depth N"
+    int getAiDepth() const { return hud.getAiDepth(); }
+    void setAiDepth(int depth) { hud.setAiDepth(depth); }
+    const sf::FloatRect& getDepthDownButtonBounds() const { return hud.getDepthDownButtonBounds(); }
+    const sf::FloatRect& getDepthUpButtonBounds() const { return hud.getDepthUpButtonBounds(); }
+
+    // Assincrono, usado pela janela: o clique aplica o lance do jogador e so ENVIA o go
+    // (retorna true quando o lance do jogador foi aceito); pollEngine, chamado a cada
+    // quadro, aplica o bestmove quando ele chegar (retorna true no quadro em que isso acontece)
+    bool startTurnWithEngine(float x, float y, EngineBridge& bridge);
+    bool pollEngine(EngineBridge& bridge);
+    bool isAwaitingEngine() const { return awaitingEngine; }
+
+    // Sincrono (testes): startTurnWithEngine seguido da espera bloqueante pelo bestmove
     bool playTurnWithEngine(float x, float y, EngineBridge& bridge);
 
     void draw(sf::RenderWindow &window);

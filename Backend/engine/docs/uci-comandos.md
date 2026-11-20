@@ -30,7 +30,7 @@ exemplos, `>` é o que o cliente envia e `<` o que o motor responde (o formato d
 | `position fen <FEN> [moves L ...]` | nenhuma, ou `error` | Define a posição a partir de uma FEN de seis campos |
 | `legalmoves` | `legalmoves L L ...` | Lances legais, em ordem livre. Só `legalmoves` (sem lances) não indica fim de partida: quem diz é o `state` |
 | `state` | `state check ... fen ...` | Situação da partida |
-| `go [depth N] [movetime T]` | `info ...` e `bestmove L` | Lance escolhido pela IA. Não aplica o lance |
+| `go [depth N] [movetime T]` | `info ...` e `bestmove L` | Lance escolhido pela IA, em no máximo 10 s. Não aplica o lance |
 | `go perft N` | `L: n` por lance e `Nodes searched: total` | Contagem de nós, N de 1 a 8 |
 | `d` | desenho e `fen <FEN>` | Só depuração: o desenho não é contrato |
 | `quit` | nenhuma | Encerra |
@@ -79,9 +79,12 @@ passant após todo avanço duplo, mesmo sem captura possível.
 ```
 
 - Sem limites, valem os parâmetros do nível. `depth N` (1 a 64) substitui a profundidade e
-  desliga o prazo. `movetime T` (ms, 0 a 2147483647) substitui o prazo e libera a
-  profundidade até 64; `0` desliga o relógio. Com os dois, para no primeiro limite. Os
-  limites valem só para este `go`; quiescência e sorteio seguem o nível.
+  troca o prazo do nível pelo teto de 10 s. `movetime T` (ms, 0 a 2147483647) substitui o
+  prazo e libera a profundidade até 64. Com os dois, para no primeiro limite. Os limites
+  valem só para este `go`; quiescência e sorteio seguem o nível.
+- **Teto de 10 s** (`UCI_GO_MAX_MS` em `uci.c`): nenhuma busca passa disso. `depth` sozinho,
+  `movetime 0` e `movetime` acima de 10000 param no teto, com o lance da última iteração
+  completa.
 - `info`: `depth` é a profundidade da iteração aproveitada (0 se só a passada de segurança
   terminou no prazo); `score` é da perspectiva de quem joga, `cp` em centipeões ou `mate` em
   lances completos (positivo: quem joga dá mate); `nodes` soma todas as iterações. A busca
@@ -181,7 +184,8 @@ Como a interface joga: reenvia a partida inteira a cada lance, consulta o `state
 - Sem `stop` nem `ponderhit`; a stdin não é lida durante `go`.
 - `wtime`, `btime`, `winc`, `binc`, `movestogo` e `infinite` são ignorados: o prazo vem do
   nível ou de `movetime`.
-- `go movetime 0` sem `depth` busca sem prazo até a profundidade 64: na prática não termina.
+- O prazo é medido em tempo de CPU (`clock()`): com a máquina carregada, o tempo real pode
+  passar do teto.
 - A repetição só é vista na partida, não dentro da busca da IA.
 - Quinto caractere em lance que não é promoção é ignorado: `e2e4x` vale `e2e4`.
 - Uma única posição por processo; o histórico da partida é do cliente.

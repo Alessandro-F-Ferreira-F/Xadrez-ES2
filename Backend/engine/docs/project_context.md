@@ -142,8 +142,8 @@ Decisões firmes e vigentes. Mudar qualquer uma afeta o perft, o protocolo ou a 
 - **Reprodutível**: o sorteio entre lances empatados usa um xorshift próprio com semente fixa,
   reiniciada por `ucinewgame`, e não o `rand()` da libc. A mesma sequência de comandos sem
   relógio gera as mesmas respostas em qualquer plataforma.
-- **Uma thread**: o motor não lê a stdin durante `go`. Por isso não há `stop`, e `go perft`
-  tem teto de profundidade 8.
+- **Uma thread**: o motor não lê a stdin durante `go`. Por isso não há `stop`: `go perft` tem
+  teto de profundidade 8, e todo `go` de busca tem teto de 10 s (`UCI_GO_MAX_MS`).
 - **Integração por subprocesso**: a interface executa o binário e conversa por pipe, sem
   servidor no meio. Comando desconhecido é ignorado, como manda o UCI.
 
@@ -256,8 +256,7 @@ hardware.
 - Hash Zobrist incremental: chave de repetição em 64 bits, repetição dentro da busca e base
   para uma tabela de transposição.
 - Na IA, killer moves/history e tabela de transposição: menos nós para a mesma profundidade.
-- `stop` com uma thread leitora: hoje um `go` longo (por exemplo `go movetime 0` sem `depth`)
-  deixa o motor inalcançável.
+- `stop` com uma thread leitora: hoje o motor fica surdo durante um `go` (até 10 s).
 - Relógio de partida (`wtime`, `btime`, `winc`, `binc`): hoje ignorado; o prazo vem só do
   nível ou de `movetime`.
 - Recusar o quinto caractere em lance que não é promoção: hoje `e2e4x` vale `e2e4`.

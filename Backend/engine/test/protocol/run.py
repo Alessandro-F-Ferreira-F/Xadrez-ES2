@@ -244,6 +244,16 @@ def check_search_options(engine):
         if code or not info or not 2 < int(info.split()[2]) < 64:
             failures.append(f"busca: movetime nao substitui/limita o perfil: {command}: {lines}")
 
+    # Teto de 10 s (UCI_GO_MAX_MS): depth sozinho nao desliga mais o relogio. A
+    # profundidade 64 na posicao inicial nunca termina, entao o go tem de responder
+    # perto do teto, com uma profundidade alcancada bem menor que 64.
+    started = time.monotonic()
+    lines, code = run_engine(engine, "go depth 64\nquit\n", timeout=20.0)
+    elapsed = time.monotonic() - started
+    info = next((ln for ln in lines if ln.startswith("info depth ")), "")
+    if code or not info or not 2 < int(info.split()[2]) < 64 or not 9.0 < elapsed < 12.0:
+        failures.append(f"busca: go depth 64 nao parou no teto de 10 s ({elapsed:.1f} s): {lines}")
+
     # Mate em um para as duas cores: score na perspectiva de quem joga.
     for fen in ("7k/8/5KQ1/8/8/8/8/8 w - - 0 1",
                 "8/8/8/8/8/5kq1/8/7K b - - 0 1"):

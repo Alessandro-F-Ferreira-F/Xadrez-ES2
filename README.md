@@ -57,6 +57,30 @@ make test-interface  # testes de smoke, unidade, integração e sistema da inter
 
 Também é possível compilar cada módulo diretamente com `make -C Backend` ou `make -C interface`.
 
+## Nível da IA
+
+| Nível | Profundidade | Prazo por lance | Quiescência |
+|---|---|---|---|
+| 1 — Fácil | 2 | 180 ms | não |
+| 2 — Médio (padrão) | 3 | 180 ms | sim |
+| 3 — Difícil | até 64, enquanto houver tempo | 950 ms | sim |
+
+Nenhum lance da IA passa de **10 s**: o motor aplica esse teto a todo `go`.
+
+- **Escolher o nível**: envie `setoption name Nivel value N` (N de 1 a 3) antes do `go`. O
+  nível vale até o próximo `setoption`, inclusive depois de `ucinewgame`.
+- **Limitar um único lance**: `go depth N` ou `go movetime T` (em ms) substituem a
+  profundidade ou o prazo do nível só naquele `go`; a quiescência continua a do nível.
+- **Mudar o que cada nível faz**: edite a tabela em
+  [`Backend/IA/src/niveis.c`](Backend/IA/src/niveis.c) (`PROF_FACIL`, `PROF_MEDIO`,
+  `TEMPO_BASICO_MS`, `TEMPO_DIFICIL_MS`). Os `_Static_assert` do arquivo impedem prazos acima
+  do RNF01 (200 ms e 1 s). Depois, rode `make test-protocol`, que mede o tempo de cada nível.
+- **Na interface**: os botões **−/+** da HUD ("Profundidade da IA", de 1 a 12, padrão 3)
+  escolhem a profundidade, enviada como `go depth N`. A IA para na profundidade escolhida ou
+  em 10 s, o que vier primeiro; acima de ~7 é quase sempre o teto que decide. Enquanto ela
+  pensa, a janela continua respondendo e a HUD mostra "IA pensando...". A interface não
+  envia `setoption`, então a quiescência e o sorteio são os do nível Médio.
+
 ## Documentação
 
 - [`Backend/engine/docs/project_context.md`](Backend/engine/docs/project_context.md) — arquitetura do motor, decisões técnicas e contrato com a IA.

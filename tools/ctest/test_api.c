@@ -73,8 +73,8 @@ void test_register(const char *name, test_fn fn, const char *file, int line) {
         g_not_registered++;       /* reportado (e vira falha) em test_run_all */
         return;
     }
-    TestCase new = {.name = name, .fn = fn, .file = file, .line = line};
-    g_tests[g_ntest++] = new;
+    TestCase tc = {.name = name, .fn = fn, .file = file, .line = line};
+    g_tests[g_ntest++] = tc;
     return;
 }
 

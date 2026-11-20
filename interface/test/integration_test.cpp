@@ -2,8 +2,10 @@
 #include "engine_bridge.hpp"
 #include "../../tools/ctest/test_api.h"
 
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
@@ -218,6 +220,52 @@ TEST(integration_hud_buttons_with_engine) {
     CHECK(!board.isGameOver(), "Nova Partida desbloqueia o jogo");
     CHECK(board.getMoveHistory().empty(), "Historico zerado");
     CHECK(board.getLegalMoves().size() == 20, "Engine ressincronizada com os 20 lances iniciais");
+
+    bridge.stop();
+}
+
+// 7. Integracao: turno assincrono (como a janela) com a profundidade da HUD (go depth N)
+TEST(integration_async_turn_with_depth) {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+    CHECK(bridge.sendCommand("isready") && bridge.readCommand() == "readyok", "Motor pronto");
+
+    board.setAiDepth(4);
+    CHECK(!board.startTurnWithEngine(450.f, 650.f, bridge), "1o clique so seleciona e2");
+    CHECK(board.startTurnWithEngine(450.f, 450.f, bridge), "2o clique aceita e2e4 e envia o go");
+    CHECK(board.isAwaitingEngine(), "Depois do go a interface aguarda o bestmove sem bloquear");
+    CHECK(board.getMoveHistory().size() == 1, "Lance do jogador ja aparece antes da resposta da IA");
+
+    // Enquanto a IA pensa: tabuleiro e Nova Partida bloqueados, profundidade ainda ajustavel
+    CHECK(!board.startTurnWithEngine(450.f, 150.f, bridge) && board.getSelectedCol() < 0,
+          "Clique numa peca preta (e7) e ignorado enquanto a IA pensa");
+    const sf::FloatRect& newGameRect = board.getNewGameButtonBounds();
+    board.startTurnWithEngine(newGameRect.left + 10.f, newGameRect.top + 10.f, bridge);
+    CHECK(board.getMoveHistory().size() == 1 && board.isAwaitingEngine(),
+          "Nova Partida bloqueada enquanto a IA pensa");
+    const sf::FloatRect& upRect = board.getDepthUpButtonBounds();
+    board.startTurnWithEngine(upRect.left + 5.f, upRect.top + 5.f, bridge);
+    CHECK(board.getAiDepth() == 5, "Profundidade pode mudar durante a busca (vale no proximo go)");
+
+    // Polling a cada "quadro", como o main.cpp, com folga sobre o teto de 10 s do motor
+    bool finished = false;
+    auto start = std::chrono::steady_clock::now();
+    while (!finished && std::chrono::steady_clock::now() - start < std::chrono::seconds(15)) {
+        finished = board.pollEngine(bridge);
+        if (!finished) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+    }
+    CHECK(finished && !board.isAwaitingEngine(), "bestmove chega por pollEngine");
+    CHECK(board.getMoveHistory().size() == 2, "Historico com o lance do jogador e o da IA");
+    CHECK(board.getCurrentTurn() == PieceColor::WHITE, "Vez volta para as brancas");
+    CHECK(!board.getLegalMoves().empty(), "Lances legais do turno 2 sincronizados");
+
+    // Nenhuma linha sobrou no pipe: o turno seguinte (sincrono) continua alinhado
+    CHECK(!board.playTurnWithEngine(650.f, 750.f, bridge), "1o clique do turno 2 so seleciona g1");
+    CHECK(board.getHighlightedSquares().size() == 3, "g1 com 3 destinos: pipe sincronizado apos o polling");
 
     bridge.stop();
 }

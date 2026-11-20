@@ -3,8 +3,10 @@
 #include "piece.hpp"
 #include "../../tools/ctest/test_api.h"
 
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
@@ -442,6 +444,76 @@ TEST(hud_turn_history_and_buttons) {
     CHECK(board.getMoveHistory().empty(), "Historico limpo apos Nova Partida");
     CHECK(board.getRemainingTimeSec(PieceColor::WHITE) == 600.f, "Relogio branco resetado para 600s");
     CHECK(board.getTurnIndicatorText() == "Vez das Brancas", "Turno volta para Brancas");
+}
+
+// 13. Teste de Unidade (Fronteiras): controle de profundidade da IA na HUD
+TEST(hud_depth_control) {
+    ChessBoard board(800.f);
+    CHECK(board.getAiDepth() == AI_DEPTH_DEFAULT, "Profundidade inicial deve ser AI_DEPTH_DEFAULT");
+
+    const sf::FloatRect up = board.getDepthUpButtonBounds();
+    const sf::FloatRect down = board.getDepthDownButtonBounds();
+    CHECK(board.handleMouseClick(up.left + 5.f, up.top + 5.f).empty(), "Clique em + nao gera lance UCI");
+    CHECK(board.getAiDepth() == AI_DEPTH_DEFAULT + 1, "+ aumenta a profundidade em 1");
+    board.handleMouseClick(down.left + 5.f, down.top + 5.f);
+    board.handleMouseClick(down.left + 5.f, down.top + 5.f);
+    CHECK(board.getAiDepth() == AI_DEPTH_DEFAULT - 1, "- diminui a profundidade em 1");
+
+    // Fronteiras: cliques a mais nao saem de [AI_DEPTH_MIN, AI_DEPTH_MAX]
+    for (int i = 0; i < AI_DEPTH_MAX + 5; ++i) {
+        board.handleMouseClick(down.left + 5.f, down.top + 5.f);
+    }
+    CHECK(board.getAiDepth() == AI_DEPTH_MIN, "- para em AI_DEPTH_MIN");
+    for (int i = 0; i < AI_DEPTH_MAX + 5; ++i) {
+        board.handleMouseClick(up.left + 5.f, up.top + 5.f);
+    }
+    CHECK(board.getAiDepth() == AI_DEPTH_MAX, "+ para em AI_DEPTH_MAX");
+    board.setAiDepth(AI_DEPTH_MAX + 100);
+    CHECK(board.getAiDepth() == AI_DEPTH_MAX, "setAiDepth limita acima");
+    board.setAiDepth(-5);
+    CHECK(board.getAiDepth() == AI_DEPTH_MIN, "setAiDepth limita abaixo");
+
+    // Os botoes ficam na HUD, fora do tabuleiro, sem sobrepor Desistir/Nova Partida
+    int col = -1, row = -1;
+    CHECK(!board.pixelToSquare(up.left + 5.f, up.top + 5.f, col, row), "Botao + fica fora do tabuleiro");
+    CHECK(!board.pixelToSquare(down.left + 5.f, down.top + 5.f, col, row), "Botao - fica fora do tabuleiro");
+    CHECK(!up.intersects(down) &&
+          !up.intersects(board.getResignButtonBounds()) && !up.intersects(board.getNewGameButtonBounds()) &&
+          !down.intersects(board.getResignButtonBounds()) && !down.intersects(board.getNewGameButtonBounds()),
+          "Botoes de profundidade nao sobrepoem os botoes de controle");
+
+    // E preferencia do jogador: Nova Partida nao volta ao padrao
+    board.setAiDepth(7);
+    const sf::FloatRect& newGameRect = board.getNewGameButtonBounds();
+    board.handleMouseClick(newGameRect.left + 10.f, newGameRect.top + 10.f);
+    CHECK(board.getAiDepth() == 7, "Nova Partida mantem a profundidade escolhida");
+}
+
+// 14. Teste de Unidade com Stub: leitura sem bloqueio do EngineBridge (/bin/cat como eco)
+TEST(engine_bridge_try_read_line) {
+    EngineBridge bridge;
+    std::string line;
+    CHECK(bridge.tryReadLine(line) == EngineBridge::ReadStatus::Closed, "Sem processo, tryReadLine devolve Closed");
+
+    CHECK(bridge.start("/bin/cat"), "Deve iniciar stub /bin/cat");
+    CHECK(bridge.tryReadLine(line) == EngineBridge::ReadStatus::Pending, "Nada enviado: Pending, sem bloquear");
+
+    CHECK(bridge.sendCommand("eco_1\r\neco_2"), "Envia 2 linhas (com CRLF) ao stub");
+    std::vector<std::string> got;
+    auto start = std::chrono::steady_clock::now();
+    while (got.size() < 2 && std::chrono::steady_clock::now() - start < std::chrono::seconds(2)) {
+        EngineBridge::ReadStatus status = bridge.tryReadLine(line);
+        if (status == EngineBridge::ReadStatus::Line) {
+            got.push_back(line);
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    }
+    CHECK(got.size() == 2 && got[0] == "eco_1" && got[1] == "eco_2", "Linhas chegam inteiras, na ordem, sem CR");
+    CHECK(bridge.tryReadLine(line) == EngineBridge::ReadStatus::Pending, "Buffer vazio de novo: Pending");
+
+    CHECK(bridge.stop(), "stop encerra o stub");
+    CHECK(bridge.tryReadLine(line) == EngineBridge::ReadStatus::Closed, "Depois do stop: Closed");
 }
 
 int main() {

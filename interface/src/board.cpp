@@ -20,7 +20,8 @@ ChessBoard::ChessBoard(float boardSideSize, float hudSideWidth)
       alertIsCritical(false),
       alertDurationSec(0.f),
       fontLoaded(false),
-      hud(boardSideSize, hudSideWidth, boardSideSize) {
+      hud(boardSideSize, hudSideWidth, boardSideSize),
+      awaitingEngine(false) {
     initSquares();
     loadTextures();
     loadAlertFont();
@@ -529,9 +530,25 @@ void ChessBoard::processUCICommand(const std::string& command) {
     }
 }
 
+bool ChessBoard::handleDepthButtons(float x, float y) {
+    if (hud.isDepthDownClicked(x, y)) {
+        hud.setAiDepth(hud.getAiDepth() - 1);
+        return true;
+    }
+    if (hud.isDepthUpClicked(x, y)) {
+        hud.setAiDepth(hud.getAiDepth() + 1);
+        return true;
+    }
+    return false;
+}
+
 std::string ChessBoard::handleMouseClick(float x, float y) {
     if (alertVisible && closeButtonBounds.contains(x, y)) {
         dismissAlert();
+        return "";
+    }
+
+    if (handleDepthButtons(x, y)) {
         return "";
     }
 
@@ -602,9 +619,29 @@ std::string ChessBoard::handleMouseClick(float x, float y) {
     return "";
 }
 
-bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
+void ChessBoard::syncPositionToEngine(EngineBridge& bridge) {
+    std::string posCmd = "position startpos moves";
+    for (const auto& m : moveHistory) {
+        posCmd += " " + m;
+    }
+    bridge.sendCommand(posCmd);
+}
+
+bool ChessBoard::startTurnWithEngine(float x, float y, EngineBridge& bridge) {
     if (alertVisible && closeButtonBounds.contains(x, y)) {
         dismissAlert();
+        return false;
+    }
+
+    // A profundidade pode mudar a qualquer momento: vale a partir do proximo go
+    if (handleDepthButtons(x, y)) {
+        return false;
+    }
+
+    // Enquanto a IA pensa, o resto fica bloqueado: o bestmove pendente pertence a esta
+    // partida (Nova Partida/Desistir o aplicariam na partida errada), e a vez e das
+    // pretas, entao um clique no tabuleiro selecionaria peca da IA
+    if (awaitingEngine) {
         return false;
     }
 
@@ -639,15 +676,7 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
         return false;
     }
 
-    auto syncPositionToEngine = [&]() {
-        std::string posCmd = "position startpos moves";
-        for (const auto& m : moveHistory) {
-            posCmd += " " + m;
-        }
-        bridge.sendCommand(posCmd);
-    };
-
-    syncPositionToEngine();
+    syncPositionToEngine(bridge);
 
     if (bridge.sendCommand("state")) {
         processUCICommand(bridge.readCommand());
@@ -658,26 +687,74 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
         return true;
     }
 
-    if (bridge.sendCommand("go")) {
-        std::string bestLine;
-        for (int i = 0; i < 16; ++i) {
-            bestLine = bridge.readCommand();
-            if (bestLine.empty() || bestLine.rfind("bestmove", 0) == 0) {
-                break;
-            }
-        }
-        processUCICommand(bestLine);
-        syncPositionToEngine();
-        if (bridge.sendCommand("state")) {
-            processUCICommand(bridge.readCommand());
-        }
-    }
-
-    if (bridge.sendCommand("legalmoves")) {
+    // So envia: a resposta (linhas info e o bestmove) chega em pollEngine/waitForEngine
+    if (bridge.sendCommand("go depth " + std::to_string(hud.getAiDepth()))) {
+        awaitingEngine = true;
+    } else if (bridge.sendCommand("legalmoves")) {
         setLegalMoves(bridge.readCommand());
     }
 
     return true;
+}
+
+void ChessBoard::finishEngineTurn(const std::string& bestLine, EngineBridge& bridge) {
+    awaitingEngine = false;
+
+    // O relogio das pretas pode ter zerado enquanto a IA pensava: o lance chegou tarde
+    if (isGameOver()) {
+        setLegalMoves("legalmoves");
+        return;
+    }
+
+    processUCICommand(bestLine);
+    syncPositionToEngine(bridge);
+    if (bridge.sendCommand("state")) {
+        processUCICommand(bridge.readCommand());
+    }
+    if (bridge.sendCommand("legalmoves")) {
+        setLegalMoves(bridge.readCommand());
+    }
+}
+
+bool ChessBoard::pollEngine(EngineBridge& bridge) {
+    if (!awaitingEngine) {
+        return false;
+    }
+
+    std::string line;
+    while (true) {
+        EngineBridge::ReadStatus status = bridge.tryReadLine(line);
+        if (status == EngineBridge::ReadStatus::Pending) {
+            return false;
+        }
+        if (status == EngineBridge::ReadStatus::Closed) {
+            // Motor encerrado: libera a interface em vez de esperar para sempre
+            awaitingEngine = false;
+            return true;
+        }
+        if (line.rfind("bestmove", 0) == 0) {
+            finishEngineTurn(line, bridge);
+            return true;
+        }
+        // Linhas info: so informativas, descartadas
+    }
+}
+
+void ChessBoard::waitForEngine(EngineBridge& bridge) {
+    while (awaitingEngine) {
+        std::string line = bridge.readCommand();
+        if (line.empty()) {
+            awaitingEngine = false;
+        } else if (line.rfind("bestmove", 0) == 0) {
+            finishEngineTurn(line, bridge);
+        }
+    }
+}
+
+bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
+    bool moveAccepted = startTurnWithEngine(x, y, bridge);
+    waitForEngine(bridge);
+    return moveAccepted;
 }
 
 void ChessBoard::draw(sf::RenderWindow &window) {
@@ -804,5 +881,5 @@ void ChessBoard::draw(sf::RenderWindow &window) {
         }
     }
 
-    hud.draw(window, alertFont, fontLoaded, currentTurn, isGameOver(), moveHistory);
+    hud.draw(window, alertFont, fontLoaded, currentTurn, isGameOver(), moveHistory, awaitingEngine);
 }

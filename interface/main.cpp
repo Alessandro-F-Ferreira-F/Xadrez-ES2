@@ -36,7 +36,8 @@ int main()
                 window.close();
             } else if (event.type == sf::Event::MouseButtonPressed &&
                        event.mouseButton.button == sf::Mouse::Left) {
-                board.playTurnWithEngine(
+                // Nao bloqueia: so envia o go; o bestmove chega em pollEngine
+                board.startTurnWithEngine(
                     static_cast<float>(event.mouseButton.x),
                     static_cast<float>(event.mouseButton.y),
                     bridge
@@ -44,7 +45,8 @@ int main()
             } else if (event.type == sf::Event::MouseWheelScrolled) {
                 board.scrollHistory(event.mouseWheelScroll.delta > 0 ? -1 : 1);
             } else if (event.type == sf::Event::KeyPressed &&
-                       event.key.code == sf::Keyboard::R) {
+                       event.key.code == sf::Keyboard::R &&
+                       !board.isAwaitingEngine()) {
                 board.resetGame();
                 bridge.sendCommand("ucinewgame");
                 bridge.sendCommand("position startpos");
@@ -52,6 +54,9 @@ int main()
                 board.setLegalMoves(bridge.readCommand());
             }
         }
+
+        // Aplica o lance da IA quando o bestmove chegar, sem travar a janela
+        board.pollEngine(bridge);
 
         window.clear(sf::Color::Black);
 

@@ -45,7 +45,7 @@ jobs:
 
   interface-tests:
     name: Interface — SFML 2 (C++17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout do repositório
         uses: actions/checkout@v4

@@ -1,31 +1,11 @@
 #include "board.hpp"
 #include "engine_bridge.hpp"
+#include "../../tools/ctest/test_api.h"
 
 #include <iostream>
 #include <string>
 
-static int g_passed = 0;
-static int g_failed = 0;
-
-#define CHECK(cond, msg)                                                       \
-    do {                                                                       \
-        if (!(cond)) {                                                         \
-            std::cerr << "  [FAIL] " << __func__ << " (linha " << __LINE__     \
-                      << "): " << (msg) << std::endl;                          \
-            g_failed++;                                                        \
-            return;                                                            \
-        }                                                                      \
-    } while (0)
-
-#define RUN_TEST(fn)                                                           \
-    do {                                                                       \
-        int before = g_failed;                                                 \
-        fn();                                                                  \
-        if (g_failed == before) {                                              \
-            g_passed++;                                                        \
-            std::cout << "  [ OK ] " << #fn << std::endl;                      \
-        }                                                                      \
-    } while (0)
+#define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
 static const char* ENGINE_BIN = "../Backend/build/main.out";
 
@@ -40,7 +20,7 @@ static std::string readBestMove(EngineBridge& bridge) {
 }
 
 // 1. Integracao: Handshake UCI + Carregamento dos 20 lances legais iniciais no ChessBoard
-static void test_integration_uci_handshake_and_legalmoves() {
+TEST(integration_uci_handshake_and_legalmoves) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -67,7 +47,7 @@ static void test_integration_uci_handshake_and_legalmoves() {
 }
 
 // 2. Integracao Incremental: Clique do Usuario no ChessBoard -> Pipe -> Resposta do Motor -> Tabuleiro
-static void test_integration_mouse_click_turn_with_engine() {
+TEST(integration_mouse_click_turn_with_engine) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -103,7 +83,7 @@ static void test_integration_mouse_click_turn_with_engine() {
 }
 
 // 3. Integracao: Partida ate Xeque-Mate (Mate do Louco) sincronizada entre ChessBoard e Engine
-static void test_integration_fools_mate_state() {
+TEST(integration_fools_mate_state) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -138,7 +118,7 @@ static void test_integration_fools_mate_state() {
 }
 
 // 5. Integracao (Issue #7): Jogador aplica xeque-mate via playTurnWithEngine e interface detecta o fim de jogo
-static void test_integration_checkmate_via_play_turn() {
+TEST(integration_checkmate_via_play_turn) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -167,12 +147,13 @@ static void test_integration_checkmate_via_play_turn() {
 }
 
 // 4. Integracao: Partida inteira (da posicao inicial ate o fim de jogo real: mate, afogamento ou 50 lances)
-static void test_integration_full_game_until_end() {
+TEST(integration_full_game_until_end) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
     CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
     CHECK(bridge.sendCommand("ucinewgame"), "Inicia nova partida");
+    CHECK(bridge.sendCommand("setoption name Nivel value 1"), "Configura Nivel 1 para partida completa deterministica");
 
     std::string finalState;
     const int maxPlies = 600;
@@ -215,7 +196,7 @@ static void test_integration_full_game_until_end() {
 }
 
 // 6. Integracao (Issue #8): Botoes do HUD Lateral (Desistir e Nova Partida) sincronizados com a Engine
-static void test_integration_hud_buttons_with_engine() {
+TEST(integration_hud_buttons_with_engine) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -242,15 +223,5 @@ static void test_integration_hud_buttons_with_engine() {
 }
 
 int main() {
-    std::cout << "=== [INTEGRATION TESTS] Interface <-> EngineBridge <-> Engine UCI ===" << std::endl;
-
-    RUN_TEST(test_integration_uci_handshake_and_legalmoves);
-    RUN_TEST(test_integration_mouse_click_turn_with_engine);
-    RUN_TEST(test_integration_fools_mate_state);
-    RUN_TEST(test_integration_full_game_until_end);
-    RUN_TEST(test_integration_checkmate_via_play_turn);
-    RUN_TEST(test_integration_hud_buttons_with_engine);
-
-    std::cout << "=== Resultado Integracao: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
-    return (g_failed == 0) ? 0 : 1;
+    return test_run_all();
 }

@@ -85,12 +85,12 @@ static const char *const TEST_FENS[] = {
     "rnbqkbnr/ppp1p1pp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
     "8/8/8/r3pP1K/8/8/8/4k3 w - e6 0 1",
     "rnbq1bnr/ppp1pkP1/8/8/8/8/PPPP1PPP/RNBQKBNR w KQ - 0 6",
-    "3k3r/8/8/4N3/8/8/8/3RK2R w K - 0 1",
+    "2k4r/8/8/4N3/8/8/8/3RK2R w K - 0 1",
     "rnbqk2r/pppp1ppp/5n2/4p3/1b2P3/3P4/PPPNBPPP/R1BQK2R w KQkq - 0 5",
     "8/8/8/4N3/8/8/8/4K2k w - - 0 1",
     "8/8/8/3B4/8/8/8/3K2k1 w - - 0 1",
     "8/8/8/3R4/8/8/8/4K2k w - - 0 1",
-    "8/8/8/3Q4/8/8/8/4K2k w - - 0 1",
+    "8/8/8/3Q4/8/8/7k/4K3 w - - 0 1",
     "8/8/3ppp2/3pKp2/3ppp2/8/8/7k w - - 0 1",
     "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
     "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 4 4",
@@ -104,7 +104,7 @@ TEST(make_unmake) {
 
     for (size_t fen_index = 0; fen_index < fen_count; fen_index++) {
         Board board;
-        ASSERT(fen_parse(TEST_FENS[fen_index], &board));
+        ASSERT_MSG(fen_parse(TEST_FENS[fen_index], &board), "FEN invalida: %s", TEST_FENS[fen_index]);
 
         MoveList moves = {0};
         generate_legal_moves(&board, &moves);

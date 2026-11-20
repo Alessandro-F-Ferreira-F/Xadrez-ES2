@@ -14,6 +14,7 @@
  */
 
 #include "../include/fen.h"
+#include "../include/attack.h"
 
 #include <errno.h>
 #include "../include/piece.h"
@@ -176,6 +177,15 @@ bool fen_parse(const char *fen_string, Board *out) {
             LOG_ERROR("invalid fullmove number");
             return false;
         }
+    }
+
+    /* O ultimo lance nao pode ter deixado o proprio rei em xeque. Recusar
+       aqui tambem protege clientes que usam fen_parse sem passar pelo UCI. */
+    init_square_tables();
+    Color waiting = (b.side_to_move == WHITE) ? BLACK : WHITE;
+    if (is_square_attacked(&b, b.king_square[waiting], waiting)) {
+        LOG_ERROR("side not to move is in check");
+        return false;
     }
 
     *out = b;

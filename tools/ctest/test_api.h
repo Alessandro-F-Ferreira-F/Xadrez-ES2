@@ -22,6 +22,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MAX_TESTS 1024
 
 typedef void (*test_fn)(void);
@@ -79,5 +83,9 @@ bool test_msg_fail(const char *file, int line, const char *expr, const char *fmt
         test_register(STR(name), CONCAT(test_, name), __FILE__, __LINE__);\
     } \
     static void CONCAT(test_, name)(void)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* TEST_API_H */

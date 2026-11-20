@@ -1,39 +1,19 @@
 #include "board.hpp"
 #include "engine_bridge.hpp"
+#include "../../tools/ctest/test_api.h"
 
 #include <chrono>
 #include <iostream>
 #include <string>
 
-static int g_passed = 0;
-static int g_failed = 0;
-
-#define CHECK(cond, msg)                                                       \
-    do {                                                                       \
-        if (!(cond)) {                                                         \
-            std::cerr << "  [FAIL] " << __func__ << " (linha " << __LINE__     \
-                      << "): " << (msg) << std::endl;                          \
-            g_failed++;                                                        \
-            return;                                                            \
-        }                                                                      \
-    } while (0)
-
-#define RUN_TEST(fn)                                                           \
-    do {                                                                       \
-        int before = g_failed;                                                 \
-        fn();                                                                  \
-        if (g_failed == before) {                                              \
-            g_passed++;                                                        \
-            std::cout << "  [ OK ] " << #fn << std::endl;                      \
-        }                                                                      \
-    } while (0)
+#define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
 static const char* ENGINE_BIN = "../engine/build/main.out";
 
 // 1. Teste de Sistema - Recuperacao (Slide 60):
 // Forca situacoes extremas (binario invalido, comando corrompido, lance ilegal e reinicio do pipe)
 // e verifica se o sistema se recupera integralmente sem perder o estado valido.
-static void test_system_recovery() {
+TEST(system_recovery) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -77,7 +57,7 @@ static void test_system_recovery() {
 
 // 2. Teste de Sistema - Estresse/Carga e Desempenho RNF01 (< 200 ms por turno) (Slides 60 e 71)
 // Submete Interface + Pipe + Engine a 40 meios-lances seguidos medindo latencia maxima e media.
-static void test_system_stress_and_latency_rnf01() {
+TEST(system_stress_and_latency_rnf01) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
@@ -140,11 +120,5 @@ static void test_system_stress_and_latency_rnf01() {
 }
 
 int main() {
-    std::cout << "=== [SYSTEM TESTS] Recuperacao, Estresse/Carga e Latencia (RNF01) ===" << std::endl;
-
-    RUN_TEST(test_system_recovery);
-    RUN_TEST(test_system_stress_and_latency_rnf01);
-
-    std::cout << "=== Resultado Sistema: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
-    return (g_failed == 0) ? 0 : 1;
+    return test_run_all();
 }

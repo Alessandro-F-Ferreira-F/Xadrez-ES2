@@ -59,6 +59,12 @@
    mudo e inalcancavel. */
 #define UCI_PERFT_MAX_DEPTH 8
 
+/* Teto do tempo de busca de qualquer 'go', em ms. Pelo mesmo motivo (sem 'stop'),
+   nenhum pedido pode deixar o motor mudo por mais que isso: 'depth' sozinho,
+   'movetime 0' e 'movetime' maior que o teto passam a parar aqui. Os prazos dos
+   niveis ficam bem abaixo e nao mudam. */
+#define UCI_GO_MAX_MS 10000
+
 /* ------------------------------------------------------------------------- *
  * Estado do modulo
  *
@@ -550,8 +556,9 @@ static void uci_cmd_go_perft(int argc) {
 }
 
 /* Os limites explicitos substituem o perfil apenas nesta chamada.
-   depth sozinho desliga o prazo; movetime sozinho permite ir ate PROF_MAX.
-   Com os dois, a busca termina no primeiro limite atingido. */
+   depth sozinho troca o prazo do nivel pelo teto UCI_GO_MAX_MS; movetime sozinho
+   permite ir ate PROF_MAX. Com os dois, a busca termina no primeiro limite
+   atingido. Nenhuma busca passa de UCI_GO_MAX_MS. */
 static void uci_cmd_go(int argc) {
     Board work;
     MoveList legal;
@@ -600,6 +607,9 @@ static void uci_cmd_go(int argc) {
     if (has_time) {
         p.tempoMs = time_ms;
         if (!has_depth) p.profundidade = PROF_MAX;
+    }
+    if (p.tempoMs == TEMPO_SEM_LIMITE || p.tempoMs > UCI_GO_MAX_MS) {
+        p.tempoMs = UCI_GO_MAX_MS;
     }
 
     /* Inclui repeticao da partida, que nao e repassada a arvore da IA. */

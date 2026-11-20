@@ -28,7 +28,17 @@ static int g_failed = 0;
         }                                                                      \
     } while (0)
 
-static const char* ENGINE_BIN = "../engine/build/main.out";
+static const char* ENGINE_BIN = "../Backend/build/main.out";
+
+static std::string readBestMove(EngineBridge& bridge) {
+    for (int i = 0; i < 16; ++i) {
+        std::string line = bridge.readCommand();
+        if (line.empty() || line.rfind("bestmove", 0) == 0) {
+            return line;
+        }
+    }
+    return "";
+}
 
 // 1. Teste de Sistema - Recuperacao (Slide 60):
 // Forca situacoes extremas (binario invalido, comando corrompido, lance ilegal e reinicio do pipe)
@@ -67,7 +77,7 @@ static void test_system_recovery() {
 
     // Sistema segue jogando normalmente
     CHECK(bridge.sendCommand("go"), "Envia go apos recuperacao");
-    std::string best = bridge.readCommand();
+    std::string best = readBestMove(bridge);
     CHECK(best.rfind("bestmove ", 0) == 0 && best != "bestmove 0000", "Recebe bestmove valido apos recuperacao");
     board.processUCICommand(best);
     CHECK(board.getMoveHistory().size() == 3, "Tabuleiro aplicou o 3o lance normalmente");
@@ -115,7 +125,7 @@ static void test_system_stress_and_latency_rnf01() {
 
         // Pede lance ao motor e aplica no ChessBoard
         CHECK(bridge.sendCommand("go"), "Envia go");
-        std::string bestLine = bridge.readCommand();
+        std::string bestLine = readBestMove(bridge);
         CHECK(bestLine.rfind("bestmove ", 0) == 0 && bestLine != "bestmove 0000", "Deve receber bestmove valido");
         board.processUCICommand(bestLine);
 

@@ -7,15 +7,10 @@
 
 int main()
 {
-    sf::RenderWindow window(
-        sf::VideoMode(BOARD_SIDE_SIZE + DEFAULT_HUD_WIDTH, BOARD_SIDE_SIZE),
-        "Xadrez - ES2"
-    );
-
     ChessBoard board(BOARD_SIDE_SIZE, DEFAULT_HUD_WIDTH);
     EngineBridge bridge;
 
-    if (bridge.start("../engine/build/main.out")) {
+    if (bridge.start("../Backend/build/main.out")) {
         bridge.sendCommand("uci");
         for (int i = 0; i < 10; ++i) {
             if (bridge.readCommand() == "uciok") break;
@@ -24,8 +19,13 @@ int main()
         bridge.sendCommand("legalmoves");
         board.setLegalMoves(bridge.readCommand());
     } else {
-        std::cerr << "[Aviso] Nao foi possivel iniciar ../engine/build/main.out" << std::endl;
+        std::cerr << "[Aviso] Nao foi possivel iniciar ../Backend/build/main.out" << std::endl;
     }
+
+    sf::RenderWindow window(
+        sf::VideoMode(BOARD_SIDE_SIZE + DEFAULT_HUD_WIDTH, BOARD_SIDE_SIZE),
+        "Xadrez - ES2"
+    );
 
     while (window.isOpen())
     {

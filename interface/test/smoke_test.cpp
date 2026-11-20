@@ -10,7 +10,7 @@ static int fail(const std::string& msg) {
 }
 
 int main(int argc, char* argv[]) {
-    const std::string enginePath = (argc > 1) ? argv[1] : "../engine/build/main.out";
+    const std::string enginePath = (argc > 1) ? argv[1] : "../Backend/build/main.out";
 
     std::cout << "[SMOKE] Iniciando motor: " << enginePath << std::endl;
 

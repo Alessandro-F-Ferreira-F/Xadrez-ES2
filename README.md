@@ -11,7 +11,7 @@ O projeto é dividido em módulos independentes que se comunicam por protocolo d
 - **`tools/ctest/`** — biblioteca leve de testes em C/C++ compartilhada entre `Backend/` e `interface/`.
 - **`agent/`** — API FastAPI opcional (Scrum Master via OpenRouter / GitHub MCP / WhatsApp).
 
-## Estrutura
+### Backend (motor + IA)
 
 ```text
 Backend/

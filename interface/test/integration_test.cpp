@@ -27,7 +27,17 @@ static int g_failed = 0;
         }                                                                      \
     } while (0)
 
-static const char* ENGINE_BIN = "../engine/build/main.out";
+static const char* ENGINE_BIN = "../Backend/build/main.out";
+
+static std::string readBestMove(EngineBridge& bridge) {
+    for (int i = 0; i < 16; ++i) {
+        std::string line = bridge.readCommand();
+        if (line.empty() || line.rfind("bestmove", 0) == 0) {
+            return line;
+        }
+    }
+    return "";
+}
 
 // 1. Integracao: Handshake UCI + Carregamento dos 20 lances legais iniciais no ChessBoard
 static void test_integration_uci_handshake_and_legalmoves() {
@@ -120,7 +130,7 @@ static void test_integration_fools_mate_state() {
     CHECK(board.getLegalMoves().empty(), "Nenhum lance legal disponivel em xeque-mate");
 
     CHECK(bridge.sendCommand("go"), "Pede go em posicao sem lances");
-    std::string best = bridge.readCommand();
+    std::string best = readBestMove(bridge);
     CHECK(best == "bestmove 0000", "Motor deve devolver bestmove 0000 no mate");
     board.processUCICommand(best);
 
@@ -185,16 +195,18 @@ static void test_integration_full_game_until_end() {
         }
 
         CHECK(bridge.sendCommand("go"), "Pede proximo lance");
-        std::string best = bridge.readCommand();
+        std::string best = readBestMove(bridge);
         CHECK(best.rfind("bestmove ", 0) == 0 && best != "bestmove 0000", "Lance valido enquanto result == *");
         board.processUCICommand(best);
     }
 
     CHECK(plies < maxPlies, "Partida deve terminar dentro do limite de 600 meios-lances");
     CHECK(finalState.find("result *") == std::string::npos, "Estado final nao pode ser '*'");
-    CHECK((bridge.sendCommand("go") && bridge.readCommand() == "bestmove 0000") ||
-          finalState.find("reason fifty-moves") != std::string::npos,
-          "No fim de jogo, ou nao ha lances (bestmove 0000) ou foi empate por 50 lances");
+    CHECK((bridge.sendCommand("go") && readBestMove(bridge) == "bestmove 0000") ||
+          finalState.find("reason fifty-moves") != std::string::npos ||
+          finalState.find("reason repetition") != std::string::npos ||
+          finalState.find("reason insufficient-material") != std::string::npos,
+          "No fim de jogo, ou nao ha lances (bestmove 0000) ou foi empate por regra");
 
     std::cout << "    [FIM DE JOGO] Partida completa encerrada em " << plies
               << " meios-lances | " << finalState << std::endl;

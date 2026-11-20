@@ -465,7 +465,12 @@ void ChessBoard::processUCICommand(const std::string& command) {
         return;
     }
 
-    // Caso 3: Resposta do motor "bestmove <lance>"
+    // Caso 3: Linha informativa da busca UCI "info depth ... score ... nodes ..."
+    if (token == "info") {
+        return;
+    }
+
+    // Caso 3b: Resposta do motor "bestmove <lance>"
     if (token == "bestmove") {
         std::string move;
         if (ss >> move && move != "0000") {
@@ -654,7 +659,13 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
     }
 
     if (bridge.sendCommand("go")) {
-        std::string bestLine = bridge.readCommand();
+        std::string bestLine;
+        for (int i = 0; i < 16; ++i) {
+            bestLine = bridge.readCommand();
+            if (bestLine.empty() || bestLine.rfind("bestmove", 0) == 0) {
+                break;
+            }
+        }
         processUCICommand(bestLine);
         syncPositionToEngine();
         if (bridge.sendCommand("state")) {

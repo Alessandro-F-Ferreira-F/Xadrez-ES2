@@ -2,7 +2,7 @@
 #include "../include/draw.h"
 #include "../include/fen.h"
 #include "../include/movegen.h"
-#include "ctest/test_api.h"
+#include "../../../tools/ctest/test_api.h"
 
 TEST(king_targets) {
     for (int sq = 0; sq < BOARD_SIZE; sq++) {

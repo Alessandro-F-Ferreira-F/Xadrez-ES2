@@ -111,6 +111,12 @@ void init_square_tables(void) {
     init_sq_to_edge();
     init_pawn_attacks();
     init_knight_attacks();
+    for (int sq = 0; sq < BOARD_SIZE; sq++) {
+        for (int dir = 0; dir < NUM_DIRS; dir++) {
+            KING_TARGETS[sq][dir] = SQ_TO_EDGE[sq][dir] > 0
+                ? sq + DIR_OFFSET[dir] : SQ_NONE;
+        }
+    }
 }
 
 int sq_from_coord(const char *coord) {

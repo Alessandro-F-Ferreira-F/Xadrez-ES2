@@ -6,8 +6,8 @@ Xadrez desenvolvido como trabalho da disciplina de Engenharia de Software 2 — 
 O arquivo [`estado-do-projeto`](engine/docs/onboarding-motor.md) contém o estado atual do motor, escrito para quem não programa em C (§6).<br>
 Leiam para entender o que já foi feito até o momento.
 
-O estado técnico detalhado está em [`project_context`](engine/docs/project_context.md), e os próximos passos — até o protocolo UCI e, depois dele, a otimização — em [`next_steps`](engine/docs/next_steps.md).<br>
-O [`roadmap`](engine/docs/roadmap-motor.md) mostra as fases do motor e o status de cada uma.
+O estado técnico detalhado está em [`project_context`](engine/docs/project_context.md), e os próximos passos — até o protocolo UCI e, depois dele, a otimização — em [`project_context` §5](engine/docs/project_context.md#5-possíveis-melhorias).<br>
+O protocolo está em [`uci-comandos`](engine/docs/uci-comandos.md).
 
 ## O projeto
 
@@ -72,7 +72,7 @@ pode ser ampliada adicionando posições ao vetor.
   as regras especiais do roque.
 - **Perft exato** nas seis posições de referência da Chess Programming Wiki (a posição
   inicial até a profundidade 7: 3 195 901 860 nós). Os números estão em
-  [`engine/docs/perft_results.txt`](engine/docs/perft_results.txt).
+  [`engine/test/test.c`](engine/test/test.c).
 
 Em desenvolvimento:
 
@@ -80,25 +80,17 @@ Em desenvolvimento:
   interface. É o próximo passo.
 - Detecção de fim de partida (mate, afogamento) e empates por regra.
 - Ligação da IA (`IA/`) com o motor.
-- Depois do protocolo: otimização, com etapas medidas ([`next_steps.md`](engine/docs/next_steps.md), Parte II).
+- Depois do protocolo: otimização, com etapas medidas ([`project_context.md`](engine/docs/project_context.md), §5).
 
 ## Documentação
 
 - [`engine/docs/project_context.md`](engine/docs/project_context.md) — visão geral do motor:
   estado atual verificado, decisões arquiteturais e o raciocínio por trás delas, mapa dos
   módulos, bugs abertos. **Comece por aqui** se for mexer no motor.
-- [`engine/docs/next_steps.md`](engine/docs/next_steps.md) — plano de execução: do estado
-  atual até o protocolo UCI, e depois as etapas de otimização.
-- [`engine/docs/roadmap-motor.md`](engine/docs/roadmap-motor.md) — as fases do motor e o
-  status de cada uma.
+- [`engine/docs/uci-comandos.md`](engine/docs/uci-comandos.md) — protocolo do motor:
+  comandos, respostas, erros e uma sessão de exemplo.
 - [`engine/docs/onboarding-motor.md`](engine/docs/onboarding-motor.md) — guia de contexto
   para quem está chegando, sem exigir C.
-- [`engine/docs/arquitetura-xadrez.md`](engine/docs/arquitetura-xadrez.md) — desenho do
-  sistema completo (motor, IA, interface).
-- [`engine/docs/fen.md`](engine/docs/fen.md) — notas sobre o formato FEN e a indexação
-  do tabuleiro.
-- [`engine/docs/biblioteca-referencias-chess-engine.md`](engine/docs/biblioteca-referencias-chess-engine.md)
-  — referências usadas.
 
 ## Convenções
 

@@ -49,7 +49,8 @@ Não substitua por `printf ... | motor`: isso esconde buffer preso.
   o diálogo. Documentação correta: `engine/docs/uci-comandos.md`.
 - `go` usa a IA e os níveis via `setoption name Nivel value 1|2|3` (padrão médio).
   `state` cobre xeque/mate/afogamento/50 lances/material insuficiente/repetição.
-  O contrato e o congelamento dos cabeçalhos estão em `engine/docs/contrato-ia.md`.
+  O contrato e o congelamento dos cabeçalhos estão em `engine/docs/project_context.md`,
+  seção "Contrato com a IA (cabeçalhos congelados)".
 - `position` é atômico: monta um `Board` de rascunho e só troca a sessão no fim. Mantenha
   assim.
 - `is_square_attacked(b, sq, side)`: `side` é o **dono/defensor** da casa, não o atacante.
@@ -79,11 +80,12 @@ Não substitua por `printf ... | motor`: isso esconde buffer preso.
 
 ## Documentação: cuidado com desatualização
 
-`README.md`, `engine/docs/project_context.md` e `engine/docs/next_steps.md` são de
-**2026-10-04**, anteriores à implementação do UCI. Eles ainda dizem que o protocolo "não
-existe" e que `make test` "não linka" — ambas as coisas já estão resolvidas. Para o estado
-real, confie em `engine/src/uci.c`, `engine/test/test.c`, `engine/docs/uci-comandos.md` e nos
-testes. Vários comentários citam `protocolo.md`, que **não existe no repositório**.
+A documentação do motor em `engine/docs/` está atualizada com o código:
+`project_context.md` (contexto, decisões, contrato com a IA, mapa dos módulos, possíveis
+melhorias) e `uci-comandos.md` (protocolo). O `README.md` ainda é de **2026-10-04**, anterior
+ao UCI: diz que o protocolo "não existe" e que `make test` "não linka", e ambas as coisas já
+estão resolvidas. Em caso de dúvida, o código e os testes são a fonte de verdade. Vários
+comentários citam `protocolo.md`, que **não existe no repositório**.
 
 ## Interface
 

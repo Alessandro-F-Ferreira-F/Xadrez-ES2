@@ -11,7 +11,7 @@
 - **Valor da Hora Técnica:** R$ 50,00 / hora (perfil júnior — ver [`estimativas_poker.md`](./estimativas_poker.md))
 - **Orçamento Base (Planning Poker — BAC Geral):** 424 horas = **R$ 21.200,00**
   - **Escopo MVP (Pacotes 1.1 a 1.6 — Obrigatórios):** 280 horas = **R$ 14.000,00**
-  - **Escopo de Extensão Opcional (Pacotes 1.7 Servidor e 1.8 Cliente Web):** 144 horas = **R$ 7.200,00** *(fora do caminho crítico do MVP, conforme [`EAP.jpeg`](./EAP.jpeg) e [`arquitetura-xadrez.md`](../engine/docs/arquitetura-xadrez.md))*
+  - **Escopo de Extensão Opcional (Pacotes 1.7 Servidor e 1.8 Cliente Web):** 144 horas = **R$ 7.200,00** *(fora do caminho crítico do MVP, conforme [`EAP.jpeg`](./EAP.jpeg) e [`arquitetura-xadrez.md`](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/blob/1670e60d6ff5c6af6d75f4f91af9782d235f482e/engine/docs/arquitetura-xadrez.md))*
 - **Teto de Margem de Segurança (APF):** 62 PF = 496 horas = **R$ 24.800,00** (ver [`estimativas_apf.md`](./estimativas_apf.md))
 - **Cadência das Sprints:**
   - **Fase Inicial (Pré-1ª Apresentação):** 3 iterações semanais (`26/08` a `13/09/2026`).
@@ -174,7 +174,7 @@ O pacote `1.5` da [EAP](./EAP.md) foi detalhado. Os filhos de itens que já exis
 
 ## 5. Backlog de Extensão Opcional (Fora do Caminho Crítico do MVP)
 
-Conforme documentado na [`EAP.jpeg`](./EAP.jpeg) (itens em cinza) e em [`arquitetura-xadrez.md` §5](../engine/docs/arquitetura-xadrez.md), os pacotes `1.7` e `1.8` compõem a reserva de expansão para **Multiplayer Online** (144h = R$ 7.200,00, fechando as 424h = R$ 21.200,00 do Planning Poker) e só entram caso o MVP (Sprints 1 a 5) seja concluído com folga:
+Conforme documentado na [`EAP.jpeg`](./EAP.jpeg) (itens em cinza) e em [`arquitetura-xadrez.md` §5](https://github.com/Alessandro-F-Ferreira-F/Xadrez-ES2/blob/1670e60d6ff5c6af6d75f4f91af9782d235f482e/engine/docs/arquitetura-xadrez.md), os pacotes `1.7` e `1.8` compõem a reserva de expansão para **Multiplayer Online** (144h = R$ 7.200,00, fechando as 424h = R$ 21.200,00 do Planning Poker) e só entram caso o MVP (Sprints 1 a 5) seja concluído com folga:
 
 - **`1.7` Servidor Backend (89h — R$ 4.450,00 | Gantt `#123`–`#145`):** Gerenciamento de sessões/partidas (`1.7.1`), integração assíncrona com instâncias da Engine (`1.7.2`), API REST (`1.7.3`) e WebSockets em tempo real (`1.7.4`).
 - **`1.8` Cliente Web (55h — R$ 2.750,00):** Interface gráfica web (`1.8.1`), integração REST/WebSocket (`1.8.2`) e fluxo de partida online (`1.8.3`–`1.8.4`).

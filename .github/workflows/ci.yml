@@ -1,0 +1,62 @@
+name: CI — Testes Xadrez-ES2
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    name: Backend — Engine e IA (C11)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Compilar Backend (engine + IA)
+        run: make backend
+
+      - name: Rodar testes da Engine (PERFT_MAX_DEPTH=3)
+        env:
+          PERFT_MAX_DEPTH: 3
+        run: make test-engine
+
+      - name: Rodar testes da IA (unidade, integração e sistema)
+        run: make test-ia
+
+  protocol-tests:
+    name: Backend — Protocolo UCI (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Compilar Backend (engine + IA)
+        run: make backend
+
+      - name: Rodar suíte de protocolo UCI
+        run: make test-protocol
+
+  interface-tests:
+    name: Interface — SFML 2 (C++17)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar SFML 2 e Xvfb (display virtual)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsfml-dev xvfb
+
+      - name: Compilar Backend e Interface
+        run: make
+
+      - name: Rodar testes da Interface (smoke, unidade, integração e sistema)
+        run: xvfb-run -a make test-interface

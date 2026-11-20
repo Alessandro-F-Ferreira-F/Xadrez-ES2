@@ -31,6 +31,8 @@ import re
 import subprocess
 import sys
 import threading
+import queue
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -210,6 +212,150 @@ def check_go_is_legal(engine):
     return failures
 
 
+def check_search_options(engine):
+    failures = []
+    # No nivel facil, depth explicito deve superar a profundidade 2 do perfil.
+    for command, expected_depth in (("go depth 3", 3), ("go depth 2 movetime 0", 2),
+                                    ("go movetime 0 depth 2", 2)):
+        lines, code = run_engine(engine, "setoption name Nivel value 1\nstate\n"
+                                 + command + "\nstate\nquit\n")
+        states = [ln for ln in lines if ln.startswith("state ")]
+        infos = [ln for ln in lines if ln.startswith("info depth ")]
+        if code or len(states) != 2 or states[0] != states[1] or len(infos) != 1 \
+                or not infos[0].startswith(f"info depth {expected_depth} score cp "):
+            failures.append(f"busca: limite/imutabilidade incorreto em {command}: {lines}")
+
+    invalid = ("go depth", "go depth 0", "go depth 65", "go depth -1", "go depth x",
+               "go movetime", "go movetime -1", "go movetime 2147483648",
+               "go depth 1 depth 2", "go movetime 1 movetime 2",
+               "setoption name Nivel value 0", "setoption name Nivel value 4",
+               "setoption name Nivel value -1", "setoption name Nivel value x",
+               "setoption name Nivel value", "setoption name Nivel value 2 extra")
+    lines, code = run_engine(engine, "\n".join(invalid) + "\nisready\nquit\n")
+    expected = ["error bad-command " + cmd.split()[0] for cmd in invalid] + ["readyok"]
+    if code or lines != expected:
+        failures.append(f"busca: validacao de parametros incorreta: {lines}")
+
+    for command in ("go movetime 40", "go depth 64 movetime 40"):
+        lines, code = run_engine(engine, "setoption name Nivel value 1\n" + command + "\nquit\n")
+        info = next((ln for ln in lines if ln.startswith("info depth ")), "")
+        # movetime permite superar a profundidade 2 do facil; com os dois
+        # limites, o prazo deve interromper muito antes de depth 64.
+        if code or not info or not 2 < int(info.split()[2]) < 64:
+            failures.append(f"busca: movetime nao substitui/limita o perfil: {command}: {lines}")
+
+    # Mate em um para as duas cores: score na perspectiva de quem joga.
+    for fen in ("7k/8/5KQ1/8/8/8/8/8 w - - 0 1",
+                "8/8/8/8/8/5kq1/8/7K b - - 0 1"):
+        lines, code = run_engine(engine, f"position fen {fen}\ngo depth 2\nquit\n")
+        if code or not any("score mate 1 " in ln for ln in lines):
+            failures.append(f"busca: faltou score mate 1 em {fen}: {lines}")
+
+    # Semente fixa e repetivel apos ucinewgame, com limites sem relogio.
+    script = "setoption name Nivel value 1\ngo depth 2\ngo depth 2\n"
+    first, _ = run_engine(engine, script + "quit\n")
+    repeated, _ = run_engine(engine, script + "ucinewgame\n" + script + "quit\n")
+    if repeated != first + first:
+        failures.append("busca: ucinewgame nao reinicia a sequencia reproduzivel")
+    if not failures:
+        print("ok    limites de busca, scores, erros, imutabilidade e semente fixa")
+    return failures
+
+
+def check_draws(engine):
+    failures = []
+    knight_cycle = "g1f3 g8f6 f3g1 f6g8"
+    cases = [
+        ("fen 7k/8/8/8/8/8/8/K7 w - - 0 1", "insufficient-material"),
+        ("fen 7k/8/8/8/8/8/8/KR6 w - - 100 1", "fifty-moves"),
+        ("fen 7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", "checkmate"),
+        ("fen 7k/5Q2/6K1/8/8/8/8/8 b - - 100 1", "stalemate"),
+        (f"startpos moves {knight_cycle} {knight_cycle}", "repetition"),
+        (f"startpos moves {knight_cycle}", "none"),
+    ]
+    # Direitos de roque perdidos distinguem a posicao inicial dos ciclos seguintes.
+    castle = "h1h2 h8h7 h2h1 h7h8"
+    base = "fen r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1 moves "
+    cases += [(base + " ".join([castle] * n), reason)
+              for n, reason in ((2, "none"), (3, "repetition"))]
+    # En passant sem captura legal (inclusive peao cravado) nao distingue posicoes.
+    cycle = "b1c3 h8g8 c3b1 g8h8"
+    cases += [("fen 7k/8/8/3p4/8/8/8/KN6 w - d6 0 1 moves "
+               + " ".join([cycle] * 2), "repetition")]
+    base = "fen 7k/8/8/3pP3/8/8/8/KN6 w - d6 0 1 moves "
+    cases += [(base + " ".join([cycle] * n), reason)
+              for n, reason in ((2, "none"), (3, "repetition"))]
+    pinned = "b1c3 a8b8 c3b1 b8a8"
+    cases += [("fen k3r3/8/8/3pP3/8/8/8/1N2K3 w - d6 0 1 moves "
+               + " ".join([pinned] * 2), "repetition")]
+    for position, reason in cases:
+        lines, code = run_engine(engine, f"position {position}\nstate\ngo depth 1 movetime 1\nquit\n")
+        if code or not any(f" reason {reason} fen " in ln for ln in lines) \
+                or (reason != "none" and lines[-1] != "bestmove 0000"):
+            failures.append(f"empate: esperado {reason} em {position}: {lines}")
+
+    lines, code = run_engine(engine, f"position startpos moves {knight_cycle} {knight_cycle}\n"
+                             "state\nposition startpos moves e2e4 e2e4\nstate\n"
+                             "position fen 4k3/8/8/8/8/8/4R3/4K3 w - - 0 1\nstate\n"
+                             "position startpos\nstate\nucinewgame\nstate\nquit\n")
+    states = [ln for ln in lines if ln.startswith("state ")]
+    if code or len(states) != 5 or states[0] != states[1] or states[1] != states[2] \
+            or "reason none" not in states[3] or states[3] != states[4]:
+        failures.append(f"empate: historico nao e atomico/resetavel: {lines}")
+    if not failures:
+        print("ok    empates, precedencia do mate, repeticao, roque e en passant efetivo")
+    return failures
+
+
+def check_level_response(engine):
+    """Mede comando/resposta em pipe aberto, excluindo o spawn do processo."""
+    failures = []
+    proc = subprocess.Popen([str(engine)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True)
+    answers = queue.Queue()
+    def read():
+        for line in proc.stdout:
+            answers.put(line.strip())
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    def send(command):
+        proc.stdin.write(command + "\n")
+        proc.stdin.flush()
+    try:
+        kiwi = "fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+        # O primeiro go usa o padrao medio. Os demais cobrem os tres niveis.
+        for level, ceiling in ((None, 200), (1, 200), (2, 200), (3, 1000)):
+            for position in ("startpos", kiwi):
+                if level is not None:
+                    send(f"setoption name Nivel value {level}")
+                send(f"position {position}")
+                send("isready")
+                if answers.get(timeout=2) != "readyok":
+                    failures.append("nivel: falha na preparacao")
+                    return failures
+                start = time.perf_counter()
+                send("go")
+                info = answers.get(timeout=2)
+                best = answers.get(timeout=2)
+                elapsed = (time.perf_counter() - start) * 1000
+                if not info.startswith("info depth ") or not best.startswith("bestmove ") \
+                        or best == "bestmove 0000" or elapsed >= ceiling:
+                    failures.append(f"nivel {level or 'padrao'}: {elapsed:.1f} ms, teto {ceiling}: {info}, {best}")
+                else:
+                    print(f"ok    nivel {level or 'padrao'} em {position.split()[0]}: {elapsed:.1f} ms < {ceiling} ms")
+    except queue.Empty:
+        failures.append("nivel: sem resposta em 2 s com stdin aberta")
+    finally:
+        proc.stdin.close()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        proc.stdout.close()
+    return failures
+
+
 def main():
     engine = find_engine(sys.argv)
     print(f"motor: {engine}\n")
@@ -217,6 +363,9 @@ def main():
     failures = check_transcripts(engine)
     failures += check_transport_open_stdin(engine)
     failures += check_go_is_legal(engine)
+    failures += check_search_options(engine)
+    failures += check_draws(engine)
+    failures += check_level_response(engine)
 
     print()
     if failures:

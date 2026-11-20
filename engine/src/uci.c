@@ -1,6 +1,7 @@
 #include "../include/uci.h"
 
 #include <stdarg.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -15,6 +16,10 @@
 #include "../include/perft.h"
 #include "../include/io.h"
 #include "../include/log.h"
+#include "../include/attack.h"
+#include "../include/draw.h"
+#include "ia.h"
+#include "niveis.h"
 
 /* ------------------------------------------------------------------------- *
  * Constantes do protocolo (protocolo.md secoes 3 e 4)
@@ -64,11 +69,23 @@
  * ------------------------------------------------------------------------- */
 
 typedef struct {
+    Piece pieces[BOARD_SIZE];
+    Color side;
+    u8 castling;
+    int ep;
+} PositionKey;
+
+typedef struct {
     Board board;        /* a ultima posicao ACEITA -- o invariante da secao 2.3 */
     u64   rng_state;    /* sorteio do 'go'; estado zero e proibido (xorshift) */
+    int nivel;
+    PositionKey history[UCI_MAX_POSITION_MOVES + 1];
+    int history_count;
 } UciSession;
 
 static UciSession session;
+/* Rascunho separado para manter position atomico, inclusive seu historico. */
+static PositionKey position_history[UCI_MAX_POSITION_MOVES + 1];
 static char       line_buf[UCI_LINE_CAP];
 static String     tokens[UCI_MAX_TOKENS];
 static FILE      *trace_fp = NULL;
@@ -83,7 +100,7 @@ static FILE      *trace_fp = NULL;
 
 static void uci_send(const char *fmt, ...)
 #if defined(__GNUC__)
-    __attribute__((format(printf, 1, 2)))
+    __attribute__((format(gnu_printf, 1, 2)))
 #endif
     ;
 
@@ -150,46 +167,41 @@ static void tok_to_cstr_shown(String t, char *out, size_t cap) {
     out[n] = '\0';
 }
 
-/* ------------------------------------------------------------------------- *
- * Perguntas sobre a posicao
- *
- * Tudo static e dentro deste modulo. O motor ainda nao tem 'in_check' nem funcao
- * de estado de partida (sao a Etapa 9 do next_steps.md); quando tiver, estas
- * tres funcoes viram chamadas de uma linha e o resto do arquivo nao muda.
- * ------------------------------------------------------------------------- */
-
-/* ATENCAO ao terceiro argumento de is_square_attacked: ele e o DONO da casa (o
-   defensor), nao o atacante. A assinatura planejada era '(b, sq, by)'; a
-   implementada e '(b, sq, side)' com side = quem defende. Passar o atacante por
-   habito inverte o resultado sem nenhum aviso do compilador.
-   Ver project_context.md secao 3. */
-static bool uci_in_check(const Board *b) {
-    int ksq = b->king_square[b->side_to_move];
-    if (SQ_OFFBOARD(ksq)) return false;   /* is_square_attacked tem assert aqui */
-    return is_square_attacked(b, ksq, b->side_to_move);
+/* Chave exata, sem colisoes de hash. EP so distingue posicoes se houver uma
+   captura LEGAL: peao cravado nao muda os direitos efetivos de en passant. */
+static PositionKey uci_position_key(Board *b) {
+    PositionKey key;
+    memcpy(key.pieces, b->array, sizeof(key.pieces));
+    key.side = b->side_to_move;
+    key.castling = b->castling_rights;
+    key.ep = SQ_NONE;
+    if (b->ep_square != SQ_NONE) {
+        MoveList legal;
+        generate_legal_moves(b, &legal);
+        for (int i = 0; i < legal.count; i++) {
+            if (move_is_ep_capture(legal.moves[i])) {
+                key.ep = b->ep_square;
+                break;
+            }
+        }
+    }
+    return key;
 }
 
-/*
- * Defesa de fronteira contra o Bug #1 do project_context.md secao 5.
- *
- * 'fen_parse' aceita uma FEN em que o lado que NAO joga esta em xeque -- uma
- * posicao que nao pode existir numa partida. Dela o filtro de legalidade deixa
- * capturar o rei (a captura nao deixa o rei de quem joga em xeque), o
- * 'king_square' do capturado vira SQ_NONE, e a geracao seguinte aborta num
- * assert (ou, com -DNDEBUG, le fora do tabuleiro).
- *
- * A correcao definitiva e dentro do 'fen_parse' e nao e minha para fazer. Aqui a
- * posicao e recusada ANTES de ser aceita, o que fecha o caminho pelo protocolo:
- * nenhuma FEN que entre por 'position fen' pode mais alcancar esse estado.
- */
-static bool uci_position_is_legal(const Board *b) {
-    Color waiting;
-
-    if (SQ_OFFBOARD(b->king_square[WHITE]) || SQ_OFFBOARD(b->king_square[BLACK])) {
-        return false;
+static bool uci_threefold(void) {
+    const PositionKey *current = &session.history[session.history_count - 1];
+    int count = 0;
+    int first = session.history_count - 1 - session.board.halfmove_clock;
+    if (first < 0) first = 0;
+    for (int i = first; i < session.history_count; i++) {
+        const PositionKey *key = &session.history[i];
+        if (key->side == current->side && key->castling == current->castling
+            && key->ep == current->ep
+            && memcmp(key->pieces, current->pieces, sizeof(key->pieces)) == 0) {
+            if (++count == 3) return true;
+        }
     }
-    waiting = (b->side_to_move == WHITE) ? BLACK : WHITE;
-    return !is_square_attacked(b, b->king_square[waiting], waiting);
+    return false;
 }
 
 typedef struct {
@@ -210,7 +222,7 @@ static void uci_status(Board *b, UciStatus *out) {
     bool check;
 
     generate_legal_moves(b, &legal);
-    check = uci_in_check(b);
+    check = in_check(b);
 
     out->check_sq = check ? b->king_square[b->side_to_move] : SQ_NONE;
     out->result   = "*";
@@ -225,11 +237,14 @@ static void uci_status(Board *b, UciStatus *out) {
             out->reason = "stalemate";
             out->result = "1/2-1/2";
         }
-    } else if (b->halfmove_clock >= 100) {
-        /* Simplificacao deliberada, registrada no protocolo.md secao 5.6: na FIDE
-           os 50 lances dependem de reivindicacao; aqui encerram sozinhos. */
-        out->reason = "fifty-moves";
-        out->result = "1/2-1/2";
+    } else {
+        DrawReason reason = draw_reason(b);
+        if (reason == DRAW_NONE && uci_threefold()) reason = DRAW_REPETITION;
+        if (reason != DRAW_NONE) {
+            out->reason = reason == DRAW_50 ? "fifty-moves"
+                : reason == DRAW_MATERIAL ? "insufficient-material" : "repetition";
+            out->result = "1/2-1/2";
+        }
     }
 }
 
@@ -237,17 +252,6 @@ static void uci_status(Board *b, UciStatus *out) {
  * Sessao
  * ------------------------------------------------------------------------- */
 
-/*
- * Volta para a posicao inicial. Monta por 'fen_parse(START_FEN)' e nao por
- * 'board_new': o parser e a unica rotina que preenche os seis campos da FEN e o
- * cache de 'king_square' de uma vez, e e a mesma que valida as posicoes que
- * chegam do cliente -- um caminho, nao dois.
- *
- * E aqui que o historico de posicoes da partida vai morar quando a repeticao
- * tripla entrar (etapa P6): uma lista de chaves 'u64' (ou os quatro primeiros
- * campos da FEN, ate o Zobrist existir), zerada neste ponto e estendida a cada
- * lance aplicado por 'position'. Nao e um 'Undo' -- a decisao de 10/09 vale.
- */
 static void uci_session_reset(void) {
     if (!fen_parse(START_FEN, &session.board)) {
         /* Inalcancavel: START_FEN e constante e o round-trip do fen.c e testado.
@@ -255,6 +259,9 @@ static void uci_session_reset(void) {
         LOG_ERROR("START_FEN rejeitada por fen_parse -- motor inconsistente");
     }
     session.rng_state = UCI_RNG_SEED;
+    iniciarSorteio((unsigned int)UCI_RNG_SEED);
+    session.history_count = 1;
+    session.history[0] = uci_position_key(&session.board);
 }
 
 /* xorshift64* proprio, e nao rand(), para que a sequencia do 'go' dependa so da
@@ -276,7 +283,7 @@ static u64 uci_rand(void) {
 static void uci_cmd_uci(void) {
     uci_send("id name %s", UCI_ID_NAME);
     uci_send("id author %s", UCI_ID_AUTHOR);
-    /* As linhas 'option ...' entram aqui na etapa P5 (setoption Difficulty). */
+    uci_send("option name Nivel type spin default 2 min 1 max 3");
     uci_send("uciok");
 }
 
@@ -343,6 +350,7 @@ static void uci_cmd_legalmoves(void) {
 static void uci_cmd_position(int argc) {
     Board scratch;
     int i;
+    int history_count = 0;
 
     if (argc < 2) {
         uci_error("bad-command", "position");
@@ -395,12 +403,6 @@ static void uci_cmd_position(int argc) {
             uci_error("bad-fen", NULL);
             return;
         }
-        if (!uci_position_is_legal(&scratch)) {
-            LOG_ERROR("FEN valida na forma mas impossivel numa partida "
-                      "(lado que nao joga em xeque, ou rei ausente): %s", fen);
-            uci_error("bad-fen", NULL);
-            return;
-        }
         i = 8;
     } else {
         uci_error("bad-command", "position");
@@ -419,6 +421,7 @@ static void uci_cmd_position(int argc) {
         }
     }
 
+    position_history[history_count++] = uci_position_key(&scratch);
     for (int index = 0; i < argc; i++, index++) {
         char      uci_move[MOVE_STR_SIZE];
         char      shown[20];
@@ -448,9 +451,42 @@ static void uci_cmd_position(int argc) {
         }
 
         make_move(&scratch, legal.moves[found], &u);
+        position_history[history_count++] = uci_position_key(&scratch);
     }
 
     session.board = scratch;   /* o unico ponto em que a posicao aceita muda */
+    memcpy(session.history, position_history, (size_t)history_count * sizeof(PositionKey));
+    session.history_count = history_count;
+}
+
+/* Apenas digitos, com limite antes da multiplicacao (sem overflow de int). */
+static bool tok_to_int(String t, int max, int *out) {
+    int value = 0;
+    if (t.len == 0) return false;
+    for (size_t i = 0; i < t.len; i++) {
+        int digit = t.data[i] - '0';
+        if (digit < 0 || digit > 9 || digit > max
+            || value > (max - digit) / 10) return false;
+        value = value * 10 + digit;
+    }
+    *out = value;
+    return true;
+}
+
+static void uci_cmd_setoption(int argc) {
+    int nivel;
+    if (argc < 3 || !tok_eq(tokens[1], "name")) {
+        uci_error("bad-command", "setoption");
+        return;
+    }
+    /* Opcoes desconhecidas seguem a regra UCI: ignorar. */
+    if (!tok_eq(tokens[2], "Nivel")) return;
+    if (argc != 5 || !tok_eq(tokens[3], "value")
+        || !tok_to_int(tokens[4], NIVEL_DIFICIL, &nivel) || nivel < NIVEL_FACIL) {
+        uci_error("bad-command", "setoption");
+        return;
+    }
+    session.nivel = nivel;
 }
 
 /* Inteiro sem sinal, so digitos, com folga de tamanho: 3 digitos ja passam do teto
@@ -513,41 +549,83 @@ static void uci_cmd_go_perft(int argc) {
     uci_send("Nodes searched: %llu", (unsigned long long)total);
 }
 
-/*
- * 'go'. A escolha do lance esta isolada nesta funcao justamente porque ela e o
- * que muda na etapa P5: hoje sorteia da lista legal, amanha chama a IA.
- */
-static Move uci_pick_move(const MoveList *legal) {
-    return legal->moves[(int)(uci_rand() % (u64)legal->count)];
-}
-
+/* Os limites explicitos substituem o perfil apenas nesta chamada.
+   depth sozinho desliga o prazo; movetime sozinho permite ir ate PROF_MAX.
+   Com os dois, a busca termina no primeiro limite atingido. */
 static void uci_cmd_go(int argc) {
+    Board work;
     MoveList legal;
-    Move     chosen;
-    char     mv[MOVE_STR_SIZE];
-    bool     is_legal = false;
+    Move chosen;
+    char mv[MOVE_STR_SIZE];
+    bool is_legal = false, has_depth = false, has_time = false;
+    ParametrosNivel p;
+    UciStatus status;
+    int depth = 0, time_ms = 0;
 
     if (argc >= 2 && tok_eq(tokens[1], "perft")) {
         uci_cmd_go_perft(argc);
         return;
     }
 
-    /* Os parametros ('movetime', 'depth', 'wtime', ...) sao aceitos e ignorados
-       nesta etapa, como a spec UCI manda para o que o motor nao implementa. */
+    for (int i = 1; i < argc; i++) {
+        if (tok_eq(tokens[i], "depth")) {
+            if (has_depth || i + 1 == argc
+                || !tok_to_int(tokens[i + 1], PROF_MAX, &depth) || depth < 1) {
+                uci_error("bad-command", "go");
+                return;
+            }
+            has_depth = true;
+            i++;
+        } else if (tok_eq(tokens[i], "movetime")) {
+            if (has_time || i + 1 == argc
+                || !tok_to_int(tokens[i + 1], INT_MAX, &time_ms)) {
+                uci_error("bad-command", "go");
+                return;
+            }
+            has_time = true;
+            i++;
+        }
+        /* Outros parametros UCI ainda nao sao implementados. */
+    }
 
-    generate_legal_moves(&session.board, &legal);
-    if (legal.count == 0) {
+    if (!parametrosNivel(session.nivel, &p)) {
+        LOG_ERROR("nivel invalido na sessao");
+        uci_send("bestmove 0000");
+        return;
+    }
+    if (has_depth) {
+        p.profundidade = depth;
+        p.tempoMs = TEMPO_SEM_LIMITE;
+    }
+    if (has_time) {
+        p.tempoMs = time_ms;
+        if (!has_depth) p.profundidade = PROF_MAX;
+    }
+
+    /* Inclui repeticao da partida, que nao e repassada a arvore da IA. */
+    uci_status(&session.board, &status);
+    if (strcmp(status.result, "*") != 0) {
         uci_send("bestmove 0000");
         return;
     }
 
-    chosen = uci_pick_move(&legal);
+    work = session.board;
+    generate_legal_moves(&work, &legal);
+    /* A IA devolve todos os candidatos empatados. O sorteio fica no protocolo
+       para preservar a sequencia xorshift independente da libc. */
+    escolherJogada(&work, p.variante, SORTEIO_DESLIGADO, p.quiescencia,
+                   p.profundidade, p.tempoMs);
+    if (JOGADA.resultado != RESULTADO_SUCESSO) {
+        LOG_ERROR("IA terminou com resultado %d", JOGADA.resultado);
+        uci_send("bestmove 0000");
+        return;
+    }
+    chosen = JOGADA.lance;
+    if (p.randomizador == SORTEIO_LIGADO && CANDIDATOS.count > 0) {
+        chosen = CANDIDATOS.moves[(int)(uci_rand() % (u64)CANDIDATOS.count)];
+    }
 
-    /* Conferir que o lance escolhido esta na lista legal, inclusive em release
-       (RF-M3: o motor nunca devolve lance ilegal). Hoje e redundante -- o lance
-       saiu da propria lista. O valor e amanha: quando a fonte do lance for a IA,
-       esta varredura e a unica coisa entre um bug de busca e um lance ilegal no
-       tabuleiro do cliente. Custa uma varredura de no maximo 218 entradas. */
+    /* RF-M3: conferir o Move completo na lista legal, inclusive em release. */
     for (int i = 0; i < legal.count; i++) {
         if (legal.moves[i] == chosen) {
             is_legal = true;
@@ -560,10 +638,12 @@ static void uci_cmd_go(int argc) {
         return;
     }
 
+    uci_send("info depth %d score %s %d nodes %llu", PROF_ALCANCADA,
+             JOGADA.tipo == TIPO_MATE ? "mate" : "cp", (int)JOGADA.score,
+             (unsigned long long)NOS_VISITADOS);
     move_to_str(chosen, mv);
     uci_send("bestmove %s", mv);
 }
-
 static void uci_cmd_d(void) {
     char fen[MAX_FEN_STRING];
 
@@ -599,6 +679,7 @@ static bool uci_dispatch(void) {
     if      (tok_eq(tokens[0], "uci"))        uci_cmd_uci();
     else if (tok_eq(tokens[0], "isready"))    uci_send("readyok");
     else if (tok_eq(tokens[0], "ucinewgame")) uci_session_reset();
+    else if (tok_eq(tokens[0], "setoption"))  uci_cmd_setoption(argc);
     else if (tok_eq(tokens[0], "position"))   uci_cmd_position(argc);
     else if (tok_eq(tokens[0], "legalmoves")) uci_cmd_legalmoves();
     else if (tok_eq(tokens[0], "state"))      uci_cmd_state();
@@ -646,6 +727,7 @@ int uci_main(int argc, char **argv) {
 
     if (!uci_parse_args(argc, argv)) return 2;
 
+    session.nivel = NIVEL_MEDIO;
     uci_session_reset();
 
     for (;;) {

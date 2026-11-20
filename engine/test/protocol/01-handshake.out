@@ -1,4 +1,5 @@
 id name Xadrez-ES2 0.1
 id author Equipe Xadrez-ES2
+option name Nivel type spin default 2 min 1 max 3
 uciok
 readyok

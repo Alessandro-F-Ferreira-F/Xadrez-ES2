@@ -3,14 +3,14 @@
 #
 # Rode a partir de Backend/ (ou com 'make -C Backend' da raiz do repositorio).
 #
-#   make            compila motor + IA  -> engine/build/main.out (main.exe no Windows)
-#   make test       compila e roda a suite C -> engine/build/test.out
+#   make            compila motor + IA  -> build/main.out (main.exe no Windows)
+#   make test       compila e roda a suite C -> build/test.out
 #   make run        compila e abre o motor (protocolo UCI na stdin/stdout)
 #   make protocol   compila e roda os testes de protocolo (Python)
 #   make clean      apaga os binarios gerados
 #
-# O binario fica em engine/build/ de proposito: e onde
-# engine/test/protocol/run.py procura o motor quando chamado sem argumento.
+# Os binarios ficam em Backend/build/; 'make protocol' passa o caminho do
+# motor explicitamente ao engine/test/protocol/run.py.
 #
 # WARNINGS: o conjunto abaixo e o acordo do projeto. -Og (e nao so -g) porque
 # o GCC so faz a analise de fluxo que alimenta -Wuninitialized com otimizacao.
@@ -23,7 +23,7 @@ CFLAGS   := $(STD) $(WARN) -Og -g
 
 ENGINE   := engine
 IA       := IA
-BUILD    := $(ENGINE)/build
+BUILD    := build
 
 CPPFLAGS := -I$(ENGINE)/include -I$(IA)/header
 
@@ -78,7 +78,7 @@ run: $(BIN)
 	$(subst /,$(if $(filter Windows_NT,$(OS)),\,/),$(BIN))
 
 protocol: $(BIN)
-	$(PYTHON) $(ENGINE)/test/protocol/run.py $(BIN)
+	$(PYTHON) $(ENGINE)/test/protocol/run.py $(abspath $(BIN))
 
 clean:
 	-$(RM_BUILD)

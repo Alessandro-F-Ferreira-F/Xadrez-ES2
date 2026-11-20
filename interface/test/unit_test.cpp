@@ -1,35 +1,15 @@
 #include "board.hpp"
 #include "engine_bridge.hpp"
 #include "piece.hpp"
+#include "../../tools/ctest/test_api.h"
 
 #include <iostream>
 #include <string>
 
-static int g_passed = 0;
-static int g_failed = 0;
-
-#define CHECK(cond, msg)                                                       \
-    do {                                                                       \
-        if (!(cond)) {                                                         \
-            std::cerr << "  [FAIL] " << __func__ << " (linha " << __LINE__     \
-                      << "): " << (msg) << std::endl;                          \
-            g_failed++;                                                        \
-            return;                                                            \
-        }                                                                      \
-    } while (0)
-
-#define RUN_TEST(fn)                                                           \
-    do {                                                                       \
-        int before = g_failed;                                                 \
-        fn();                                                                  \
-        if (g_failed == before) {                                              \
-            g_passed++;                                                        \
-            std::cout << "  [ OK ] " << #fn << std::endl;                      \
-        }                                                                      \
-    } while (0)
+#define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
 // 1. Teste de Unidade: Classe Piece
-static void test_piece_unit() {
+TEST(piece_unit) {
     sf::Texture tex;
     tex.create(100, 100);
 
@@ -46,7 +26,7 @@ static void test_piece_unit() {
 
 // 2. Teste de Unidade (Caixa Branca / Conjunto Basico): parseSquare e squareToCoord
 // V(G) = 6 caminhos independentes + fronteiras
-static void test_parse_square_basis_paths() {
+TEST(parse_square_basis_paths) {
     ChessBoard board(800.f);
     int col = -1, row = -1;
 
@@ -82,7 +62,7 @@ static void test_parse_square_basis_paths() {
 }
 
 // 3. Teste de Unidade (Fronteiras): pixelToSquare
-static void test_pixel_to_square_boundaries() {
+TEST(pixel_to_square_boundaries) {
     ChessBoard board(800.f);
     int col = -1, row = -1;
 
@@ -98,7 +78,7 @@ static void test_pixel_to_square_boundaries() {
 }
 
 // 4. Teste de Unidade: Posicao Inicial e Fronteiras de getPiece
-static void test_initial_position_and_bounds() {
+TEST(initial_position_and_bounds) {
     ChessBoard board(800.f);
 
     CHECK(board.getPiece(-1, 0) == nullptr, "getPiece(-1, 0) deve ser nullptr");
@@ -127,7 +107,7 @@ static void test_initial_position_and_bounds() {
 
 // 5. Teste de Unidade (Caixa Branca / Conjunto Basico): applyUCIMove
 // Cobre erros de entrada, lance normal, captura, roque curto, roque longo, en passant e 4 promocoes
-static void test_apply_uci_move_basis_paths() {
+TEST(apply_uci_move_basis_paths) {
     ChessBoard board(800.f);
 
     // Caminhos de erro
@@ -194,7 +174,7 @@ static void test_apply_uci_move_basis_paths() {
 }
 
 // 6. Teste de Unidade: processUCICommand (position, moves, bestmove, lance direto)
-static void test_process_uci_command() {
+TEST(process_uci_command) {
     ChessBoard board(800.f);
 
     board.processUCICommand("");
@@ -216,7 +196,7 @@ static void test_process_uci_command() {
 }
 
 // 7. Teste de Unidade: Interacao por Clique do Mouse e Highlight de Movimentos Validos
-static void test_mouse_click_and_highlights() {
+TEST(mouse_click_and_highlights) {
     ChessBoard board(800.f);
     // Com legalMoves vazia, qualquer lance estruturalmente valido e considerado legal
     CHECK(board.isMoveLegal("e2e4"), "Com lista vazia, isMoveLegal retorna true");
@@ -276,7 +256,7 @@ static void test_mouse_click_and_highlights() {
 }
 
 // 8. Teste de Unidade com Stub (Slide 26: Driver -> EngineBridge -> Stub /bin/cat)
-static void test_engine_bridge_with_stub() {
+TEST(engine_bridge_with_stub) {
     EngineBridge bridge;
 
     // Estado inicial desligado
@@ -294,7 +274,7 @@ static void test_engine_bridge_with_stub() {
 }
 
 // 9. Teste de Unidade (Issue #7): Alertas de Estado de Jogo (Xeque, Mate, Afogamento, 50 lances e Bloqueio)
-static void test_game_state_alerts_and_lock() {
+TEST(game_state_alerts_and_lock) {
     ChessBoard board(800.f);
 
     CHECK(!board.isGameOver(), "Partida nao deve iniciar encerrada");
@@ -349,7 +329,7 @@ static void test_game_state_alerts_and_lock() {
 }
 
 // 10. Teste de Unidade (Issue #7): Alertas de Movimento Invalido e Captura
-static void test_capture_and_invalid_move_alerts() {
+TEST(capture_and_invalid_move_alerts) {
     ChessBoard board(800.f);
     board.setLegalMoves("legalmoves g1f3");
 
@@ -385,7 +365,7 @@ static void test_capture_and_invalid_move_alerts() {
 }
 
 // 11. Teste de Unidade (Issue #8): Relogios da Partida (RF07), Formatacao MM:SS e Timeout
-static void test_hud_clocks_and_timeout() {
+TEST(hud_clocks_and_timeout) {
     ChessBoard board(800.f);
 
     // Estado inicial: 10:00 (600s) para cada lado
@@ -419,7 +399,7 @@ static void test_hud_clocks_and_timeout() {
 }
 
 // 12. Teste de Unidade (Issue #8): Indicador de Turno, Historico Formatado, Scroll e Botoes (Desistir / Nova Partida)
-static void test_hud_turn_history_and_buttons() {
+TEST(hud_turn_history_and_buttons) {
     ChessBoard board(800.f);
 
     CHECK(board.getTurnIndicatorText() == "Vez das Brancas", "Indicador inicial deve ser Vez das Brancas");
@@ -465,21 +445,5 @@ static void test_hud_turn_history_and_buttons() {
 }
 
 int main() {
-    std::cout << "=== [UNIT TESTS] Interface (Caixa Branca, Fronteiras e Stubs) ===" << std::endl;
-
-    RUN_TEST(test_piece_unit);
-    RUN_TEST(test_parse_square_basis_paths);
-    RUN_TEST(test_pixel_to_square_boundaries);
-    RUN_TEST(test_initial_position_and_bounds);
-    RUN_TEST(test_apply_uci_move_basis_paths);
-    RUN_TEST(test_process_uci_command);
-    RUN_TEST(test_mouse_click_and_highlights);
-    RUN_TEST(test_engine_bridge_with_stub);
-    RUN_TEST(test_game_state_alerts_and_lock);
-    RUN_TEST(test_capture_and_invalid_move_alerts);
-    RUN_TEST(test_hud_clocks_and_timeout);
-    RUN_TEST(test_hud_turn_history_and_buttons);
-
-    std::cout << "=== Resultado Unidade: " << g_passed << " passaram, " << g_failed << " falharam ===" << std::endl;
-    return (g_failed == 0) ? 0 : 1;
+    return test_run_all();
 }

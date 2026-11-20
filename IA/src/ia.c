@@ -4,6 +4,7 @@
 #include "pendenciasRegras.h"
 #include "makemove.h"
 #include "movegen.h"
+#include "attack.h"
 #include "square.h"
 #include "iaTeste.h"
 
@@ -59,10 +60,6 @@ void converterScore(int32_t scoreBruto, Color lado, Play *p){
         p->tipo = TIPO_CENTIPEAO;
         p->score = score;
     }
-}
-
-static bool emXeque(const Board *board){
-    return is_square_attacked(board, board->king_square[board->side_to_move], board->side_to_move);
 }
 
 // Prova barata de que o lado da vez tem um lance legal, sem gerar a lista. Pré-condição: fora de xeque.
@@ -148,7 +145,7 @@ static int8_t verificarChamada(Board *board, int variante, int randomizador, int
     generate_legal_moves(board, &listaRaiz);
 
     if(listaRaiz.count == 0){
-        if(emXeque(board)) return RESULTADO_RAIZ_MATE;
+        if(in_check(board)) return RESULTADO_RAIZ_MATE;
         else return RESULTADO_RAIZ_AFOGAMENTO;
     }
     return RESULTADO_SUCESSO;
@@ -186,7 +183,7 @@ static int32_t quiescenciaMinimax(Board *board, int profundidade){
     else{
         MoveList listaGerada;
         generate_legal_moves(board, &listaGerada);
-        bool xeque = emXeque(board);
+        bool xeque = in_check(board);
 
         if(listaGerada.count == 0){
             if(xeque){
@@ -280,7 +277,7 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
     if(testeEmpateRegra(board)) return 0;
     else if(PROF_LIMITE <= profundidade) return avaliar(board);
     else{
-        bool xeque = emXeque(board);
+        bool xeque = in_check(board);
         int32_t standPat = 0;
 
         // Corte do stand-pat antes de gerar os lances, se houver lance legal garantido: com a lista
@@ -411,7 +408,7 @@ static int32_t minimax(Board *board, int profundidade){
         generate_legal_moves(board, &listaGerada);
 
         if(listaGerada.count == 0){
-            if(emXeque(board)){
+            if(in_check(board)){
                 if(board->side_to_move == WHITE){
                     return -(MATE - profundidade);
                 }
@@ -493,7 +490,7 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
         generate_legal_moves(board, &listaGerada);
 
         if(listaGerada.count == 0){
-            if(emXeque(board)){
+            if(in_check(board)){
                 if(board->side_to_move == WHITE){
                     return -(MATE - profundidade);
                 }

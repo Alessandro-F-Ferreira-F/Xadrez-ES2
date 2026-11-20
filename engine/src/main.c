@@ -198,7 +198,7 @@ static void ui(Board *b) {
         case 9:
             ch = 'n';
             break;
-        case 10:
+        case 10: {
             int d = get_int("Insert depth: ");
             Board temp = copy_board(b);
             for (int depth = 0; depth <= d; depth++) {
@@ -207,6 +207,7 @@ static void ui(Board *b) {
             }
             wait_enter();
             break;
+        }
         case 11:
             printf("Insert square coord: ");
             fflush(stdout);

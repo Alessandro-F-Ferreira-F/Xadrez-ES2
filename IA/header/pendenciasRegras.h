@@ -4,19 +4,15 @@
 /*
 Arquivo provisório que lista as pendências da máquina de regras com a IA.
 
-Declara as funções das regras que a busca usa e que ainda não existem no
-repositório. Nomes, assinaturas e valores devem ser acordados com o
-responsável pela máquina de regras; quando as funções reais existirem,
-este arquivo é substituído pelos cabeçalhos das regras.
-
-Até lá, as definições vêm de stubs (apenas para compilar e testar a IA).
+Contrato de compatibilidade da busca. No motor, regras.c adapta draw_reason
+(engine/include/draw.h) para os valores abaixo. stubs.c continua exclusivo
+dos testes isolados da IA; os dois arquivos nunca devem ser ligados juntos.
 */
 
 #include "board.h"
 
 // Motivos de empate por regra, retornados por testeEmpateRegra.
 // SEM_EMPATE deve ser 0: minimax e podaAlfaBeta testam o retorno como condição.
-// Valores provisórios, a definir com a máquina de regras.
 // EMPATE_PROVISORIO é temporário, apenas para testar se houve empate, sem capturar qual regra foi acionada
 #define SEM_EMPATE 0
 #define EMPATE_PROVISORIO 4
@@ -26,10 +22,9 @@ Até lá, as definições vêm de stubs (apenas para compilar e testar a IA).
 
 int testeEmpateRegra(const Board *b);
 /*
-Retorna SEM_EMPATE ou EMPATE_PROVISORIO  (futuramente, irá retornar o motivo do empate por regra (50 lances, tripla
-repetição, material insuficiente)).
-Tripla repetição exige histórico de posições, que não está no Board:
-a forma de acesso a esse histórico ainda precisa ser acordada.
+Retorna SEM_EMPATE, EMPATE_50_LANCES ou EMPATE_MATERIAL no motor.
+EMPATE_PROVISORIO e reservado aos testes com stub. A repeticao e detectada
+somente no protocolo; nao e consultada dentro da arvore nesta versao.
 */
 
 #endif

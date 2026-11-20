@@ -114,7 +114,7 @@ bool lanceGarantido(const Board *board){
         }
     }
 
-    // KING_TARGETS (square.h) não é inicializada pelo motor: as casas vizinhas saem de SQ_TO_EDGE e DIR_OFFSET.
+    // As casas vizinhas sao obtidas de SQ_TO_EDGE e DIR_OFFSET.
     // is_square_attacked(board, casa, lado): lado é o defensor
     for(int dir = DIR_N; dir <= DIR_NW; dir ++){
         if(SQ_TO_EDGE[rei][dir] == 0) continue;
@@ -134,12 +134,6 @@ static int8_t verificarChamada(Board *board, int variante, int randomizador, int
     if(profundidade < 1 || profundidade > PROF_MAX) return RESULTADO_PROFUNDIDADE_INVALIDA;
     if(tempoMs < 0) return RESULTADO_TEMPO_INVALIDO;
 
-    int motivoEmpate = testeEmpateRegra(board);
-
-    if(motivoEmpate != SEM_EMPATE){
-        if(motivoEmpate == EMPATE_PROVISORIO) return RESULTADO_EMPATE_PROVISORIO;
-        else return RESULTADO_ERRO_INTERNO;
-    }
     MoveList listaRaiz;
 
     generate_legal_moves(board, &listaRaiz);
@@ -147,6 +141,16 @@ static int8_t verificarChamada(Board *board, int variante, int randomizador, int
     if(listaRaiz.count == 0){
         if(in_check(board)) return RESULTADO_RAIZ_MATE;
         else return RESULTADO_RAIZ_AFOGAMENTO;
+    }
+    /* Mate/afogamento precedem os empates por regra. */
+    int motivoEmpate = testeEmpateRegra(board);
+    switch(motivoEmpate){
+        case SEM_EMPATE: break;
+        case EMPATE_50_LANCES: return RESULTADO_EMPATE_50_LANCES;
+        case EMPATE_REPETICAO: return RESULTADO_EMPATE_REPETICAO;
+        case EMPATE_MATERIAL: return RESULTADO_EMPATE_MATERIAL;
+        case EMPATE_PROVISORIO: return RESULTADO_EMPATE_PROVISORIO;
+        default: return RESULTADO_ERRO_INTERNO;
     }
     return RESULTADO_SUCESSO;
 }
@@ -172,13 +176,29 @@ static bool estourouTempo(void){
 // é opção, e todas as evasões são buscadas. Sem lances legais, mate ou afogamento, como na busca
 // principal. Em PROF_LIMITE, devolve avaliar: mantém todo mate >= LIMIAR_MATE e a pilha limitada.
 // Versão sem poda, na ordem do gerador: referência da quiescência com poda (v1 = v2)
+/* A consulta de regra e barata. So se ela indicar empate E houver xeque,
+   geramos evasoes para preservar a precedencia do mate sobre os 50 lances. */
+static bool terminalPorRegra(Board *board, int profundidade, int32_t *score){
+    if(!testeEmpateRegra(board)) return false;
+    *score = 0;
+    if(in_check(board)){
+        MoveList legal;
+        generate_legal_moves(board, &legal);
+        if(legal.count == 0){
+            *score = board->side_to_move == WHITE ? -(MATE - profundidade) : MATE - profundidade;
+        }
+    }
+    return true;
+}
+
 static int32_t quiescenciaMinimax(Board *board, int profundidade){
     NOS_VISITADOS ++;
     NOS_QUIESCENCIA ++;
 
     if(estourouTempo()) return 0;
 
-    if(testeEmpateRegra(board)) return 0;
+    int32_t terminal;
+    if(terminalPorRegra(board, profundidade, &terminal)) return terminal;
     else if(PROF_LIMITE <= profundidade) return avaliar(board);
     else{
         MoveList listaGerada;
@@ -274,7 +294,8 @@ static int32_t quiescenciaAlfaBeta(Board *board, int profundidade, int32_t alfa,
 
     if(estourouTempo()) return 0;
 
-    if(testeEmpateRegra(board)) return 0;
+    int32_t terminal;
+    if(terminalPorRegra(board, profundidade, &terminal)) return terminal;
     else if(PROF_LIMITE <= profundidade) return avaliar(board);
     else{
         bool xeque = in_check(board);
@@ -398,7 +419,8 @@ static int32_t minimax(Board *board, int profundidade){
 
     if(estourouTempo()) return 0;
 
-    if(testeEmpateRegra(board)) return 0;
+    int32_t terminal;
+    if(terminalPorRegra(board, profundidade, &terminal)) return terminal;
     else if(limiteIteracao <= profundidade){
         if(quiescenciaAtiva) return quiescenciaMinimax(board, profundidade);
         else return avaliar(board);
@@ -480,7 +502,8 @@ static int32_t podaAlfaBeta(Board *board, int profundidade, int32_t alfa, int32_
 
     if(estourouTempo()) return 0;
 
-    if(testeEmpateRegra(board)) return 0;
+    int32_t terminal;
+    if(terminalPorRegra(board, profundidade, &terminal)) return terminal;
     else if(limiteIteracao <= profundidade){
         if(quiescenciaAtiva) return quiescenciaAlfaBeta(board, profundidade, alfa, beta);
         else return avaliar(board);

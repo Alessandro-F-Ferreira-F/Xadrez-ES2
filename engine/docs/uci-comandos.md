@@ -11,8 +11,7 @@ Referência rápida do que o motor (`build/main.out`) aceita pela **stdin** e re
 - O motor responde **só na stdout**. A stderr é diagnóstico para humanos, em formato livre,
   e não deve ser lida pelo cliente.
 - Linha vazia é ignorada. **Comando desconhecido é ignorado em silêncio** (regra do UCI).
-  Os comandos diferenciam maiúscu### Overview
-- Criar uma interface simples para setar posições de tabuleiro rapidamente, adicionar e remover peças, fazer e desfazer lances, e imprimir informaçõeslas de minúsculas: `Position` não é `position`.
+  Os comandos diferenciam maiúsculas de minúsculas: `Position` não é `position`.
 - Uma linha pode ter até **8192 bytes** de conteúdo. Mais que isso gera
   `error line-too-long`, e o resto da linha é descartado.
 - `quit`, ou o fim da entrada (EOF), encerra o motor com código de saída 0.
@@ -31,13 +30,14 @@ No arquivo de trace, as linhas recebidas começam com `> ` e as enviadas com `< 
 
 | Comando | Resposta |
 |---|---|
-| `uci` | `id name ...`, `id author ...`, `uciok` |
+| `uci` | `id name ...`, `id author ...`, `option ...`, `uciok` |
+| `setoption name Nivel value N` | nenhuma; N de 1 a 3 |
 | `isready` | `readyok` |
 | `ucinewgame` | nenhuma (volta à posição inicial) |
 | `position ...` | nenhuma se aceita; `error ...` se recusada |
 | `legalmoves` | `legalmoves <lance> <lance> ...` |
 | `state` | `state check ... result ... reason ... fen ...` |
-| `go [parâmetros]` | `bestmove <lance>` |
+| `go [depth N] [movetime T]` | `info depth ... score ... nodes ...`, `bestmove <lance>` |
 | `go perft <n>` | uma linha por lance da raiz, mais `Nodes searched: <total>` |
 | `d` | desenho do tabuleiro e `fen <fen>` (só para depuração) |
 | `quit` | nenhuma (o motor termina) |
@@ -48,6 +48,7 @@ No arquivo de trace, as linhas recebidas começam com `> ` e as enviadas com `< 
 > uci
 < id name Xadrez-ES2 0.1
 < id author Equipe Xadrez-ES2
+< option name Nivel type spin default 2 min 1 max 3
 < uciok
 ```
 
@@ -114,11 +115,11 @@ state check <casa|-> result <resultado> reason <motivo> fen <fen>
 |---|---|
 | `check` | casa do rei do lado a jogar, se está em xeque (ex.: `e1`); senão `-` |
 | `result` | `*` (em andamento), `1-0`, `0-1`, `1/2-1/2` |
-| `reason` | `none`, `checkmate`, `stalemate`, `fifty-moves` |
+| `reason` | `none`, `checkmate`, `stalemate`, `fifty-moves`, `insufficient-material`, `repetition` |
 | `fen` | **sempre o último campo**, e ocupa o resto da linha (a FEN tem espaços) |
 
-Mate e afogamento têm precedência sobre a regra dos 50 lances. Repetição tripla e material
-insuficiente **ainda não** são detectados.
+Mate e afogamento têm precedência sobre os empates por regra. Repetição tripla usa
+o histórico reenviado em `position ... moves ...`; uma FEN isolada não informa o passado.
 
 ```
 > position startpos moves f2f3 e7e5 g2g4 d8h4
@@ -129,17 +130,45 @@ insuficiente **ainda não** são detectados.
 Quem decide o fim da partida é o `result` do `state`, **não** o `legalmoves` vazio: na regra
 dos 50 lances ainda existem lances, e a partida acabou.
 
-### `go`
+### `setoption` e `go`
 
 ```
-go [qualquer coisa]
+setoption name Nivel value N   (1=fácil, 2=médio, 3=difícil; padrão 2)
+go [depth N] [movetime T]
+→ info depth <profundidade> score cp|mate <valor> nodes <nós>
 → bestmove <lance>
 ```
 
-Devolve um lance **legal**, sorteado por uma sequência pseudoaleatória de semente fixa (a
-mesma sequência de comandos dá sempre a mesma resposta). Os parâmetros (`movetime`, `depth`,
-`wtime`, ...) são aceitos e **ignorados**. Sem lance legal, responde `bestmove 0000`.
+O `go` usa a IA alfa-beta numa cópia da posição e não aplica o lance escolhido.
+Os parâmetros do nível vêm de `IA/src/niveis.c`:
 
+| Nível | Profundidade | Prazo | Quiescência |
+|---|---|---|---|
+| 1 (fácil) | 2 | 180 ms | desligada |
+| 2 (médio, padrão) | 3 | 180 ms | ligada |
+| 3 (difícil) | 64 | 950 ms | ligada |
+
+- `depth N`: de 1 a 64; sozinho substitui a profundidade e desliga o prazo do nível.
+- `movetime T`: de 0 a INT_MAX ms; sozinho substitui o prazo e usa profundidade máxima 64.
+  Zero desliga o relógio. Sem profundidade explícita, pode demorar muito.
+- Com os dois limites, a busca para no primeiro que atingir. A ordem não importa.
+- Limites explícitos só valem para aquele `go`; quiescência e sorteio seguem o nível.
+- O nível persiste em `ucinewgame` e `position`. Opção inválida não muda o nível anterior.
+- Ausência, repetição ou valor inválido de `depth`/`movetime` gera `error bad-command go`.
+  Opção `Nivel` malformada gera `error bad-command setoption`.
+- Outros parâmetros UCI e nomes de opções desconhecidos continuam ignorados.
+- Score é na perspectiva de quem joga: `cp` em centipeões; `mate` em lances completos,
+  positivo para vitória e negativo para derrota. A profundidade pode ser 0 se somente
+  a passada de segurança sem quiescência foi aproveitada, ou parcial se o prazo interrompeu
+  a iteração após algum filho completo da raiz.
+- Em mate, afogamento ou empate por regra, responde apenas `bestmove 0000`.
+- O sorteio entre os melhores candidatos usa semente fixa, reiniciada por `ucinewgame`.
+  Busca sem relógio é reproduzível. Com prazo, carga e velocidade da máquina podem mudar
+  os candidatos, mesmo com semente fixa.
+
+RNF01 pede menos de 200 ms no fácil/médio e menos de 1 s no difícil; os perfis
+reservam margem para o protocolo. Limites explícitos substituem esses orçamentos.
+Detalhes das APIs, material insuficiente e congelamento: [contrato-ia.md](contrato-ia.md).
 ### `go perft <n>`
 
 Conta as posições alcançáveis em `n` meios-lances, lance da raiz por lance da raiz. O formato
@@ -190,7 +219,8 @@ que falhou; os demais comandos continuam funcionando.
 | Mensagem | Quando |
 |---|---|
 | `error bad-command position` | `position` sem argumento, com palavra desconhecida depois, FEN com menos de seis campos ou com `moves` no meio da FEN |
-| `error bad-command go` | `go perft` com profundidade inválida |
+| `error bad-command go` | profundidade/prazo inválido ou duplicado em `go`, ou `go perft` inválido |
+| `error bad-command setoption` | opção `Nivel` inválida ou malformada |
 | `error bad-fen` | a FEN tem seis campos mas é inválida, ou descreve uma posição impossível |
 | `error illegal-move <token> <índice>` | o lance na posição `<índice>` da lista (começa em 0) não é legal; o `<token>` aparece truncado em 19 caracteres |
 | `error too-many-moves` | mais de 1024 lances em `position`, ou tokens demais na linha |
@@ -204,6 +234,7 @@ Os detalhes de uma FEN inválida (qual campo, por quê) vão para a **stderr**, 
 > uci
 < id name Xadrez-ES2 0.1
 < id author Equipe Xadrez-ES2
+< option name Nivel type spin default 2 min 1 max 3
 < uciok
 > isready
 < readyok
@@ -211,6 +242,7 @@ Os detalhes de uma FEN inválida (qual campo, por quê) vão para a **stderr**, 
 > state
 < state check - result * reason none fen rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2
 > go
+< info depth 3 score cp 15 nodes 1234
 < bestmove f1c4
 > position startpos moves e2e4 e2e4
 < error illegal-move e2e4 1
@@ -221,8 +253,8 @@ Os detalhes de uma FEN inválida (qual campo, por quê) vão para a **stderr**, 
 
 - **Não há `stop`** nem leitura da entrada durante um `go`. Comandos enviados nesse intervalo
   esperam e são processados depois da resposta.
-- `go` não usa a IA do projeto; sorteia um lance legal.
-- Repetição tripla e material insuficiente não são reportados em `state`.
+- Relógios de partida (`wtime`, `btime`, incrementos) ainda não são implementados.
+- Repetição dentro da árvore da IA fica para uma futura integração com histórico/Zobrist.
 - **Um quinto caractere inválido num lance que não é promoção é ignorado**: `e2e4x` é
   aceito como `e2e4`. Mande apenas lances de 4 caracteres (5 só em promoção).
 - O motor guarda uma única posição, e quem guarda a partida (o histórico de lances) é o

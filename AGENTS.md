@@ -6,7 +6,7 @@ três partes independentes que se comunicam por texto (FEN + protocolo estilo UC
 
 - `engine/` — regras e protocolo, em C11 (executável `build/main.out`).
 - `interface/` — cliente gráfico C++17/SFML 2 (executável `build/xadrez`).
-- `IA/` — busca minimax/alfa-beta em C, **sem build próprio e ainda não ligada ao motor**.
+- `IA/` — busca minimax/alfa-beta em C, **integrada ao `go` e compilada pelo Makefile do motor**.
 - `agent/` — API FastAPI opcional (Scrum Master via OpenRouter/GitHub MCP/WhatsApp).
 
 Não há CI. Verificação é local; `make test` e o runner de protocolo são as fontes de verdade.
@@ -47,8 +47,9 @@ Não substitua por `printf ... | motor`: isso esconde buffer preso.
 - A camada de protocolo é `engine/src/uci.c`. Comandos: `uci`, `isready`, `ucinewgame`,
   `position`, `legalmoves`, `state`, `go`, `go perft N`, `d`, `quit`. `--trace arquivo` grava
   o diálogo. Documentação correta: `engine/docs/uci-comandos.md`.
-- `go` **sorteia** um lance legal com semente fixa; a IA não está conectada. `state` cobre
-  xeque/mate/afogamento/50 lances, mas não repetição nem material insuficiente.
+- `go` usa a IA e os níveis via `setoption name Nivel value 1|2|3` (padrão médio).
+  `state` cobre xeque/mate/afogamento/50 lances/material insuficiente/repetição.
+  O contrato e o congelamento dos cabeçalhos estão em `engine/docs/contrato-ia.md`.
 - `position` é atômico: monta um `Board` de rascunho e só troca a sessão no fim. Mantenha
   assim.
 - `is_square_attacked(b, sq, side)`: `side` é o **dono/defensor** da casa, não o atacante.
@@ -96,7 +97,7 @@ testes. Vários comentários citam `protocolo.md`, que **não existe no reposit�
 ## IA e agente
 
 - `IA/` inclui headers de `engine/` e chama `generate_legal_moves`/`make_move` diretamente,
-  mas não tem Makefile nem target no build do motor. `IA/src/teste.c` tem `main` próprio para
+  e é compilada pelo Makefile do motor (sem `stubs.c`; usa o adaptador `regras.c`). `IA/src/teste.c` tem `main` próprio para
   testes manuais; compile-o explicitamente se for mexer nessa pasta.
 - `agent/` exige `.env` (copie de `agent/.env.example`) com `OPENROUTER_API_KEY`;
   `GITHUB_PERSONAL_ACCESS_TOKEN` é opcional e o orquestrador usa `npx` + MCP oficial do

@@ -1,3 +1,11 @@
+# Estado em 20/11/2026
+
+A integração da IA ao `go`, `in_check` público, validação de xeque no parser FEN,
+50 lances, material insuficiente e repetição no protocolo estão implementados.
+As seções abaixo preservam o planejamento histórico. Para o contrato atual e o
+congelamento dos cabeçalhos, veja [contrato-ia.md](contrato-ia.md); para comandos,
+veja [uci-comandos.md](uci-comandos.md).
+
 # Próximos Passos — do filtro de legalidade ao UCI, e depois a otimização
 
 > Guia de implementação e arquitetura. **Documento vivo**: cada etapa tem critério de saída

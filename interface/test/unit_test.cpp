@@ -6,8 +6,14 @@
 #include "../../tools/ctest/test_api.h"
 
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <string>
+
+#ifdef _WIN32
+static std::string g_self_exe_path;
+#endif
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
@@ -266,7 +272,17 @@ TEST(engine_bridge_with_stub) {
     CHECK(bridge.readCommand().empty(), "readCommand sem processo deve retornar vazio");
     CHECK(!bridge.sendCommand("noop"), "sendCommand sem processo deve retornar false");
 
-    // Usa /bin/cat como Stub de eco para testar os pipes isolados do motor de xadrez
+    // Usa stub de eco para testar os pipes isolados do motor de xadrez
+#ifdef _WIN32
+    _putenv_s("XADREZ_ECHO_STUB", "1");
+    CHECK(bridge.start(g_self_exe_path), "Deve iniciar stub de eco Windows");
+    CHECK(bridge.start(g_self_exe_path), "Re-start deve encerrar o anterior e abrir novo stub");
+    CHECK(bridge.sendCommand("ping_stub_1\r\nping_stub_2"), "Envia 2 linhas (com CRLF) ao stub");
+    CHECK(bridge.readCommand() == "ping_stub_1", "Le 1a linha removendo CR do buffer do pipe");
+    CHECK(bridge.readCommand() == "ping_stub_2", "Le 2a linha do buffer do pipe");
+    CHECK(bridge.stop(), "Encerra o stub com sucesso");
+    _putenv_s("XADREZ_ECHO_STUB", "");
+#else
     CHECK(bridge.start("/bin/cat"), "Deve iniciar stub /bin/cat");
     // Reiniciar com processo ativo deve parar o anterior automaticamente
     CHECK(bridge.start("/bin/cat"), "Re-start deve encerrar o anterior e abrir novo stub");
@@ -274,6 +290,7 @@ TEST(engine_bridge_with_stub) {
     CHECK(bridge.readCommand() == "ping_stub_1", "Le 1a linha removendo CR do buffer do pipe");
     CHECK(bridge.readCommand() == "ping_stub_2", "Le 2a linha do buffer do pipe");
     CHECK(bridge.stop(), "Encerra o stub com sucesso");
+#endif
 }
 
 // 9. Teste de Unidade (Issue #7): Alertas de Estado de Jogo (Xeque, Mate, Afogamento, 50 lances e Bloqueio)
@@ -717,6 +734,23 @@ TEST(letterbox_view_aspect_ratios) {
           "Janela minimizada 0x0 nao produz NaN");
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    const char* stubFlag = std::getenv("XADREZ_ECHO_STUB");
+    if (stubFlag != nullptr && std::string(stubFlag) == "1") {
+        char buf[512];
+        while (std::fgets(buf, sizeof(buf), stdin) != nullptr) {
+            std::fputs(buf, stdout);
+            std::fflush(stdout);
+        }
+        return 0;
+    }
+    if (argc > 0 && argv[0] != nullptr) {
+        g_self_exe_path = argv[0];
+    }
+#else
+    (void)argc;
+    (void)argv;
+#endif
     return test_run_all();
 }

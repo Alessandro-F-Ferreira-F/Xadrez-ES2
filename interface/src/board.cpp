@@ -24,11 +24,28 @@ ChessBoard::ChessBoard(float boardSideSize, float hudSideWidth)
       matchConfigured(false),
       boardFlipped(false),
       pendingAIMove(false),
-      mousePos(-1.f, -1.f) {
+      mousePos(-1.f, -1.f),
+      lastMoveFromCol(-1),
+      lastMoveFromRow(-1),
+      lastMoveToCol(-1),
+      lastMoveToRow(-1),
+      animationsEnabled(false),
+      suppressAnimation(false),
+      asyncAIEnabled(false),
+      aiThinking(false),
+      aiSearchDone(false),
+      aiTargetDelaySec(1.5f),
+      matchGeneration(0),
+      aiMoveGeneration(0),
+      rng(std::random_device{}()) {
     initSquares();
     loadTextures();
     loadAlertFont();
     setupInitialPosition();
+}
+
+ChessBoard::~ChessBoard() {
+    waitForPendingAI();
 }
 
 void ChessBoard::loadAlertFont() {
@@ -169,6 +186,8 @@ void ChessBoard::clearBoard() {
 }
 
 void ChessBoard::setupInitialPosition() {
+    finishAnimations();
+    ++matchGeneration;
     clearBoard();
     clearSelection();
     moveHistory.clear();
@@ -178,6 +197,10 @@ void ChessBoard::setupInitialPosition() {
     checkRow = -1;
     invalidMoveCol = -1;
     invalidMoveRow = -1;
+    lastMoveFromCol = -1;
+    lastMoveFromRow = -1;
+    lastMoveToCol = -1;
+    lastMoveToRow = -1;
     gameResult = "*";
     gameReason = "none";
     alertMessage.clear();
@@ -314,6 +337,7 @@ void ChessBoard::resign() {
     if (isGameOver()) {
         return;
     }
+    ++matchGeneration;
     clearSelection();
     gameReason = "resign";
     if (matchConfigured && matchConfig.mode == GameMode::VS_AI) {
@@ -352,7 +376,153 @@ void ChessBoard::configureMatch(const GameConfig& config) {
     resetGame();
 }
 
+void ChessBoard::finishAnimations() {
+    for (const auto& anim : activeAnimations) {
+        if (pieces[anim.pieceCol][anim.pieceRow]) {
+            pieces[anim.pieceCol][anim.pieceRow]->setVisualPosition(
+                toDisplayCol(anim.pieceCol),
+                toDisplayRow(anim.pieceRow),
+                squareSize
+            );
+        }
+    }
+    activeAnimations.clear();
+}
+
+void ChessBoard::updateAnimations() {
+    if (activeAnimations.empty()) {
+        return;
+    }
+    auto now = std::chrono::steady_clock::now();
+    for (auto it = activeAnimations.begin(); it != activeAnimations.end();) {
+        float elapsed = std::chrono::duration<float>(now - it->startTime).count();
+        float t = (it->durationSec > 0.f) ? (elapsed / it->durationSec) : 1.f;
+        if (t >= 1.f) {
+            if (pieces[it->pieceCol][it->pieceRow]) {
+                pieces[it->pieceCol][it->pieceRow]->setVisualPosition(
+                    toDisplayCol(it->pieceCol),
+                    toDisplayRow(it->pieceRow),
+                    squareSize
+                );
+            }
+            it = activeAnimations.erase(it);
+        } else {
+            float inv = 1.f - t;
+            float eased = 1.f - inv * inv * inv;
+            float startX = toDisplayCol(it->fromCol) * squareSize;
+            float startY = toDisplayRow(it->fromRow) * squareSize;
+            float endX = toDisplayCol(it->pieceCol) * squareSize;
+            float endY = toDisplayRow(it->pieceRow) * squareSize;
+            if (pieces[it->pieceCol][it->pieceRow]) {
+                pieces[it->pieceCol][it->pieceRow]->setPixelPosition(
+                    startX + (endX - startX) * eased,
+                    startY + (endY - startY) * eased
+                );
+            }
+            ++it;
+        }
+    }
+}
+
+bool ChessBoard::isPieceAnimated(int col, int row) const {
+    for (const auto& anim : activeAnimations) {
+        if (anim.pieceCol == col && anim.pieceRow == row) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ChessBoard::startMoveAnimation(int fromCol, int fromRow, int toCol, int toRow, float durationSec) {
+    if (!animationsEnabled || suppressAnimation) {
+        return;
+    }
+    if (pieces[toCol][toRow]) {
+        pieces[toCol][toRow]->setVisualPosition(toDisplayCol(fromCol), toDisplayRow(fromRow), squareSize);
+        activeAnimations.push_back({
+            toCol, toRow, fromCol, fromRow, durationSec, std::chrono::steady_clock::now()
+        });
+    }
+}
+
+void ChessBoard::waitForPendingAI() {
+    if (aiThread.joinable()) {
+        aiThread.join();
+    }
+    aiThinking = false;
+    aiSearchDone.store(false);
+}
+
+void ChessBoard::beginAsyncAIMove(EngineBridge& bridge) {
+    waitForPendingAI();
+    aiThinking = true;
+    aiSearchDone.store(false);
+    aiResultBestLine.clear();
+    aiResultInfoLine.clear();
+    aiMoveGeneration = matchGeneration;
+    aiThinkStart = std::chrono::steady_clock::now();
+
+    std::uniform_real_distribution<float> delayDist(1.2f, 1.8f);
+    aiTargetDelaySec = delayDist(rng);
+
+    aiThread = std::thread([this, &bridge]() {
+        if (bridge.sendCommand("go")) {
+            for (int i = 0; i < 32; ++i) {
+                std::string line = bridge.readCommand();
+                if (line.empty()) {
+                    break;
+                }
+                if (line.rfind("info", 0) == 0) {
+                    aiResultInfoLine = line;
+                } else if (line.rfind("bestmove", 0) == 0) {
+                    aiResultBestLine = line;
+                    break;
+                }
+            }
+        }
+        aiSearchDone.store(true);
+    });
+}
+
+void ChessBoard::updateAI(EngineBridge& bridge) {
+    if (!aiThinking || !aiSearchDone.load()) {
+        return;
+    }
+
+    if (isGameOver() || aiMoveGeneration != matchGeneration) {
+        waitForPendingAI();
+        return;
+    }
+
+    float elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - aiThinkStart).count();
+    if (elapsed < aiTargetDelaySec) {
+        return;
+    }
+
+    waitForPendingAI();
+
+    if (!aiResultInfoLine.empty()) {
+        processUCICommand(aiResultInfoLine);
+    }
+    if (!aiResultBestLine.empty()) {
+        processUCICommand(aiResultBestLine);
+        syncPositionToEngine(bridge);
+        if (bridge.sendCommand("state")) {
+            processUCICommand(bridge.readCommand());
+        }
+    }
+
+    if (!isGameOver()) {
+        if (bridge.sendCommand("legalmoves")) {
+            setLegalMoves(bridge.readCommand());
+        }
+    } else {
+        setLegalMoves("legalmoves");
+    }
+}
+
 void ChessBoard::startMatchWithEngine(const GameConfig& config, EngineBridge& bridge) {
+    waitForPendingAI();
     configureMatch(config);
     bridge.sendCommand("ucinewgame");
     if (config.mode == GameMode::VS_AI) {
@@ -376,6 +546,11 @@ void ChessBoard::startMatchWithEngine(const GameConfig& config, EngineBridge& br
 void ChessBoard::executeAIMove(EngineBridge& bridge) {
     pendingAIMove = false;
     if (isGameOver()) {
+        return;
+    }
+
+    if (asyncAIEnabled) {
+        beginAsyncAIMove(bridge);
         return;
     }
 
@@ -480,6 +655,8 @@ bool ChessBoard::applyUCIMove(const std::string& moveStr) {
         return false;
     }
 
+    finishAnimations();
+
     PieceType type = pieces[fromCol][fromRow]->getType();
     PieceColor color = pieces[fromCol][fromRow]->getColor();
     bool isCapture = (pieces[toCol][toRow] != nullptr) ||
@@ -495,6 +672,7 @@ bool ChessBoard::applyUCIMove(const std::string& moveStr) {
                 pieces[5][fromRow] = std::move(pieces[7][fromRow]);
                 pieces[5][fromRow]->setGridPosition(5, fromRow, squareSize);
                 pieces[5][fromRow]->setVisualPosition(toDisplayCol(5), toDisplayRow(fromRow), squareSize);
+                startMoveAnimation(7, fromRow, 5, fromRow);
             }
         }
         // Roque na ala da Dama (grande): o rei vai para a coluna c (col 2)
@@ -504,6 +682,7 @@ bool ChessBoard::applyUCIMove(const std::string& moveStr) {
                 pieces[3][fromRow] = std::move(pieces[0][fromRow]);
                 pieces[3][fromRow]->setGridPosition(3, fromRow, squareSize);
                 pieces[3][fromRow]->setVisualPosition(toDisplayCol(3), toDisplayRow(fromRow), squareSize);
+                startMoveAnimation(0, fromRow, 3, fromRow);
             }
         }
     }
@@ -534,6 +713,12 @@ bool ChessBoard::applyUCIMove(const std::string& moveStr) {
 
         placePiece(promoType, color, toCol, toRow);
     }
+
+    startMoveAnimation(fromCol, fromRow, toCol, toRow);
+    lastMoveFromCol = fromCol;
+    lastMoveFromRow = fromRow;
+    lastMoveToCol = toCol;
+    lastMoveToRow = toRow;
 
     moveHistory.push_back(moveStr);
     hud.onMovePlayed(moveHistory.size());
@@ -568,10 +753,12 @@ void ChessBoard::processUCICommand(const std::string& command) {
             // Verifica se ha lances adicionais a seguir ("moves e2e4 e7e5...")
             std::string nextKeyword;
             if (ss >> nextKeyword && nextKeyword == "moves") {
+                suppressAnimation = true;
                 std::string move;
                 while (ss >> move) {
                     applyUCIMove(move);
                 }
+                suppressAnimation = false;
             }
         }
         else if (type == "fen") {
@@ -583,10 +770,12 @@ void ChessBoard::processUCICommand(const std::string& command) {
 
     // Caso 2: Comando iniciando diretamente por "moves e2e4 e7e5..."
     if (token == "moves") {
+        suppressAnimation = true;
         std::string move;
         while (ss >> move) {
             applyUCIMove(move);
         }
+        suppressAnimation = false;
         return;
     }
 
@@ -760,8 +949,8 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
         return false;
     }
 
-    if (matchConfigured && matchConfig.mode == GameMode::VS_AI &&
-        currentTurn != matchConfig.playerColor) {
+    if (aiThinking || (matchConfigured && matchConfig.mode == GameMode::VS_AI &&
+        currentTurn != matchConfig.playerColor)) {
         return false;
     }
 
@@ -799,12 +988,26 @@ bool ChessBoard::playTurnWithEngine(float x, float y, EngineBridge& bridge) {
 void ChessBoard::draw(sf::RenderWindow &window) {
     tickClock();
     updateAlert();
+    updateAnimations();
 
     // Desenha as 64 casas do tabuleiro
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++) {
             window.draw(squares[i][j]);
         }
+    }
+
+    // Destaque discreto de origem e destino do ultimo lance
+    if (lastMoveFromCol >= 0 && lastMoveFromRow >= 0 && lastMoveToCol >= 0 && lastMoveToRow >= 0) {
+        sf::RectangleShape fromRect(sf::Vector2f(squareSize, squareSize));
+        fromRect.setPosition(toDisplayCol(lastMoveFromCol) * squareSize, toDisplayRow(lastMoveFromRow) * squareSize);
+        fromRect.setFillColor(sf::Color(246, 232, 105, 105));
+        window.draw(fromRect);
+
+        sf::RectangleShape toRect(sf::Vector2f(squareSize, squareSize));
+        toRect.setPosition(toDisplayCol(lastMoveToCol) * squareSize, toDisplayRow(lastMoveToRow) * squareSize);
+        toRect.setFillColor(sf::Color(246, 232, 105, 145));
+        window.draw(toRect);
     }
 
     // Coordenadas discretas nas bordas (respeitando inversao do tabuleiro)
@@ -860,12 +1063,17 @@ void ChessBoard::draw(sf::RenderWindow &window) {
         window.draw(hlRect);
     }
 
-    // Desenha todas as peças que estiverem vivas no tabuleiro
+    // Desenha primeiro as pecas estaticas e depois as em animacao por cima
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++) {
-            if (pieces[i][j]) {
+            if (pieces[i][j] && !isPieceAnimated(i, j)) {
                 pieces[i][j]->draw(window);
             }
+        }
+    }
+    for (const auto& anim : activeAnimations) {
+        if (pieces[anim.pieceCol][anim.pieceRow]) {
+            pieces[anim.pieceCol][anim.pieceRow]->draw(window);
         }
     }
 
@@ -941,5 +1149,6 @@ void ChessBoard::draw(sf::RenderWindow &window) {
         }
     }
 
-    hud.draw(window, alertFont, fontLoaded, currentTurn, isGameOver(), moveHistory, mousePos);
+    hud.draw(window, alertFont, fontLoaded, currentTurn, isGameOver(), moveHistory,
+             mousePos, aiThinking ? "IA pensando..." : "");
 }

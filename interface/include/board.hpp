@@ -1,9 +1,13 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
+#include <random>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "piece.hpp"
@@ -63,10 +67,47 @@ private:
     bool pendingAIMove;
     sf::Vector2f mousePos;
 
+    // Destaque do ultimo lance
+    int lastMoveFromCol;
+    int lastMoveFromRow;
+    int lastMoveToCol;
+    int lastMoveToRow;
+
+    // Animacoes de movimento das pecas
+    struct MoveAnimation {
+        int pieceCol;
+        int pieceRow;
+        int fromCol;
+        int fromRow;
+        float durationSec;
+        std::chrono::steady_clock::time_point startTime;
+    };
+    bool animationsEnabled;
+    bool suppressAnimation;
+    std::vector<MoveAnimation> activeAnimations;
+
+    // IA assincrona com delay natural
+    bool asyncAIEnabled;
+    bool aiThinking;
+    std::thread aiThread;
+    std::atomic<bool> aiSearchDone;
+    std::string aiResultBestLine;
+    std::string aiResultInfoLine;
+    std::chrono::steady_clock::time_point aiThinkStart;
+    float aiTargetDelaySec;
+    uint64_t matchGeneration;
+    uint64_t aiMoveGeneration;
+    std::mt19937 rng;
+
     int toDisplayCol(int col) const { return boardFlipped ? (7 - col) : col; }
     int toDisplayRow(int row) const { return boardFlipped ? (7 - row) : row; }
     void refreshPieceVisualPositions();
     void syncPositionToEngine(EngineBridge& bridge) const;
+    void finishAnimations();
+    void updateAnimations();
+    bool isPieceAnimated(int col, int row) const;
+    void startMoveAnimation(int fromCol, int fromRow, int toCol, int toRow, float durationSec = 0.22f);
+    void beginAsyncAIMove(EngineBridge& bridge);
 
     void initSquares();
     void loadTextures();
@@ -80,6 +121,7 @@ private:
 public:
     explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE,
                         float hudSideWidth = DEFAULT_HUD_WIDTH);
+    ~ChessBoard();
 
     float getSquareSize() const { return squareSize; }
     float getHudWidth() const { return hud.getWidth(); }
@@ -144,6 +186,11 @@ public:
     void startMatchWithEngine(const GameConfig& config, EngineBridge& bridge);
     bool needsAIMove() const { return pendingAIMove && !isGameOver(); }
     void executeAIMove(EngineBridge& bridge);
+    void setAnimationsEnabled(bool enabled) { animationsEnabled = enabled; }
+    void setAsyncAIEnabled(bool enabled) { asyncAIEnabled = enabled; }
+    bool isAIThinking() const { return aiThinking; }
+    void waitForPendingAI();
+    void updateAI(EngineBridge& bridge);
     PostGameAction checkPostGameButtonClick(float x, float y) const;
     bool isBoardFlipped() const { return boardFlipped; }
     const GameConfig& getMatchConfig() const { return matchConfig; }

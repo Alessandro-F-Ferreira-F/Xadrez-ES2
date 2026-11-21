@@ -143,7 +143,8 @@ void HudPanel::draw(sf::RenderWindow& window,
                     PieceColor currentTurn,
                     bool isGameOver,
                     const std::vector<std::string>& moveHistory,
-                    sf::Vector2f mousePos) const {
+                    sf::Vector2f mousePos,
+                    const std::string& turnTextOverride) const {
     sf::RectangleShape hudBg(sf::Vector2f(hudWidth, hudHeight));
     hudBg.setPosition(hudX, 0.f);
     hudBg.setFillColor(sf::Color(22, 26, 34));
@@ -161,10 +162,13 @@ void HudPanel::draw(sf::RenderWindow& window,
     ui::drawRoundedRect(window, hudX + pad, 16.f, innerW, 56.f, 10.f,
                         sf::Color(34, 40, 52), 1.5f, sf::Color(70, 82, 104));
 
+    const bool hasOverride = (!isGameOver && !turnTextOverride.empty());
     sf::CircleShape turnDot(8.f);
     turnDot.setPosition(hudX + pad + 16.f, 36.f);
     if (isGameOver) {
         turnDot.setFillColor(sf::Color(225, 80, 80));
+    } else if (hasOverride) {
+        turnDot.setFillColor(sf::Color(110, 175, 240));
     } else if (currentTurn == PieceColor::WHITE) {
         turnDot.setFillColor(sf::Color(245, 245, 245));
     } else {
@@ -175,7 +179,10 @@ void HudPanel::draw(sf::RenderWindow& window,
     window.draw(turnDot);
 
     if (fontLoaded) {
-        sf::Text turnTxt(ui::utf8(getTurnIndicatorText(currentTurn, isGameOver)), font, 18);
+        std::string turnLabel = hasOverride
+            ? turnTextOverride
+            : getTurnIndicatorText(currentTurn, isGameOver);
+        sf::Text turnTxt(ui::utf8(turnLabel), font, 18);
         turnTxt.setFillColor(sf::Color::White);
         turnTxt.setPosition(hudX + pad + 42.f, 32.f);
         window.draw(turnTxt);

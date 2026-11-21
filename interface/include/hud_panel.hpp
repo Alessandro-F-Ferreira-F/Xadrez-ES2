@@ -73,5 +73,6 @@ public:
               PieceColor currentTurn,
               bool isGameOver,
               const std::vector<std::string>& moveHistory,
-              sf::Vector2f mousePos = sf::Vector2f(-1.f, -1.f)) const;
+              sf::Vector2f mousePos = sf::Vector2f(-1.f, -1.f),
+              const std::string& turnTextOverride = "") const;
 };

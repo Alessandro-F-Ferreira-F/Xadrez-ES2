@@ -2,7 +2,7 @@ CC       := gcc
 CFLAGS   := -std=c11 -Wall -Wextra
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -Iinclude
-LIBS     := -lsfml-graphics -lsfml-window -lsfml-system
+LIBS     := -lsfml-graphics -lsfml-window -lsfml-system -pthread
 
 SRC          := main.cpp $(wildcard src/*.cpp)
 CORE_SRC     := $(wildcard src/*.cpp)

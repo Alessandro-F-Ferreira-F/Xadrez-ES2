@@ -29,6 +29,7 @@ public:
 
     void setGridPosition(int col, int row, float squareSize);
     void setVisualPosition(int dispCol, int dispRow, float squareSize);
+    void setPixelPosition(float x, float y);
 
     int getCol() const { return col; }
     int getRow() const { return row; }

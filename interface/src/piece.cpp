@@ -24,6 +24,10 @@ void Piece::setVisualPosition(int dispCol, int dispRow, float squareSize) {
     sprite.setPosition(dispCol * squareSize, dispRow * squareSize);
 }
 
+void Piece::setPixelPosition(float x, float y) {
+    sprite.setPosition(x, y);
+}
+
 void Piece::draw(sf::RenderWindow& window) const {
     window.draw(sprite);
 }

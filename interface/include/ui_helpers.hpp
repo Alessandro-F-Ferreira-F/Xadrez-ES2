@@ -36,6 +36,34 @@ inline sf::Uint8 scaleAlpha(sf::Uint8 baseAlpha, float factor) {
     return static_cast<sf::Uint8>(baseAlpha * clamped);
 }
 
+inline sf::View createLetterboxView(float logicalWidth,
+                                    float logicalHeight,
+                                    unsigned int windowWidth,
+                                    unsigned int windowHeight) {
+    sf::View view(sf::FloatRect(0.f, 0.f, logicalWidth, logicalHeight));
+    if (windowWidth == 0 || windowHeight == 0 || logicalWidth <= 0.f || logicalHeight <= 0.f) {
+        return view;
+    }
+
+    float windowRatio = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
+    float viewRatio = logicalWidth / logicalHeight;
+    float posX = 0.f;
+    float posY = 0.f;
+    float sizeX = 1.f;
+    float sizeY = 1.f;
+
+    if (windowRatio > viewRatio) {
+        sizeX = viewRatio / windowRatio;
+        posX = (1.f - sizeX) * 0.5f;
+    } else {
+        sizeY = windowRatio / viewRatio;
+        posY = (1.f - sizeY) * 0.5f;
+    }
+
+    view.setViewport(sf::FloatRect(posX, posY, sizeX, sizeY));
+    return view;
+}
+
 inline void drawRoundedRect(sf::RenderWindow& window,
                             float x, float y, float w, float h, float radius,
                             const sf::Color& fill,

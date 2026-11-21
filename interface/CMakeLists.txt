@@ -40,9 +40,11 @@ if(NOT BUILD_SHARED_LIBS)
     endif()
 endif()
 
+find_package(Threads REQUIRED)
+
 # Linka as bibliotecas da SFML (alvo clássico ou NAMESPACE)
 if(TARGET SFML::Graphics)
-    target_link_libraries(xadrez PRIVATE SFML::Graphics SFML::Window SFML::System)
+    target_link_libraries(xadrez PRIVATE SFML::Graphics SFML::Window SFML::System Threads::Threads)
 else()
-    target_link_libraries(xadrez PRIVATE sfml-graphics sfml-window sfml-system)
+    target_link_libraries(xadrez PRIVATE sfml-graphics sfml-window sfml-system Threads::Threads)
 endif()

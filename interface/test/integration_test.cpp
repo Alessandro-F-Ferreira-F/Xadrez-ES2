@@ -7,7 +7,11 @@
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
+#ifdef _WIN32
+static const char* ENGINE_BIN = "../Backend/build/main.exe";
+#else
 static const char* ENGINE_BIN = "../Backend/build/main.out";
+#endif
 
 static std::string readBestMove(EngineBridge& bridge) {
     for (int i = 0; i < 16; ++i) {

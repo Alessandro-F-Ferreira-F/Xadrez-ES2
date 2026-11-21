@@ -10,7 +10,13 @@ int main()
     ChessBoard board(BOARD_SIDE_SIZE, DEFAULT_HUD_WIDTH);
     EngineBridge bridge;
 
-    if (bridge.start("../Backend/build/main.out")) {
+#ifdef _WIN32
+    const std::string enginePath = "../Backend/build/main.exe";
+#else
+    const std::string enginePath = "../Backend/build/main.out";
+#endif
+
+    if (bridge.start(enginePath)) {
         bridge.sendCommand("uci");
         for (int i = 0; i < 10; ++i) {
             if (bridge.readCommand() == "uciok") break;
@@ -19,7 +25,7 @@ int main()
         bridge.sendCommand("legalmoves");
         board.setLegalMoves(bridge.readCommand());
     } else {
-        std::cerr << "[Aviso] Nao foi possivel iniciar ../Backend/build/main.out" << std::endl;
+        std::cerr << "[Aviso] Nao foi possivel iniciar " << enginePath << std::endl;
     }
 
     sf::RenderWindow window(

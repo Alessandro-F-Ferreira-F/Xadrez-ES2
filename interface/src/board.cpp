@@ -29,8 +29,14 @@ ChessBoard::ChessBoard(float boardSideSize, float hudSideWidth)
 
 void ChessBoard::loadAlertFont() {
     const char* candidates[] = {
+#ifdef _WIN32
+        "C:/Windows/Fonts/segoeuib.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
+        "C:/Windows/Fonts/tahomabd.ttf",
+#else
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+#endif
         "./assets/font.ttf"
     };
     for (const char* path : candidates) {

@@ -60,3 +60,108 @@ jobs:
 
       - name: Rodar testes da Interface (smoke, unidade, integração e sistema)
         run: xvfb-run -a make test-interface
+
+  backend-tests-windows:
+    name: Backend — Engine e IA (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar MinGW (MSYS2 UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+
+      - name: Adicionar UCRT64 ao PATH
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_PATH -Value "C:\msys64\ucrt64\bin"
+
+      - name: Compilar Backend (engine + IA)
+        run: mingw32-make -C Backend
+
+      - name: Rodar testes da Engine (PERFT_MAX_DEPTH=3)
+        env:
+          PERFT_MAX_DEPTH: 3
+        run: mingw32-make -C Backend test-engine
+
+      - name: Rodar testes da IA (unidade, integração e sistema)
+        run: mingw32-make -C Backend test-ia
+
+  protocol-tests-windows:
+    name: Backend — Protocolo UCI (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar MinGW (MSYS2 UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+
+      - name: Adicionar UCRT64 ao PATH
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_PATH -Value "C:\msys64\ucrt64\bin"
+
+      - name: Compilar Backend (engine + IA)
+        run: mingw32-make -C Backend
+
+      - name: Rodar suíte de protocolo UCI
+        run: python Backend/engine/test/protocol/run.py Backend/build/main.exe
+
+  interface-tests-windows:
+    name: Interface — SFML 2 (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar MinGW e CMake (MSYS2 UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-cmake
+
+      - name: Adicionar UCRT64 ao PATH
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_PATH -Value "C:\msys64\ucrt64\bin"
+
+      - name: Cache da SFML 2 (FetchContent)
+        uses: actions/cache@v4
+        with:
+          path: interface/build/_deps
+          key: win-ucrt64-sfml-2.6.2-${{ hashFiles('interface/CMakeLists.txt') }}
+
+      - name: Compilar Backend (engine + IA)
+        run: mingw32-make -C Backend
+
+      - name: Configurar e compilar Interface e testes via CMake
+        run: |
+          cmake -S interface -B interface/build -G "MinGW Makefiles" -DBUILD_TESTING=ON
+          cmake --build interface/build --parallel
+
+      - name: Rodar testes da Interface (smoke, unidade, integração e sistema)
+        working-directory: interface
+        shell: pwsh
+        run: |
+          .\build\smoke_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\unit_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\integration_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\system_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

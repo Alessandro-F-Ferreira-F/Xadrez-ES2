@@ -4,7 +4,17 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
+#ifdef _WIN32
+#include <windows.h>
+static int ctest_isatty(void) {
+    DWORD mode = 0;
+    return GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode) ? 1 : 0;
+}
+#define CTEST_ISATTY() ctest_isatty()
+#else
 #include <unistd.h>
+#define CTEST_ISATTY() isatty(STDOUT_FILENO)
+#endif
 
 
 
@@ -89,7 +99,7 @@ int test_run_all(void) {
     size_t run_count = 0;
     size_t width = 0;   /* maior nome, para alinhar a coluna do resultado */
 
-    g_color = isatty(STDOUT_FILENO) && !getenv("NO_COLOR");
+    g_color = CTEST_ISATTY() && !getenv("NO_COLOR");
 
     const char *filter = getenv("TEST_FILTER");
     if (filter && !filter[0]) filter = NULL;

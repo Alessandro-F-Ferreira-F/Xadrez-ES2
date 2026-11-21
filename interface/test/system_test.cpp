@@ -8,7 +8,11 @@
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
+#ifdef _WIN32
+static const char* ENGINE_BIN = "../Backend/build/main.exe";
+#else
 static const char* ENGINE_BIN = "../Backend/build/main.out";
+#endif
 
 static std::string readBestMove(EngineBridge& bridge) {
     for (int i = 0; i < 16; ++i) {
@@ -27,10 +31,17 @@ TEST(system_recovery) {
     EngineBridge bridge;
     ChessBoard board(800.f);
 
-    // 1.1 Tentativa de abrir executavel inexistente: o processo filho encerra com exit(1) e EOF no pipe
+    // 1.1 Tentativa de abrir executavel inexistente
+#ifdef _WIN32
+    CHECK(!bridge.start("C:/caminho/inexistente/engine_fantasma.exe"),
+          "CreateProcess falha imediatamente com binario inexistente");
+    CHECK(bridge.readCommand().empty(), "Pipe nao iniciado deve retornar vazio sem travar");
+    CHECK(bridge.stop(), "stop() em bridge nao iniciada deve retornar true com seguranca");
+#else
     CHECK(bridge.start("/caminho/inexistente/engine_fantasma"), "Fork ocorre mesmo com binario invalido");
     CHECK(bridge.readCommand().empty(), "Pipe de processo invalido deve retornar EOF vazio sem travar");
     CHECK(bridge.stop(), "Deve recolher o processo invalido e limpar os descritores");
+#endif
 
     // 1.2 Recuperacao: sobe o motor valido na mesma instancia de EngineBridge
     CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real apos falha anterior");

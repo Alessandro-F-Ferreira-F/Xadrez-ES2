@@ -1,10 +1,19 @@
 #include "board.hpp"
 #include "engine_bridge.hpp"
+#include "menu_screen.hpp"
 #include "piece.hpp"
+#include "ui_helpers.hpp"
 #include "../../tools/ctest/test_api.h"
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <string>
+
+#ifdef _WIN32
+static std::string g_self_exe_path;
+#endif
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
@@ -263,7 +272,17 @@ TEST(engine_bridge_with_stub) {
     CHECK(bridge.readCommand().empty(), "readCommand sem processo deve retornar vazio");
     CHECK(!bridge.sendCommand("noop"), "sendCommand sem processo deve retornar false");
 
-    // Usa /bin/cat como Stub de eco para testar os pipes isolados do motor de xadrez
+    // Usa stub de eco para testar os pipes isolados do motor de xadrez
+#ifdef _WIN32
+    _putenv_s("XADREZ_ECHO_STUB", "1");
+    CHECK(bridge.start(g_self_exe_path), "Deve iniciar stub de eco Windows");
+    CHECK(bridge.start(g_self_exe_path), "Re-start deve encerrar o anterior e abrir novo stub");
+    CHECK(bridge.sendCommand("ping_stub_1\r\nping_stub_2"), "Envia 2 linhas (com CRLF) ao stub");
+    CHECK(bridge.readCommand() == "ping_stub_1", "Le 1a linha removendo CR do buffer do pipe");
+    CHECK(bridge.readCommand() == "ping_stub_2", "Le 2a linha do buffer do pipe");
+    CHECK(bridge.stop(), "Encerra o stub com sucesso");
+    _putenv_s("XADREZ_ECHO_STUB", "");
+#else
     CHECK(bridge.start("/bin/cat"), "Deve iniciar stub /bin/cat");
     // Reiniciar com processo ativo deve parar o anterior automaticamente
     CHECK(bridge.start("/bin/cat"), "Re-start deve encerrar o anterior e abrir novo stub");
@@ -271,6 +290,7 @@ TEST(engine_bridge_with_stub) {
     CHECK(bridge.readCommand() == "ping_stub_1", "Le 1a linha removendo CR do buffer do pipe");
     CHECK(bridge.readCommand() == "ping_stub_2", "Le 2a linha do buffer do pipe");
     CHECK(bridge.stop(), "Encerra o stub com sucesso");
+#endif
 }
 
 // 9. Teste de Unidade (Issue #7): Alertas de Estado de Jogo (Xeque, Mate, Afogamento, 50 lances e Bloqueio)
@@ -444,6 +464,293 @@ TEST(hud_turn_history_and_buttons) {
     CHECK(board.getTurnIndicatorText() == "Vez das Brancas", "Turno volta para Brancas");
 }
 
-int main() {
+// 13. Teste de Unidade (Issue #9): Navegacao no Menu Principal, Selecao de Modo, Dificuldade, Cor e Tempo
+TEST(menu_screen_navigation_and_config) {
+    MenuScreen menu(1120.f, 800.f);
+    GameConfig cfg;
+
+    auto clickCenter = [](const sf::FloatRect& r, float& outX, float& outY) {
+        outX = r.left + r.width * 0.5f;
+        outY = r.top + r.height * 0.5f;
+    };
+
+    // Estado padrao inicial da configuracao
+    CHECK(cfg.mode == GameMode::VS_AI, "Modo padrao deve ser VS_AI");
+    CHECK(cfg.difficulty == AIDifficulty::MEDIUM, "Dificuldade padrao deve ser MEDIUM");
+    CHECK(cfg.uciLevel() == 2, "Nivel UCI padrao deve ser 2");
+    CHECK(cfg.playerColor == PieceColor::WHITE, "Cor padrao deve ser WHITE");
+    CHECK(!cfg.isBoardFlipped(), "Tabuleiro nao inicia invertido");
+    CHECK(cfg.timeLimitMinutes == 10 && cfg.hasTimer(), "Tempo padrao deve ser 10 min");
+
+    // Menu Principal: clique fora -> NONE, Jogar -> GO_TO_SETUP, Sair -> EXIT_APP
+    CHECK(menu.handleClick(AppScreen::MAIN_MENU, 10.f, 10.f, cfg) == MenuAction::NONE,
+          "Clique fora dos botoes no menu principal nao faz nada");
+    float cx = 0.f, cy = 0.f;
+    clickCenter(menu.getPlayButtonBounds(), cx, cy);
+    CHECK(menu.handleClick(AppScreen::MAIN_MENU, cx, cy, cfg) == MenuAction::GO_TO_SETUP,
+          "Botao Jogar abre a tela de configuracao");
+    clickCenter(menu.getExitButtonBounds(), cx, cy);
+    CHECK(menu.handleClick(AppScreen::MAIN_MENU, cx, cy, cfg) == MenuAction::EXIT_APP,
+          "Botao Sair retorna EXIT_APP");
+
+    // Tela de Configuracao: opcoes da IA (dificuldade e cor) quando VS_AI esta ativo
+    clickCenter(menu.getDiffEasyBounds(), cx, cy);
+    menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+    CHECK(cfg.difficulty == AIDifficulty::EASY && cfg.uciLevel() == 1, "Seleciona dificuldade Facil (1)");
+
+    clickCenter(menu.getDiffHardBounds(), cx, cy);
+    menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+    CHECK(cfg.difficulty == AIDifficulty::HARD && cfg.uciLevel() == 3, "Seleciona dificuldade Dificil (3)");
+
+    clickCenter(menu.getColorBlackBounds(), cx, cy);
+    menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+    CHECK(cfg.playerColor == PieceColor::BLACK && cfg.isBoardFlipped(),
+          "Jogar de Pretas contra IA ativa inversao do tabuleiro");
+
+    // Exclusividade de modo: em LOCAL_PVP, cliques na area de Dificuldade e Cor sao ignorados
+    clickCenter(menu.getModeLocalBounds(), cx, cy);
+    menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+    CHECK(cfg.mode == GameMode::LOCAL_PVP && !cfg.isBoardFlipped(),
+          "Modo Local PvP nunca inverte o tabuleiro");
+
+    clickCenter(menu.getDiffMediumBounds(), cx, cy);
+    menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+    CHECK(cfg.difficulty == AIDifficulty::HARD, "Dificuldade nao muda enquanto LOCAL_PVP esta ativo");
+
+    clickCenter(menu.getColorWhiteBounds(), cx, cy);
+    menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+    CHECK(cfg.playerColor == PieceColor::BLACK, "Cor nao muda enquanto LOCAL_PVP esta ativo");
+
+    // Seleciona todas as 7 opcoes de tempo (3, 5, 10, 15, 20, 30, Sem tempo)
+    const int expectedMinutes[7] = { 3, 5, 10, 15, 20, 30, 0 };
+    for (int i = 0; i < 7; ++i) {
+        clickCenter(menu.getTimeButtonBounds(i), cx, cy);
+        menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg);
+        CHECK(cfg.timeLimitMinutes == expectedMinutes[i], "Botao de tempo atualiza timeLimitMinutes");
+        CHECK(cfg.hasTimer() == (expectedMinutes[i] > 0), "hasTimer reflete se ha limite de tempo");
+    }
+
+    // Volta e inicia partida
+    clickCenter(menu.getBackButtonBounds(), cx, cy);
+    CHECK(menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg) == MenuAction::BACK_TO_MENU,
+          "Botao Voltar retorna ao menu principal");
+    clickCenter(menu.getStartGameButtonBounds(), cx, cy);
+    CHECK(menu.handleClick(AppScreen::GAME_SETUP, cx, cy, cfg) == MenuAction::START_GAME,
+          "Botao Iniciar Partida retorna START_GAME");
+}
+
+// 14. Teste de Unidade (Issue #9): Inversao do Tabuleiro ao jogar de Pretas
+TEST(board_flip_coordinates_and_movement) {
+    ChessBoard board(800.f);
+    GameConfig cfg;
+    cfg.mode = GameMode::VS_AI;
+    cfg.playerColor = PieceColor::BLACK;
+    cfg.timeLimitMinutes = 5;
+    board.configureMatch(cfg);
+
+    CHECK(board.isBoardFlipped(), "Tabuleiro deve ficar invertido para jogador de Pretas");
+
+    // Com tabuleiro invertido: canto superior esquerdo (50,50) eh h1 (col=7, row=7), inferior direito (750,750) eh a8 (col=0, row=0)
+    int col = -1, row = -1;
+    CHECK(board.pixelToSquare(50.f, 50.f, col, row) && col == 7 && row == 7,
+          "Topo esquerdo invertido corresponde a h1 (7,7)");
+    CHECK(board.pixelToSquare(750.f, 750.f, col, row) && col == 0 && row == 0,
+          "Base direita invertida corresponde a a8 (0,0)");
+    CHECK(board.pixelToSquare(350.f, 650.f, col, row) && col == 4 && row == 1,
+          "Casa e7 (4,1) aparece em display (3,6)");
+
+    // Brancas jogam e2e4 (agora e a vez das Pretas)
+    CHECK(board.applyUCIMove("e2e4"), "Brancas jogam e2e4");
+    board.setLegalMoves("legalmoves e7e5");
+
+    // Jogador de Pretas clica em e7 invertido (350, 650) e depois em e5 invertido (350, 450)
+    CHECK(board.handleMouseClick(350.f, 650.f).empty(), "1o clique seleciona peao preto em e7");
+    CHECK(board.getSelectedCol() == 4 && board.getSelectedRow() == 1, "Casa logica selecionada eh e7 (4,1)");
+    std::string mv = board.handleMouseClick(350.f, 450.f);
+    CHECK(mv == "e7e5", "2o clique em coordenadas invertidas gera lance UCI e7e5");
+    CHECK(board.getPiece(4, 3) != nullptr && board.getPiece(4, 3)->getColor() == PieceColor::BLACK,
+          "Peao preto ocupa casa logica e5 (4,3)");
+
+    // Posicionamento visual/animado nao corrompe coordenadas logicas da Piece
+    sf::Texture tex;
+    tex.create(50, 50);
+    Piece p(PieceType::ROOK, PieceColor::BLACK, tex, 0, 0, 100.f);
+    p.setVisualPosition(7, 7, 100.f);
+    p.setPixelPosition(123.f, 456.f);
+    CHECK(p.getCol() == 0 && p.getRow() == 0, "setVisualPosition/setPixelPosition preservam col/row logicos");
+}
+
+// 15. Teste de Unidade (Issue #9): Relogios Sem Tempo, Isencao da IA e Modo Local
+TEST(match_timers_ai_exempt_and_untimed) {
+    // 1) Sem tempo (timeLimitMinutes = 0): nenhum lado perde por timeout
+    ChessBoard untimedBoard(800.f);
+    GameConfig untimedCfg;
+    untimedCfg.mode = GameMode::LOCAL_PVP;
+    untimedCfg.timeLimitMinutes = 0;
+    untimedBoard.configureMatch(untimedCfg);
+
+    untimedBoard.advanceClock(9999.f);
+    CHECK(!untimedBoard.isGameOver(), "Modo Sem tempo nao encerra partida por timeout");
+    untimedBoard.applyUCIMove("e2e4");
+    untimedBoard.advanceClock(9999.f);
+    CHECK(!untimedBoard.isGameOver(), "Pretas tambem nao perdem por tempo no modo Sem tempo");
+
+    // 2) VS_AI de Brancas (5 min): apenas humano (WHITE) tem relogio; IA (BLACK) e isenta
+    ChessBoard aiWhiteBoard(800.f);
+    GameConfig aiWhiteCfg;
+    aiWhiteCfg.mode = GameMode::VS_AI;
+    aiWhiteCfg.playerColor = PieceColor::WHITE;
+    aiWhiteCfg.timeLimitMinutes = 5;
+    aiWhiteBoard.configureMatch(aiWhiteCfg);
+
+    CHECK(aiWhiteBoard.getRemainingTimeSec(PieceColor::WHITE) == 300.f, "Humano inicia com 300s (5 min)");
+    aiWhiteBoard.advanceClock(10.f);
+    CHECK(aiWhiteBoard.getRemainingTimeSec(PieceColor::WHITE) == 290.f, "Relogio do humano desconta");
+    aiWhiteBoard.applyUCIMove("e2e4");
+    aiWhiteBoard.advanceClock(5000.f);
+    CHECK(!aiWhiteBoard.isGameOver(), "IA das Pretas nunca sofre timeout");
+
+    // 3) VS_AI de Pretas (3 min): IA (WHITE) isenta, humano (BLACK) desconta e sofre timeout
+    ChessBoard aiBlackBoard(800.f);
+    GameConfig aiBlackCfg;
+    aiBlackCfg.mode = GameMode::VS_AI;
+    aiBlackCfg.playerColor = PieceColor::BLACK;
+    aiBlackCfg.timeLimitMinutes = 3;
+    aiBlackBoard.configureMatch(aiBlackCfg);
+
+    aiBlackBoard.advanceClock(5000.f);
+    CHECK(!aiBlackBoard.isGameOver(), "IA das Brancas nunca sofre timeout");
+    aiBlackBoard.applyUCIMove("e2e4");
+    aiBlackBoard.advanceClock(200.f);
+    CHECK(aiBlackBoard.isGameOver() && aiBlackBoard.getGameReason() == "timeout" && aiBlackBoard.getGameResult() == "1-0",
+          "Estouro do tempo do humano de Pretas da vitoria 1-0");
+
+    // 4) LOCAL_PVP (3 min): ambos os jogadores descontam tempo
+    ChessBoard pvpBoard(800.f);
+    GameConfig pvpCfg;
+    pvpCfg.mode = GameMode::LOCAL_PVP;
+    pvpCfg.timeLimitMinutes = 3;
+    pvpBoard.configureMatch(pvpCfg);
+
+    pvpBoard.advanceClock(10.f);
+    CHECK(pvpBoard.getRemainingTimeSec(PieceColor::WHITE) == 170.f, "Brancas descontam no modo local");
+    pvpBoard.applyUCIMove("e2e4");
+    pvpBoard.advanceClock(15.f);
+    CHECK(pvpBoard.getRemainingTimeSec(PieceColor::BLACK) == 165.f, "Pretas descontam no modo local");
+}
+
+// 16. Teste de Unidade (Issue #9): Botoes Durante a Partida vs Pos-Jogo e Desistencia contra IA
+TEST(hud_ingame_vs_postgame_controls_and_resign) {
+    ChessBoard board(800.f);
+    GameConfig cfg;
+    cfg.mode = GameMode::VS_AI;
+    cfg.playerColor = PieceColor::BLACK;
+    cfg.timeLimitMinutes = 10;
+    board.configureMatch(cfg);
+
+    // Durante a partida: cliques nas posicoes dos botoes pos-jogo nao tem efeito
+    const sf::FloatRect& setupRect = board.getSetupButtonBounds();
+    const sf::FloatRect& menuRect = board.getMenuButtonBounds();
+    const sf::FloatRect& newRect = board.getNewGameButtonBounds();
+    CHECK(board.checkPostGameButtonClick(newRect.left + 5.f, newRect.top + 5.f) == PostGameAction::NONE,
+          "checkPostGameButtonClick retorna NONE enquanto partida esta em andamento");
+    board.handleMouseClick(newRect.left + 5.f, newRect.top + 5.f);
+    CHECK(!board.isGameOver(), "Botao Jogar Novamente nao dispara durante partida em andamento");
+
+    // Durante a partida contra IA, desistir sempre da derrota ao humano (mesmo na vez das Brancas)
+    const sf::FloatRect& resignRect = board.getResignButtonBounds();
+    board.handleMouseClick(resignRect.left + 5.f, resignRect.top + 5.f);
+    CHECK(board.isGameOver() && board.getGameReason() == "resign", "Botao Desistir encerra partida");
+    CHECK(board.getGameResult() == "1-0", "Humano de Pretas desistindo da vitoria 1-0 para IA");
+
+    // Apos o fim de jogo: os 3 botoes pos-jogo respondem com as acoes esperadas
+    CHECK(board.checkPostGameButtonClick(newRect.left + 5.f, newRect.top + 5.f) == PostGameAction::RESTART_SAME_CONFIG,
+          "Botao Jogar Novamente retorna RESTART_SAME_CONFIG");
+    CHECK(board.checkPostGameButtonClick(setupRect.left + 5.f, setupRect.top + 5.f) == PostGameAction::OPEN_SETUP,
+          "Botao Configurar retorna OPEN_SETUP");
+    CHECK(board.checkPostGameButtonClick(menuRect.left + 5.f, menuRect.top + 5.f) == PostGameAction::RETURN_TO_MENU,
+          "Botao Menu Principal retorna RETURN_TO_MENU");
+}
+
+// 17. Teste de Unidade: Destaque do Ultimo Lance, Animacao e Supressao em Replay UCI
+TEST(last_move_highlight_and_animation_state) {
+    ChessBoard board(800.f);
+    board.setAnimationsEnabled(true);
+
+    CHECK(board.getLastMoveFromCol() == -1 && board.getLastMoveToCol() == -1,
+          "Sem destaque de ultimo lance no inicio");
+    CHECK(!board.hasActiveAnimations(), "Sem animacoes ativas no inicio");
+
+    // Lance individual cria animacao e registra origem/destino
+    CHECK(board.applyUCIMove("e2e4"), "Aplica e2e4 com animacao habilitada");
+    CHECK(board.getLastMoveFromCol() == 4 && board.getLastMoveFromRow() == 6, "Origem e2 (4,6)");
+    CHECK(board.getLastMoveToCol() == 4 && board.getLastMoveToRow() == 4, "Destino e4 (4,4)");
+    CHECK(board.hasActiveAnimations(), "Lance individual inicia animacao da peca");
+    CHECK(board.getPiece(4, 4) != nullptr && board.getPiece(4, 6) == nullptr,
+          "Estado logico do tabuleiro atualizado imediatamente mesmo durante animacao");
+
+    // Replay em lote ("position startpos moves ...") suprime animacoes intermediarias
+    board.processUCICommand("position startpos moves e2e4 e7e5 g1f3");
+    CHECK(!board.hasActiveAnimations(), "Replay UCI em lote nao deixa animacoes pendentes");
+    CHECK(board.getLastMoveFromCol() == 6 && board.getLastMoveFromRow() == 7 &&
+          board.getLastMoveToCol() == 5 && board.getLastMoveToRow() == 5,
+          "Ultimo lance do replay eh g1f3");
+
+    // resetGame limpa destaque e animacoes
+    board.resetGame();
+    CHECK(board.getLastMoveFromCol() == -1 && !board.hasActiveAnimations(),
+          "resetGame limpa destaque do ultimo lance e animacoes");
+}
+
+// 18. Teste de Unidade: Letterbox Viewport para Fullscreen e Resolucoes Diferentes
+TEST(letterbox_view_aspect_ratios) {
+    // Resolucao exata (1120x800): ocupa 100% sem barras
+    sf::View exact = ui::createLetterboxView(1120.f, 800.f, 1120, 800);
+    const sf::FloatRect& vpExact = exact.getViewport();
+    CHECK(std::fabs(vpExact.left) < 1e-4f && std::fabs(vpExact.top) < 1e-4f &&
+          std::fabs(vpExact.width - 1.f) < 1e-4f && std::fabs(vpExact.height - 1.f) < 1e-4f,
+          "Resolucao exata 1120x800 usa viewport integral (0,0,1,1)");
+
+    // Widescreen 16:9 (1920x1080): mais largo que 1120/800=1.4 -> barras laterais centralizadas
+    sf::View wide = ui::createLetterboxView(1120.f, 800.f, 1920, 1080);
+    const sf::FloatRect& vpWide = wide.getViewport();
+    CHECK(std::fabs(vpWide.height - 1.f) < 1e-4f && vpWide.width < 1.f && vpWide.left > 0.f,
+          "Tela 16:9 cria barras laterais preservando altura cheia");
+    CHECK(std::fabs(vpWide.left * 2.f + vpWide.width - 1.f) < 1e-4f,
+          "Viewport 16:9 fica perfeitamente centralizado na horizontal");
+
+    // Tela 4:3 (800x600): mais alta que 1.4 -> barras verticais centralizadas
+    sf::View tall = ui::createLetterboxView(1120.f, 800.f, 800, 600);
+    const sf::FloatRect& vpTall = tall.getViewport();
+    CHECK(std::fabs(vpTall.width - 1.f) < 1e-4f && vpTall.height < 1.f && vpTall.top > 0.f,
+          "Tela 4:3 cria barras superior/inferior preservando largura cheia");
+    CHECK(std::fabs(vpTall.top * 2.f + vpTall.height - 1.f) < 1e-4f,
+          "Viewport 4:3 fica perfeitamente centralizado na vertical");
+
+    // Janela minimizada (0x0): nao gera NaN nem divisao por zero
+    sf::View zero = ui::createLetterboxView(1120.f, 800.f, 0, 0);
+    const sf::FloatRect& vpZero = zero.getViewport();
+    CHECK(!std::isnan(vpZero.width) && !std::isnan(vpZero.height),
+          "Janela minimizada 0x0 nao produz NaN");
+}
+
+int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    const char* stubFlag = std::getenv("XADREZ_ECHO_STUB");
+    if (stubFlag != nullptr && std::string(stubFlag) == "1") {
+        char buf[512];
+        while (std::fgets(buf, sizeof(buf), stdin) != nullptr) {
+            std::fputs(buf, stdout);
+            std::fflush(stdout);
+        }
+        return 0;
+    }
+    if (argc > 0 && argv[0] != nullptr) {
+        g_self_exe_path = argv[0];
+    }
+#else
+    (void)argc;
+    (void)argv;
+#endif
     return test_run_all();
 }

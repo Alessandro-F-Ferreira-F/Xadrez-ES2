@@ -20,6 +20,10 @@ void Piece::setGridPosition(int newCol, int newRow, float squareSize) {
     sprite.setPosition(col * squareSize, row * squareSize);
 }
 
+void Piece::setVisualPosition(int dispCol, int dispRow, float squareSize) {
+    sprite.setPosition(dispCol * squareSize, dispRow * squareSize);
+}
+
 void Piece::draw(sf::RenderWindow& window) const {
     window.draw(sprite);
 }

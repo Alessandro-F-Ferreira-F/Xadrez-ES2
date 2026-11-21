@@ -3,8 +3,33 @@
 #include <SFML/Graphics.hpp>
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace ui {
+
+inline sf::String utf8(const std::string& str) {
+    return sf::String::fromUtf8(str.begin(), str.end());
+}
+
+inline bool loadSystemFont(sf::Font& font) {
+    const char* candidates[] = {
+#ifdef _WIN32
+        "C:/Windows/Fonts/segoeuib.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
+        "C:/Windows/Fonts/tahomabd.ttf",
+#else
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+#endif
+        "./assets/font.ttf"
+    };
+    for (const char* path : candidates) {
+        if (font.loadFromFile(path)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 inline sf::Uint8 scaleAlpha(sf::Uint8 baseAlpha, float factor) {
     float clamped = std::max(0.f, std::min(1.f, factor));
@@ -39,6 +64,22 @@ inline void drawRoundedRect(sf::RenderWindow& window,
     shape.setOutlineThickness(outlineThickness);
     shape.setOutlineColor(outline);
     window.draw(shape);
+}
+
+inline void drawCenteredText(sf::RenderWindow& window,
+                             const std::string& utf8Text,
+                             const sf::Font& font,
+                             unsigned int charSize,
+                             const sf::Color& color,
+                             const sf::FloatRect& bounds) {
+    sf::Text text(utf8(utf8Text), font, charSize);
+    text.setFillColor(color);
+    sf::FloatRect tb = text.getLocalBounds();
+    text.setPosition(
+        bounds.left + (bounds.width - tb.width) * 0.5f - tb.left,
+        bounds.top + (bounds.height - tb.height) * 0.5f - tb.top
+    );
+    window.draw(text);
 }
 
 } // namespace ui

@@ -8,9 +8,17 @@
 #include <vector>
 #include "piece.hpp"
 #include "engine_bridge.hpp"
+#include "game_config.hpp"
 #include "hud_panel.hpp"
 
 #define DEFAULT_BOARD_SIDE_SIZE 800
+
+enum class PostGameAction {
+    NONE,
+    RESTART_SAME_CONFIG,
+    OPEN_SETUP,
+    RETURN_TO_MENU
+};
 
 class ChessBoard {
 private:
@@ -48,6 +56,17 @@ private:
     bool fontLoaded;
 
     HudPanel hud;
+
+    GameConfig matchConfig;
+    bool matchConfigured;
+    bool boardFlipped;
+    bool pendingAIMove;
+    sf::Vector2f mousePos;
+
+    int toDisplayCol(int col) const { return boardFlipped ? (7 - col) : col; }
+    int toDisplayRow(int row) const { return boardFlipped ? (7 - row) : row; }
+    void refreshPieceVisualPositions();
+    void syncPositionToEngine(EngineBridge& bridge) const;
 
     void initSquares();
     void loadTextures();
@@ -114,6 +133,20 @@ public:
     void resign();
     const sf::FloatRect& getResignButtonBounds() const { return hud.getResignButtonBounds(); }
     const sf::FloatRect& getNewGameButtonBounds() const { return hud.getNewGameButtonBounds(); }
+    const sf::FloatRect& getSetupButtonBounds() const { return hud.getSetupButtonBounds(); }
+    const sf::FloatRect& getMenuButtonBounds() const { return hud.getMenuButtonBounds(); }
+
+    const sf::Font& getFont() const { return alertFont; }
+    bool isFontLoaded() const { return fontLoaded; }
+    void setMousePosition(float x, float y) { mousePos = sf::Vector2f(x, y); }
+
+    void configureMatch(const GameConfig& config);
+    void startMatchWithEngine(const GameConfig& config, EngineBridge& bridge);
+    bool needsAIMove() const { return pendingAIMove && !isGameOver(); }
+    void executeAIMove(EngineBridge& bridge);
+    PostGameAction checkPostGameButtonClick(float x, float y) const;
+    bool isBoardFlipped() const { return boardFlipped; }
+    const GameConfig& getMatchConfig() const { return matchConfig; }
 
     // Recebe a linha "legalmoves e2e4 d2d4 ..." do motor e atualiza a lista de lances legais
     void setLegalMoves(const std::string& legalMovesLine);

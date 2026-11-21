@@ -86,7 +86,7 @@ private:
     bool suppressAnimation;
     std::vector<MoveAnimation> activeAnimations;
 
-    // IA assincrona com delay natural
+    // IA assincrona com delay natural, tem um fator meio random pois achei que ficaria mais clean tmj
     bool asyncAIEnabled;
     bool aiThinking;
     std::thread aiThread;
@@ -194,6 +194,11 @@ public:
     PostGameAction checkPostGameButtonClick(float x, float y) const;
     bool isBoardFlipped() const { return boardFlipped; }
     const GameConfig& getMatchConfig() const { return matchConfig; }
+    int getLastMoveFromCol() const { return lastMoveFromCol; }
+    int getLastMoveFromRow() const { return lastMoveFromRow; }
+    int getLastMoveToCol() const { return lastMoveToCol; }
+    int getLastMoveToRow() const { return lastMoveToRow; }
+    bool hasActiveAnimations() const { return !activeAnimations.empty(); }
 
     // Recebe a linha "legalmoves e2e4 d2d4 ..." do motor e atualiza a lista de lances legais
     void setLegalMoves(const std::string& legalMovesLine);

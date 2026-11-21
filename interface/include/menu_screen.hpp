@@ -64,4 +64,20 @@ public:
               const GameConfig& config,
               const sf::Font& font,
               bool fontLoaded) const;
+
+    const sf::FloatRect& getPlayButtonBounds() const { return playButtonBounds; }
+    const sf::FloatRect& getExitButtonBounds() const { return exitButtonBounds; }
+    const sf::FloatRect& getModeAiBounds() const { return modeAiBounds; }
+    const sf::FloatRect& getModeLocalBounds() const { return modeLocalBounds; }
+    const sf::FloatRect& getDiffEasyBounds() const { return diffEasyBounds; }
+    const sf::FloatRect& getDiffMediumBounds() const { return diffMediumBounds; }
+    const sf::FloatRect& getDiffHardBounds() const { return diffHardBounds; }
+    const sf::FloatRect& getColorWhiteBounds() const { return colorWhiteBounds; }
+    const sf::FloatRect& getColorBlackBounds() const { return colorBlackBounds; }
+    const sf::FloatRect& getTimeButtonBounds(int index) const {
+        int clamped = (index < 0) ? 0 : (index > 6 ? 6 : index);
+        return timeBounds[clamped];
+    }
+    const sf::FloatRect& getBackButtonBounds() const { return backButtonBounds; }
+    const sf::FloatRect& getStartGameButtonBounds() const { return startGameButtonBounds; }
 };

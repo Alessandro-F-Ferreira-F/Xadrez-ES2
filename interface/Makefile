@@ -60,14 +60,15 @@ coverage: $(CTEST_OBJS)
 	$(CXX) $(CXXFLAGS) --coverage -c src/piece.cpp -o $(COV_DIR)/piece.o
 	$(CXX) $(CXXFLAGS) --coverage -c src/board.cpp -o $(COV_DIR)/board.o
 	$(CXX) $(CXXFLAGS) --coverage -c src/hud_panel.cpp -o $(COV_DIR)/hud_panel.o
+	$(CXX) $(CXXFLAGS) --coverage -c src/menu_screen.cpp -o $(COV_DIR)/menu_screen.o
 	$(CXX) $(CXXFLAGS) --coverage -c src/engine_bridge.cpp -o $(COV_DIR)/engine_bridge.o
-	$(CXX) $(CXXFLAGS) --coverage test/unit_test.cpp $(COV_DIR)/piece.o $(COV_DIR)/board.o $(COV_DIR)/hud_panel.o $(COV_DIR)/engine_bridge.o $(CTEST_OBJS) -o $(COV_DIR)/unit_test $(LIBS)
-	$(CXX) $(CXXFLAGS) --coverage test/integration_test.cpp $(COV_DIR)/piece.o $(COV_DIR)/board.o $(COV_DIR)/hud_panel.o $(COV_DIR)/engine_bridge.o $(CTEST_OBJS) -o $(COV_DIR)/integration_test $(LIBS)
-	$(CXX) $(CXXFLAGS) --coverage test/system_test.cpp $(COV_DIR)/piece.o $(COV_DIR)/board.o $(COV_DIR)/hud_panel.o $(COV_DIR)/engine_bridge.o $(CTEST_OBJS) -o $(COV_DIR)/system_test $(LIBS)
+	$(CXX) $(CXXFLAGS) --coverage test/unit_test.cpp $(COV_DIR)/piece.o $(COV_DIR)/board.o $(COV_DIR)/hud_panel.o $(COV_DIR)/menu_screen.o $(COV_DIR)/engine_bridge.o $(CTEST_OBJS) -o $(COV_DIR)/unit_test $(LIBS)
+	$(CXX) $(CXXFLAGS) --coverage test/integration_test.cpp $(COV_DIR)/piece.o $(COV_DIR)/board.o $(COV_DIR)/hud_panel.o $(COV_DIR)/menu_screen.o $(COV_DIR)/engine_bridge.o $(CTEST_OBJS) -o $(COV_DIR)/integration_test $(LIBS)
+	$(CXX) $(CXXFLAGS) --coverage test/system_test.cpp $(COV_DIR)/piece.o $(COV_DIR)/board.o $(COV_DIR)/hud_panel.o $(COV_DIR)/menu_screen.o $(COV_DIR)/engine_bridge.o $(CTEST_OBJS) -o $(COV_DIR)/system_test $(LIBS)
 	./$(COV_DIR)/unit_test
 	./$(COV_DIR)/integration_test
 	./$(COV_DIR)/system_test
-	gcov -o $(COV_DIR) src/piece.cpp src/board.cpp src/hud_panel.cpp src/engine_bridge.cpp
+	gcov -o $(COV_DIR) src/piece.cpp src/board.cpp src/hud_panel.cpp src/menu_screen.cpp src/engine_bridge.cpp
 	@mv -f *.gcov $(COV_DIR)/ 2>/dev/null || true
 
 profile: test-system

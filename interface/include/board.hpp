@@ -1,16 +1,28 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
+#include <random>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "piece.hpp"
 #include "engine_bridge.hpp"
+#include "game_config.hpp"
 #include "hud_panel.hpp"
 
 #define DEFAULT_BOARD_SIDE_SIZE 800
+
+enum class PostGameAction {
+    NONE,
+    RESTART_SAME_CONFIG,
+    OPEN_SETUP,
+    RETURN_TO_MENU
+};
 
 class ChessBoard {
 private:
@@ -49,6 +61,54 @@ private:
 
     HudPanel hud;
 
+    GameConfig matchConfig;
+    bool matchConfigured;
+    bool boardFlipped;
+    bool pendingAIMove;
+    sf::Vector2f mousePos;
+
+    // Destaque do ultimo lance
+    int lastMoveFromCol;
+    int lastMoveFromRow;
+    int lastMoveToCol;
+    int lastMoveToRow;
+
+    // Animacoes de movimento das pecas
+    struct MoveAnimation {
+        int pieceCol;
+        int pieceRow;
+        int fromCol;
+        int fromRow;
+        float durationSec;
+        std::chrono::steady_clock::time_point startTime;
+    };
+    bool animationsEnabled;
+    bool suppressAnimation;
+    std::vector<MoveAnimation> activeAnimations;
+
+    // IA assincrona com delay natural, tem um fator meio random pois achei que ficaria mais clean tmj
+    bool asyncAIEnabled;
+    bool aiThinking;
+    std::thread aiThread;
+    std::atomic<bool> aiSearchDone;
+    std::string aiResultBestLine;
+    std::string aiResultInfoLine;
+    std::chrono::steady_clock::time_point aiThinkStart;
+    float aiTargetDelaySec;
+    uint64_t matchGeneration;
+    uint64_t aiMoveGeneration;
+    std::mt19937 rng;
+
+    int toDisplayCol(int col) const { return boardFlipped ? (7 - col) : col; }
+    int toDisplayRow(int row) const { return boardFlipped ? (7 - row) : row; }
+    void refreshPieceVisualPositions();
+    void syncPositionToEngine(EngineBridge& bridge) const;
+    void finishAnimations();
+    void updateAnimations();
+    bool isPieceAnimated(int col, int row) const;
+    void startMoveAnimation(int fromCol, int fromRow, int toCol, int toRow, float durationSec = 0.22f);
+    void beginAsyncAIMove(EngineBridge& bridge);
+
     void initSquares();
     void loadTextures();
     void loadAlertFont();
@@ -61,6 +121,7 @@ private:
 public:
     explicit ChessBoard(float boardSideSize = DEFAULT_BOARD_SIDE_SIZE,
                         float hudSideWidth = DEFAULT_HUD_WIDTH);
+    ~ChessBoard();
 
     float getSquareSize() const { return squareSize; }
     float getHudWidth() const { return hud.getWidth(); }
@@ -114,6 +175,30 @@ public:
     void resign();
     const sf::FloatRect& getResignButtonBounds() const { return hud.getResignButtonBounds(); }
     const sf::FloatRect& getNewGameButtonBounds() const { return hud.getNewGameButtonBounds(); }
+    const sf::FloatRect& getSetupButtonBounds() const { return hud.getSetupButtonBounds(); }
+    const sf::FloatRect& getMenuButtonBounds() const { return hud.getMenuButtonBounds(); }
+
+    const sf::Font& getFont() const { return alertFont; }
+    bool isFontLoaded() const { return fontLoaded; }
+    void setMousePosition(float x, float y) { mousePos = sf::Vector2f(x, y); }
+
+    void configureMatch(const GameConfig& config);
+    void startMatchWithEngine(const GameConfig& config, EngineBridge& bridge);
+    bool needsAIMove() const { return pendingAIMove && !isGameOver(); }
+    void executeAIMove(EngineBridge& bridge);
+    void setAnimationsEnabled(bool enabled) { animationsEnabled = enabled; }
+    void setAsyncAIEnabled(bool enabled) { asyncAIEnabled = enabled; }
+    bool isAIThinking() const { return aiThinking; }
+    void waitForPendingAI();
+    void updateAI(EngineBridge& bridge);
+    PostGameAction checkPostGameButtonClick(float x, float y) const;
+    bool isBoardFlipped() const { return boardFlipped; }
+    const GameConfig& getMatchConfig() const { return matchConfig; }
+    int getLastMoveFromCol() const { return lastMoveFromCol; }
+    int getLastMoveFromRow() const { return lastMoveFromRow; }
+    int getLastMoveToCol() const { return lastMoveToCol; }
+    int getLastMoveToRow() const { return lastMoveToRow; }
+    bool hasActiveAnimations() const { return !activeAnimations.empty(); }
 
     // Recebe a linha "legalmoves e2e4 d2d4 ..." do motor e atualiza a lista de lances legais
     void setLegalMoves(const std::string& legalMovesLine);

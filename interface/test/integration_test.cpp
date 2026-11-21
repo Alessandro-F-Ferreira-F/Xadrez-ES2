@@ -2,12 +2,18 @@
 #include "engine_bridge.hpp"
 #include "../../tools/ctest/test_api.h"
 
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #define CHECK(cond, msg) ASSERT_MSG((cond), "%s", (msg))
 
+#ifdef _WIN32
+static const char* ENGINE_BIN = "../Backend/build/main.exe";
+#else
 static const char* ENGINE_BIN = "../Backend/build/main.out";
+#endif
 
 static std::string readBestMove(EngineBridge& bridge) {
     for (int i = 0; i < 16; ++i) {
@@ -218,6 +224,157 @@ TEST(integration_hud_buttons_with_engine) {
     CHECK(!board.isGameOver(), "Nova Partida desbloqueia o jogo");
     CHECK(board.getMoveHistory().empty(), "Historico zerado");
     CHECK(board.getLegalMoves().size() == 20, "Engine ressincronizada com os 20 lances iniciais");
+
+    bridge.stop();
+}
+
+// 7. Integracao (Issue #9): Modo Local PvP valida regras no motor sem acionar a IA (go)
+TEST(integration_local_pvp_mode_without_ai) {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+    GameConfig cfg;
+    cfg.mode = GameMode::LOCAL_PVP;
+    cfg.timeLimitMinutes = 5;
+    board.startMatchWithEngine(cfg, bridge);
+
+    CHECK(board.getLegalMoves().size() == 20, "Inicio do modo local tem 20 lances legais");
+
+    // Brancas jogam e2 -> e4
+    CHECK(!board.playTurnWithEngine(450.f, 650.f, bridge), "Seleciona e2");
+    CHECK(board.playTurnWithEngine(450.f, 450.f, bridge), "Brancas jogam e2e4");
+    CHECK(board.getMoveHistory().size() == 1, "No modo local, IA nao joga em seguida");
+    CHECK(board.getCurrentTurn() == PieceColor::BLACK, "Turno passa para as Pretas");
+    CHECK(board.getLegalMoves().size() == 20, "Motor retorna 20 lances legais para as Pretas");
+
+    // Pretas jogam e7 -> e5
+    CHECK(!board.playTurnWithEngine(450.f, 150.f, bridge), "Seleciona e7");
+    CHECK(board.playTurnWithEngine(450.f, 350.f, bridge), "Pretas jogam e7e5");
+    CHECK(board.getMoveHistory().size() == 2, "Historico tem os 2 lances humanos");
+    CHECK(board.getCurrentTurn() == PieceColor::WHITE, "Turno volta para as Brancas");
+    CHECK(!board.getLegalMoves().empty(), "Motor segue sincronizado com lances legais");
+
+    bridge.stop();
+}
+
+// 8. Integracao (Issue #9): Jogar de Pretas contra IA (Tabuleiro Invertido + IA faz 1o lance)
+TEST(integration_vs_ai_as_black_flipped_board) {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+    GameConfig cfg;
+    cfg.mode = GameMode::VS_AI;
+    cfg.difficulty = AIDifficulty::EASY;
+    cfg.playerColor = PieceColor::BLACK;
+    cfg.timeLimitMinutes = 10;
+    board.startMatchWithEngine(cfg, bridge);
+
+    CHECK(board.isBoardFlipped(), "Tabuleiro invertido ao jogar de Pretas");
+    CHECK(board.needsAIMove(), "IA das Brancas deve fazer o 1o lance");
+
+    // Executa o 1o lance da IA (Brancas)
+    board.executeAIMove(bridge);
+    CHECK(board.getMoveHistory().size() == 1, "IA executou o 1o lance das Brancas");
+    CHECK(board.getCurrentTurn() == PieceColor::BLACK, "Vez do jogador humano (Pretas)");
+    CHECK(!board.getLegalMoves().empty(), "Lances legais das Pretas carregados");
+
+    // Pega o 1o lance legal das Pretas e converte para cliques em pixels invertidos
+    std::string replyMove = board.getLegalMoves()[0];
+    int fromCol = -1, fromRow = -1, toCol = -1, toRow = -1;
+    CHECK(board.parseSquare(replyMove.substr(0, 2), fromCol, fromRow), "Origem valida");
+    CHECK(board.parseSquare(replyMove.substr(2, 2), toCol, toRow), "Destino valido");
+
+    float fx = (7 - fromCol) * 100.f + 50.f;
+    float fy = (7 - fromRow) * 100.f + 50.f;
+    float tx = (7 - toCol) * 100.f + 50.f;
+    float ty = (7 - toRow) * 100.f + 50.f;
+
+    CHECK(!board.playTurnWithEngine(fx, fy, bridge), "Seleciona peca preta via pixel invertido");
+    CHECK(board.playTurnWithEngine(tx, ty, bridge), "Executa lance das Pretas e recebe resposta da IA");
+    CHECK(board.getMoveHistory().size() == 3, "Historico contem lance da IA, das Pretas e resposta da IA");
+    CHECK(board.getCurrentTurn() == PieceColor::BLACK, "Turno retorna para as Pretas");
+
+    bridge.stop();
+}
+
+// 9. Integracao (Issue #9): Niveis de Dificuldade (Facil, Medio, Dificil) enviados via UCI
+TEST(integration_vs_ai_difficulty_levels) {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+
+    const AIDifficulty levels[3] = { AIDifficulty::EASY, AIDifficulty::MEDIUM, AIDifficulty::HARD };
+    for (int i = 0; i < 3; ++i) {
+        GameConfig cfg;
+        cfg.mode = GameMode::VS_AI;
+        cfg.difficulty = levels[i];
+        cfg.playerColor = PieceColor::WHITE;
+        board.startMatchWithEngine(cfg, bridge);
+
+        board.playTurnWithEngine(450.f, 650.f, bridge);
+        CHECK(board.playTurnWithEngine(450.f, 450.f, bridge), "Humano joga 1. e4 e IA responde no nivel selecionado");
+        CHECK(board.getMoveHistory().size() == 2, "IA respondeu com 1 lance valido");
+        CHECK(!board.getLegalMoves().empty(), "Motor retornou lances legais apos resposta da IA");
+    }
+
+    bridge.stop();
+}
+
+// 10. Integracao: Fluxo Assincrono da IA com Delay Natural e Cancelamento ao Desistir
+TEST(integration_async_ai_move_and_cancel_on_resign) {
+    EngineBridge bridge;
+    ChessBoard board(800.f);
+    board.setAsyncAIEnabled(true);
+
+    CHECK(bridge.start(ENGINE_BIN), "Deve iniciar o motor real");
+
+    GameConfig cfg;
+    cfg.mode = GameMode::VS_AI;
+    cfg.difficulty = AIDifficulty::EASY;
+    cfg.playerColor = PieceColor::WHITE;
+    board.startMatchWithEngine(cfg, bridge);
+
+    // 1. e4: retorno deve ser imediato com a IA pensando em background
+    auto t0 = std::chrono::steady_clock::now();
+    board.playTurnWithEngine(450.f, 650.f, bridge);
+    CHECK(board.playTurnWithEngine(450.f, 450.f, bridge), "1. e4 aceito imediatamente");
+    CHECK(board.isAIThinking(), "IA deve iniciar pensamento assincrono sem travar");
+    CHECK(board.getMoveHistory().size() == 1, "Resposta da IA ainda nao entra antes do delay");
+
+    // Polling de frame ate a IA concluir o delay natural (1.2s..1.8s)
+    for (int step = 0; step < 150 && board.isAIThinking(); ++step) {
+        board.updateAI(bridge);
+        if (board.isAIThinking()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+    }
+    double waitedSec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+
+    CHECK(!board.isAIThinking(), "IA deve concluir dentro do prazo esperado");
+    CHECK(waitedSec >= 1.15, "Delay natural minimo (~1.2s) deve ser respeitado");
+    CHECK(board.getMoveHistory().size() == 2, "Lance da IA aplicado apos o delay");
+    CHECK(!board.getLegalMoves().empty(), "Lances legais disponiveis para o 2o turno");
+
+    // 2o turno: joga um lance legal e desiste ENQUANTO a IA pensa
+    std::string secondMove = board.getLegalMoves()[0];
+    int fc = -1, fr = -1, tc = -1, tr = -1;
+    CHECK(board.parseSquare(secondMove.substr(0, 2), fc, fr), "Origem do 2o lance valida");
+    CHECK(board.parseSquare(secondMove.substr(2, 2), tc, tr), "Destino do 2o lance valido");
+    board.playTurnWithEngine(fc * 100.f + 50.f, fr * 100.f + 50.f, bridge);
+    CHECK(board.playTurnWithEngine(tc * 100.f + 50.f, tr * 100.f + 50.f, bridge), "2o lance aplicado");
+    CHECK(board.isAIThinking(), "IA pensando no 2o turno");
+
+    const sf::FloatRect& resignRect = board.getResignButtonBounds();
+    board.playTurnWithEngine(resignRect.left + 5.f, resignRect.top + 5.f, bridge);
+    CHECK(board.isGameOver() && board.getGameReason() == "resign", "Desistencia imediata enquanto IA pensa");
+
+    board.waitForPendingAI();
+    CHECK(board.getMoveHistory().size() == 3, "Lance atrasado da IA e descartado apos desistencia");
+    CHECK(bridge.sendCommand("isready") && bridge.readCommand() == "readyok",
+          "Pipe do motor permanece sincronizado apos cancelar/aguardar IA");
 
     bridge.stop();
 }

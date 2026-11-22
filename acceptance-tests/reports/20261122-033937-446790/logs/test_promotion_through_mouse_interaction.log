@@ -1,0 +1,9 @@
+[UCI] Comando recebido: state check - result * reason none fen rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1
+[UCI] Comando recebido: state check - result * reason none fen rnbqkbnr/p1pppppp/8/1p6/P7/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 2
+[UCI] Comando recebido: state check - result * reason none fen rnbqkbnr/p1pppppp/8/1P6/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 2
+[UCI] Comando recebido: state check - result * reason none fen rnbqkbnr/2pppppp/p7/1P6/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 3
+[UCI] Comando recebido: state check - result * reason none fen rnbqkbnr/2pppppp/P7/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 3
+[UCI] Comando recebido: state check - result * reason none fen rnbqkb1r/2pppppp/P4n2/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 1 4
+[UCI] Comando recebido: state check - result * reason none fen rnbqkb1r/P1pppppp/5n2/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 4
+[UCI] Comando recebido: state check - result * reason none fen rnbqkb1r/P2ppppp/2p2n2/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 5
+[UCI] Comando recebido: state check - result * reason none fen rQbqkb1r/3ppppp/2p2n2/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 5

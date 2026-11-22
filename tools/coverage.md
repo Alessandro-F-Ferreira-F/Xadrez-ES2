@@ -1,13 +1,13 @@
 # Relatório Consolidado de Cobertura de Testes (`gcov`)
 
-_Gerado automaticamente por `make coverage` em 2026-11-22 16:43:29._
+_Gerado automaticamente por `make coverage` em 2026-11-22 16:52:45._
 
 | Módulo | Arquivos | Linhas Cobertas | Linhas Executáveis | Cobertura |
 | :--- | :---: | :---: | :---: | :---: |
-| `Backend/engine` | 16 | 1042 | 1450 | **71.86%** |
+| `Backend/engine` | 16 | 1315 | 1450 | **90.69%** |
 | `Backend/IA` | 5 | 403 | 412 | **97.82%** |
 | `interface` | 10 | 1357 | 1452 | **93.46%** |
-| **TOTAL PROJETO** | **31** | **2802** | **3314** | **84.55%** |
+| **TOTAL PROJETO** | **31** | **3075** | **3314** | **92.79%** |
 
 ## Como reproduzir
 

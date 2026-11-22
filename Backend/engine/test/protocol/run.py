@@ -30,6 +30,7 @@ formato livre e instavel.
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import queue
 import time
@@ -356,6 +357,72 @@ def check_level_response(engine):
     return failures
 
 
+def check_trace_and_uci_edges(engine):
+    """Cobre --trace, argumentos de linha de comando, d, line-too-long e bordas de position."""
+    failures = []
+
+    # 1. --trace valido grava entrada e saida + comando d
+    with tempfile.TemporaryDirectory() as tmp:
+        trace_path = Path(tmp) / "uci_trace.log"
+        res = subprocess.run([str(engine), "--trace", str(trace_path)],
+                             input="uci\nd\nisready\nquit\n",
+                             capture_output=True, text=True, timeout=5)
+        if res.returncode != 0 or "readyok" not in res.stdout:
+            failures.append(f"trace: retorno/saida invalida: code={res.returncode}")
+        elif not trace_path.is_file():
+            failures.append("trace: arquivo de trace nao foi criado")
+        else:
+            content = trace_path.read_text(encoding="utf-8", errors="replace")
+            if "> uci" not in content or "< uciok" not in content:
+                failures.append(f"trace: conteudo incompleto: {content[:120]}")
+
+        # 2. --trace sem caminho retorna codigo 2
+        res_missing = subprocess.run([str(engine), "--trace"],
+                                     input="", capture_output=True, text=True, timeout=5)
+        if res_missing.returncode != 2:
+            failures.append(f"trace sem arg: esperado exit 2, veio {res_missing.returncode}")
+
+        # 3. --trace em diretorio inexistente e argumento desconhecido seguem operando
+        bad_trace = Path(tmp) / "inexistente" / "trace.log"
+        res_warn = subprocess.run([str(engine), "--trace", str(bad_trace), "--desconhecido"],
+                                  input="isready\nquit\n",
+                                  capture_output=True, text=True, timeout=5)
+        if res_warn.returncode != 0 or res_warn.stdout.strip() != "readyok":
+            failures.append(f"trace aviso/arg ignorado falhou: {res_warn.returncode}, {res_warn.stdout!r}")
+
+    # 4. line-too-long (> 8192 bytes) e bordas de position
+    too_many = " ".join(["e2e4"] * 1025)
+    long_fen_tok = "a" * 260
+    script = (
+        ("a" * 8300) + "\n"
+        "position outro\n"
+        "position fen 4k3/8/8/8/8/8/8/4K3 w - moves e2e4\n"
+        f"position fen {long_fen_tok} w - - 0 1\n"
+        f"position startpos moves {too_many}\n"
+        "position startpos moves lance_muito_longo_1234567890\n"
+        "isready\n"
+        "quit\n"
+    )
+    lines, code = run_engine(engine, script)
+    expected_prefixes = [
+        "error line-too-long",
+        "error bad-command position",
+        "error bad-command position",
+        "error bad-fen",
+        "error too-many-moves",
+        "error illegal-move ",
+        "readyok",
+    ]
+    if code != 0 or len(lines) != len(expected_prefixes) or any(
+        not got.startswith(exp) for got, exp in zip(lines, expected_prefixes)
+    ):
+        failures.append(f"uci bordas: esperado {expected_prefixes}, veio {lines}")
+
+    if not failures:
+        print("ok    trace, argumentos CLI, d, line-too-long e bordas de position")
+    return failures
+
+
 def main():
     engine = find_engine(sys.argv)
     print(f"motor: {engine}\n")
@@ -365,6 +432,7 @@ def main():
     failures += check_go_is_legal(engine)
     failures += check_search_options(engine)
     failures += check_draws(engine)
+    failures += check_trace_and_uci_edges(engine)
     failures += check_level_response(engine)
 
     print()

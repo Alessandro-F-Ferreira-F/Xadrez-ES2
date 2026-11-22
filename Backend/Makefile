@@ -66,8 +66,11 @@ TEST_BIN         := $(BUILD)/test$(EXE)
 IA_UNIT_BIN      := $(BUILD)/ia_unit_test$(EXE)
 IA_INTEG_BIN     := $(BUILD)/ia_integration_test$(EXE)
 IA_SYSTEM_BIN    := $(BUILD)/ia_system_test$(EXE)
+COV_DIR          := $(BUILD)/cov
+COV_ENGINE_OBJS  := $(patsubst $(ENGINE)/src/%.c,$(COV_DIR)/%.o,$(SRC_ENGINE))
+COV_IA_OBJS      := $(patsubst $(IA)/src/%.c,$(COV_DIR)/%.o,$(SRC_IA))
 
-.PHONY: all run test test-engine test-ia test-ia-unit test-ia-integration test-ia-system protocol clean
+.PHONY: all run test test-engine test-ia test-ia-unit test-ia-integration test-ia-system protocol coverage clean
 
 all: $(BIN)
 
@@ -114,5 +117,31 @@ run: $(BIN)
 protocol: $(BIN)
 	$(PYTHON) $(ENGINE)/test/protocol/run.py $(BIN)
 
+coverage:
+	@mkdir -p $(COV_DIR)
+	@rm -f $(COV_DIR)/*.o $(COV_DIR)/*.gcda $(COV_DIR)/*.gcno $(COV_DIR)/*.gcov *.gcov
+	@for f in $(SRC_ENGINE); do \
+		obj="$(COV_DIR)/$$(basename $$f .c).o"; \
+		$(CC) $(CPPFLAGS) $(CFLAGS) --coverage -c $$f -o $$obj || exit 1; \
+	done
+	@for f in $(SRC_IA); do \
+		obj="$(COV_DIR)/$$(basename $$f .c).o"; \
+		$(CC) $(CPPFLAGS) $(CFLAGS) --coverage -c $$f -o $$obj || exit 1; \
+	done
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $(IA)/src/stubs.c -o $(COV_DIR)/stubs.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) --coverage $(COV_ENGINE_OBJS) $(COV_IA_OBJS) -o $(COV_DIR)/main$(EXE)
+	$(CC) $(CPPFLAGS) $(CFLAGS) --coverage $(wildcard $(ENGINE)/test/*.c) $(SRC_CTEST) $(filter-out $(COV_DIR)/main.o,$(COV_ENGINE_OBJS)) $(COV_IA_OBJS) -DMAKE_UNMAKE_TEST_STANDALONE -o $(COV_DIR)/test$(EXE)
+	$(CC) $(CPPFLAGS) $(CFLAGS) --coverage $(IA)/test/unit_test.c $(SRC_CTEST) $(filter-out $(COV_DIR)/main.o,$(COV_ENGINE_OBJS)) $(filter-out $(COV_DIR)/regras.o,$(COV_IA_OBJS)) $(COV_DIR)/stubs.o -o $(COV_DIR)/ia_unit_test$(EXE)
+	$(CC) $(CPPFLAGS) $(CFLAGS) --coverage $(IA)/test/integration_test.c $(SRC_CTEST) $(filter-out $(COV_DIR)/main.o,$(COV_ENGINE_OBJS)) $(filter-out $(COV_DIR)/regras.o,$(COV_IA_OBJS)) $(COV_DIR)/stubs.o -o $(COV_DIR)/ia_integration_test$(EXE)
+	$(CC) $(CPPFLAGS) $(CFLAGS) --coverage $(IA)/test/system_test.c $(SRC_CTEST) $(filter-out $(COV_DIR)/main.o,$(COV_ENGINE_OBJS)) $(filter-out $(COV_DIR)/regras.o,$(COV_IA_OBJS)) $(COV_DIR)/stubs.o -o $(COV_DIR)/ia_system_test$(EXE)
+	./$(COV_DIR)/test$(EXE)
+	./$(COV_DIR)/ia_unit_test$(EXE)
+	./$(COV_DIR)/ia_integration_test$(EXE)
+	./$(COV_DIR)/ia_system_test$(EXE)
+	-$(PYTHON) $(ENGINE)/test/protocol/run.py $(COV_DIR)/main$(EXE)
+	gcov -r -o $(COV_DIR) $(SRC_ENGINE) $(SRC_IA)
+	@mv -f *.gcov $(COV_DIR)/ 2>/dev/null || true
+
 clean:
 	-$(RM_BUILD)
+	-rm -rf $(COV_DIR) *.gcov

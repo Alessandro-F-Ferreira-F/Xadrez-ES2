@@ -376,6 +376,28 @@ TEST(integration_async_ai_move_and_cancel_on_resign) {
     CHECK(bridge.sendCommand("isready") && bridge.readCommand() == "readyok",
           "Pipe do motor permanece sincronizado apos cancelar/aguardar IA");
 
+    // Fecha o alerta de desistencia via botao [X] usando playTurnWithEngine
+    CHECK(board.isAlertVisible(), "Alerta de desistencia visivel antes de fechar");
+    const sf::FloatRect& closeRect = board.getCloseButtonBounds();
+    CHECK(!board.playTurnWithEngine(closeRect.left + 5.f, closeRect.top + 5.f, bridge),
+          "Clique no [X] via playTurnWithEngine apenas fecha o alerta");
+    CHECK(!board.isAlertVisible(), "Alerta fechado apos clicar no [X] via playTurnWithEngine");
+
+    // Clica em Nova Partida pos-jogo com matchConfigured == true (reinicia com mesma configuracao)
+    const sf::FloatRect& newGameRect = board.getNewGameButtonBounds();
+    CHECK(!board.playTurnWithEngine(newGameRect.left + 5.f, newGameRect.top + 5.f, bridge),
+          "Clique em Nova Partida reinicia a partida configurada");
+    CHECK(!board.isGameOver() && board.getMoveHistory().empty(),
+          "Partida reiniciada com historico zerado e desbloqueada");
+
+    // Joga 1. e4 e tenta clicar no tabuleiro enquanto a IA pensa (deve ser bloqueado)
+    board.playTurnWithEngine(450.f, 650.f, bridge);
+    CHECK(board.playTurnWithEngine(450.f, 450.f, bridge), "1. e4 aceito apos reinicio");
+    CHECK(board.isAIThinking(), "IA pensando apos 1. e4");
+    CHECK(!board.playTurnWithEngine(350.f, 650.f, bridge),
+          "Cliques no tabuleiro devem ser ignorados enquanto a IA pensa");
+    board.waitForPendingAI();
+
     bridge.stop();
 }
 

@@ -5,7 +5,11 @@
 #include <iostream>
 #include <string>
 
+#ifdef _WIN32
+static std::string g_engine_path = "../Backend/build/main.exe";
+#else
 static std::string g_engine_path = "../Backend/build/main.out";
+#endif
 
 TEST(smoke_engine_handshake_and_board) {
     EngineBridge bridge;

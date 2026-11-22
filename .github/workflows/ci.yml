@@ -165,3 +165,71 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\system_test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências dos testes de aceitação
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r acceptance-tests/requirements.txt
+
+      - name: Executar testes de aceitação desktop
+        run: python acceptance-tests/run_tests.py
+        continue-on-error: true
+
+      - name: Validar resultado dos testes de aceitação
+        if: always()
+        shell: pwsh
+        run: |
+          $reportDir = Get-ChildItem "acceptance-tests/reports" -Directory |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+
+          if (-not $reportDir) {
+            throw "Nenhum relatório de execução foi encontrado."
+          }
+
+          $junitPath = Join-Path $reportDir.FullName "junit.xml"
+
+          if (-not (Test-Path $junitPath)) {
+            throw "Relatório JUnit não encontrado: $junitPath"
+          }
+
+          [xml]$junit = Get-Content $junitPath
+
+          $suites = $junit.SelectNodes("//testsuite")
+
+          $tests = 0
+          $failures = 0
+          $errors = 0
+          $skipped = 0
+
+          foreach ($suite in $suites) {
+            $tests += [int]$suite.tests
+            $failures += [int]$suite.failures
+            $errors += [int]$suite.errors
+            $skipped += [int]$suite.skipped
+          }
+
+          Write-Host "Testes encontrados: $tests"
+          Write-Host "Falhas: $failures"
+          Write-Host "Erros: $errors"
+          Write-Host "Ignorados: $skipped"
+
+          if ($tests -ne 10 -or $failures -ne 0 -or $errors -ne 0 -or $skipped -ne 0) {
+            throw "A suíte de aceitação não atingiu o resultado esperado: 10 PASS, 0 FAIL e 0 SKIP."
+          }
+
+          Write-Host "Todos os 10 testes de aceitação passaram."
+
+      - name: Publicar evidências dos testes de aceitação
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-test-reports
+          path: acceptance-tests/reports/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,367 @@
+{
+  "generated_at": "2026-11-22T03:40:15.387563-03:00",
+  "exit_code": 0,
+  "summary": {
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "total": 10
+  },
+  "tests": [
+    {
+      "name": "test_menu_opens_and_exit_button_closes_game",
+      "nodeid": "tests/test_acceptance_flows.py::test_menu_opens_and_exit_button_closes_game",
+      "result": "PASS",
+      "expected": "Abrir o menu, acionar Sair e confirmar o encerramento limpo do processo.",
+      "failure_reason": "",
+      "duration_seconds": 3.068,
+      "observed_behavior": [
+        "A janela foi encerrada pelo botão Sair; processo retornou código 0."
+      ],
+      "protocol_evidence": [],
+      "limitations": [
+        "Este fluxo não solicita estado ao motor; a verificação é de navegação/encerramento."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_menu_opens_and_exit_button_closes_game/00-menu-inicial.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_menu_opens_and_exit_button_closes_game.log"
+    },
+    {
+      "name": "test_ai_configuration_and_escape_navigation",
+      "nodeid": "tests/test_acceptance_flows.py::test_ai_configuration_and_escape_navigation",
+      "result": "PASS",
+      "expected": "Abrir a configuração, selecionar dificuldade, cor e relógio, e retornar ao menu usando Escape.",
+      "failure_reason": "",
+      "duration_seconds": 2.104,
+      "observed_behavior": [
+        "Dificuldade Fácil, cor preta e opção de 5 minutos foram destacadas; Escape retornou ao menu."
+      ],
+      "protocol_evidence": [],
+      "limitations": [
+        "O cenário verifica a seleção visual, mas não inicia a partida nem observa a configuração aplicada ao motor."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_ai_configuration_and_escape_navigation/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_ai_configuration_and_escape_navigation/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_ai_configuration_and_escape_navigation/02-dificuldade-facil-selecionada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_ai_configuration_and_escape_navigation/03-cor-preta-selecionada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_ai_configuration_and_escape_navigation/04-ia-facil-pretas-5-minutos.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_ai_configuration_and_escape_navigation/05-retorno-ao-menu.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_ai_configuration_and_escape_navigation.log"
+    },
+    {
+      "name": "test_local_game_moves_highlights_and_history",
+      "nodeid": "tests/test_acceptance_flows.py::test_local_game_moves_highlights_and_history",
+      "result": "PASS",
+      "expected": "Selecionar o modo local, iniciar uma partida, observar lances legais destacados, mover e2-e4 e e7-e5 e confirmar a alteração do tabuleiro e histórico.",
+      "failure_reason": "",
+      "duration_seconds": 3.048,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Resposta state do motor confirma e2e4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e2': None, 'e4': 'P'}.",
+        "Resposta state do motor confirma e7e5; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e7': None, 'e5': 'p'}.",
+        "As posições FEN consecutivas confirmaram e2e4 e e7e5; a região do painel de histórico também mudou."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        "state check - result * reason none fen rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+      ],
+      "limitations": [
+        "O texto UCI e a ordem renderizada no painel de histórico não são extraídos por OCR; a ordem dos lances é verificada pela sequência de posições FEN do motor."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/02-modo-local-selecionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/03-partida-local-iniciada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/04-e2-selecionado-com-destinos.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/05-lance-branco-e2-e4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_local_game_moves_highlights_and_history/06-lance-preto-e7-e5.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_local_game_moves_highlights_and_history.log"
+    },
+    {
+      "name": "test_game_against_ai_produces_a_visible_reply",
+      "nodeid": "tests/test_acceptance_flows.py::test_game_against_ai_produces_a_visible_reply",
+      "result": "PASS",
+      "expected": "Configurar uma partida contra a IA, executar e2-e4 e observar o motor responder com uma jogada no tabuleiro.",
+      "failure_reason": "",
+      "duration_seconds": 3.713,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Resposta state do motor confirma e2e4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e2': None, 'e4': 'P'}.",
+        "O motor respondeu com bestmove b8c6.",
+        "Resposta state do motor confirma b8c6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'b8': None, 'c6': 'n'}."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        "bestmove b8c6",
+        "state check - result * reason none fen r1bqkbnr/pppppppp/2n5/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2"
+      ],
+      "limitations": [
+        "A lista legal completa não é registrada no log da interface; a resposta bestmove é validada contra a transição FEN subsequente e a peça/turno de origem."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_game_against_ai_produces_a_visible_reply/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_game_against_ai_produces_a_visible_reply/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_game_against_ai_produces_a_visible_reply/02-dificuldade-facil.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_game_against_ai_produces_a_visible_reply/03-partida-contra-ia.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_game_against_ai_produces_a_visible_reply/04-jogador-joga-e2-e4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_game_against_ai_produces_a_visible_reply/05-resposta-da-ia.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_game_against_ai_produces_a_visible_reply.log"
+    },
+    {
+      "name": "test_invalid_move_resign_and_return_to_menu",
+      "nodeid": "tests/test_acceptance_flows.py::test_invalid_move_resign_and_return_to_menu",
+      "result": "PASS",
+      "expected": "Rejeitar e2-e5 sem alterar as casas/turno, aceitar e2-e4 e então confirmar desistência e retorno ao menu.",
+      "failure_reason": "",
+      "duration_seconds": 3.244,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Após e2-e5, e2 continuou com o peão, e5 permaneceu vazia e nenhuma nova resposta state foi registrada.",
+        "Resposta state do motor confirma e2e4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e2': None, 'e4': 'P'}."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+      ],
+      "limitations": [
+        "A interface não consulta o motor para uma seleção ilegal; a rejeição/turno são confirmados visualmente e pela posição da continuação legal e2-e4."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/02-modo-local-selecionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/03-partida-local-iniciada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/04-lance-ilegal-e2-e5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/05-alerta-ilegal-fechado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/05-e2-selecionado-apos-rejeicao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/06-continua-o-legal-e2-e4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/05-partida-encerrada-por-desistencia.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_invalid_move_resign_and_return_to_menu/07-retorno-ao-menu.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_invalid_move_resign_and_return_to_menu.log"
+    },
+    {
+      "name": "test_resized_window_keeps_menu_interactive",
+      "nodeid": "tests/test_acceptance_flows.py::test_resized_window_keeps_menu_interactive",
+      "result": "PASS",
+      "expected": "Redimensionar a janela, recalcular a área útil e confirmar que o botão Jogar ainda leva à configuração.",
+      "failure_reason": "",
+      "duration_seconds": 1.759,
+      "observed_behavior": [
+        "Área cliente redimensionada para 784x560; o clique calculado pela janela abriu a configuração."
+      ],
+      "protocol_evidence": [],
+      "limitations": [
+        "A verificação cobre uma dimensão/resolução por execução, não uma matriz de escalas DPI."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_resized_window_keeps_menu_interactive/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_resized_window_keeps_menu_interactive/01-menu-redimensionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_resized_window_keeps_menu_interactive/02-configuracao-apos-redimensionamento.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_resized_window_keeps_menu_interactive.log"
+    },
+    {
+      "name": "test_fools_mate_and_restart_from_postgame_controls",
+      "nodeid": "tests/test_acceptance_flows.py::test_fools_mate_and_restart_from_postgame_controls",
+      "result": "PASS",
+      "expected": "Executar o Mate do Louco por cliques, confirmar o estado visual de xeque-mate e iniciar uma nova partida pelo HUD.",
+      "failure_reason": "",
+      "duration_seconds": 4.126,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Resposta state do motor confirma f2f3; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'f2': None, 'f3': 'P'}.",
+        "Resposta state do motor confirma e7e5; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e7': None, 'e5': 'p'}.",
+        "Resposta state do motor confirma g2g4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'g2': None, 'g4': 'P'}.",
+        "Resposta state do motor confirma d8h4; turno seguinte=w, resultado=0-1, motivo=checkmate.",
+        "Verificação visual de peças: {'d8': None, 'h4': 'q'}.",
+        "O estado protocolar identificou check=e1, result=0-1 e reason=checkmate."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/8/5P2/PPPPP1PP/RNBQKBNR b KQkq - 0 1",
+        "state check - result * reason none fen rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq e6 0 2",
+        "state check - result * reason none fen rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq g3 0 2",
+        "state check e1 result 0-1 reason checkmate fen rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3"
+      ],
+      "limitations": [],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/02-modo-local-selecionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/03-partida-local-iniciada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/04-f2-f3.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/05-e7-e5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/06-g2-g4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/07-d8-h4-mate.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/08-xeque-mate.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_fools_mate_and_restart_from_postgame_controls/09-nova-partida.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_fools_mate_and_restart_from_postgame_controls.log"
+    },
+    {
+      "name": "test_en_passant_through_mouse_interaction",
+      "nodeid": "tests/test_acceptance_flows.py::test_en_passant_through_mouse_interaction",
+      "result": "PASS",
+      "expected": "Executar e2-e4, a7-a6, e4-e5, d7-d5 e e5xd6 en passant; verificar visualmente a remoção do peão capturado.",
+      "failure_reason": "",
+      "duration_seconds": 4.445,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Resposta state do motor confirma e2e4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e2': None, 'e4': 'P'}.",
+        "Resposta state do motor confirma a7a6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a7': None, 'a6': 'p'}.",
+        "Resposta state do motor confirma e4e5; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e4': None, 'e5': 'P'}.",
+        "Resposta state do motor confirma d7d5; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'d7': None, 'd5': 'p'}.",
+        "Resposta state do motor confirma e5d6; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e5': None, 'd6': 'P'}.",
+        "Após e5xd6, o FEN e os sprites confirmam peão branco em d6 e casas d5/e5 vazias."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        "state check - result * reason none fen rnbqkbnr/1ppppppp/p7/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "state check - result * reason none fen rnbqkbnr/1ppppppp/p7/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2",
+        "state check - result * reason none fen rnbqkbnr/1pp1pppp/p7/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
+        "state check - result * reason none fen rnbqkbnr/1pp1pppp/p2P4/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3"
+      ],
+      "limitations": [],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/02-modo-local-selecionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/03-partida-local-iniciada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/04-e2-e4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/05-a7-a6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/06-e4-e5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/07-d7-d5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_en_passant_through_mouse_interaction/08-captura-en-passant-e5-d6.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_en_passant_through_mouse_interaction.log"
+    },
+    {
+      "name": "test_castling_through_mouse_interaction",
+      "nodeid": "tests/test_acceptance_flows.py::test_castling_through_mouse_interaction",
+      "result": "PASS",
+      "expected": "Executar lances legais que liberam o roque curto e verificar que o rei e a torre aparecem nas casas de destino.",
+      "failure_reason": "",
+      "duration_seconds": 5.268,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Resposta state do motor confirma g1f3; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'g1': None, 'f3': 'N'}.",
+        "Resposta state do motor confirma a7a6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a7': None, 'a6': 'p'}.",
+        "Resposta state do motor confirma e2e4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e2': None, 'e4': 'P'}.",
+        "Resposta state do motor confirma a6a5; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a6': None, 'a5': 'p'}.",
+        "Resposta state do motor confirma f1c4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'f1': None, 'c4': 'B'}.",
+        "Resposta state do motor confirma h7h6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'h7': None, 'h6': 'p'}.",
+        "Resposta state do motor confirma e1g1; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'e1': None, 'g1': 'K'}.",
+        "O FEN e a visão confirmam rei em g1, torre em f1 e casas e1/h1 vazias."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1",
+        "state check - result * reason none fen rnbqkbnr/1ppppppp/p7/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 2",
+        "state check - result * reason none fen rnbqkbnr/1ppppppp/p7/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq e3 0 2",
+        "state check - result * reason none fen rnbqkbnr/1ppppppp/8/p7/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+        "state check - result * reason none fen rnbqkbnr/1ppppppp/8/p7/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 1 3",
+        "state check - result * reason none fen rnbqkbnr/1pppppp1/7p/p7/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4",
+        "state check - result * reason none fen rnbqkbnr/1pppppp1/7p/p7/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 1 4"
+      ],
+      "limitations": [],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/02-modo-local-selecionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/03-partida-local-iniciada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/04-cavalo-g1-f3.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/05-peao-a7-a6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/06-peao-e2-e4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/07-peao-a6-a5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/08-bispo-f1-c4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/09-peao-h7-h6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_castling_through_mouse_interaction/10-roque-curto.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_castling_through_mouse_interaction.log"
+    },
+    {
+      "name": "test_promotion_through_mouse_interaction",
+      "nodeid": "tests/test_acceptance_flows.py::test_promotion_through_mouse_interaction",
+      "result": "PASS",
+      "expected": "Executar lances com o mouse até a promoção de a7xb8 e confirmar a substituição do peão por uma dama em b8.",
+      "failure_reason": "",
+      "duration_seconds": 6.408,
+      "observed_behavior": [
+        "As 64 casas visíveis correspondem à posição FEN esperada.",
+        "Resposta state do motor confirma a2a4; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a2': None, 'a4': 'P'}.",
+        "Resposta state do motor confirma b7b5; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'b7': None, 'b5': 'p'}.",
+        "Resposta state do motor confirma a4b5; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a4': None, 'b5': 'P'}.",
+        "Resposta state do motor confirma a7a6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a7': None, 'a6': 'p'}.",
+        "Resposta state do motor confirma b5a6; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'b5': None, 'a6': 'P'}.",
+        "Resposta state do motor confirma g8f6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'g8': None, 'f6': 'n'}.",
+        "Resposta state do motor confirma a6a7; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a6': None, 'a7': 'P'}.",
+        "Resposta state do motor confirma c7c6; turno seguinte=w, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'c7': None, 'c6': 'p'}.",
+        "Resposta state do motor confirma a7b8q; turno seguinte=b, resultado=*, motivo=none.",
+        "Verificação visual de peças: {'a7': None, 'b8': 'Q'}.",
+        "O estado protocolar e a textura visível confirmam dama branca em b8 e a7 vazia."
+      ],
+      "protocol_evidence": [
+        "state check - result * reason none fen rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1",
+        "state check - result * reason none fen rnbqkbnr/p1pppppp/8/1p6/P7/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 2",
+        "state check - result * reason none fen rnbqkbnr/p1pppppp/8/1P6/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 2",
+        "state check - result * reason none fen rnbqkbnr/2pppppp/p7/1P6/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 3",
+        "state check - result * reason none fen rnbqkbnr/2pppppp/P7/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 3",
+        "state check - result * reason none fen rnbqkb1r/2pppppp/P4n2/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 1 4",
+        "state check - result * reason none fen rnbqkb1r/P1pppppp/5n2/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 4",
+        "state check - result * reason none fen rnbqkb1r/P2ppppp/2p2n2/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 5",
+        "state check - result * reason none fen rQbqkb1r/3ppppp/2p2n2/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 5"
+      ],
+      "limitations": [
+        "O teste assume a promoção automática para dama observada na implementação atual; não valida escolha entre diferentes peças."
+      ],
+      "evidence": [
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/00-menu-inicial.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/01-configuracao.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/02-modo-local-selecionado.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/03-partida-local-iniciada.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/04-a2-a4.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/05-b7-b5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/06-a4xb5.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/07-a7-a6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/08-b5xa6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/09-cavalo-g8-f6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/10-a6-a7.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/11-c7-c6.png",
+        "acceptance-tests/reports/20261122-033937-446790/evidence/test_promotion_through_mouse_interaction/12-promocao-a7xb8.png"
+      ],
+      "log_file": "acceptance-tests/reports/20261122-033937-446790/logs/test_promotion_through_mouse_interaction.log"
+    }
+  ]
+}

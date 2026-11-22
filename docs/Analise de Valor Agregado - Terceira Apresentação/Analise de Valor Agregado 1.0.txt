@@ -1,0 +1,36 @@
+### [RESUMO DAS MÉTRICAS DE VALOR AGREGADO (EM 30/10/26)]
+
+| Métrica | Sigla | Valor em Homem-Hora | Valor Financeiro (R$) | % do Orçamento Total (BAC) |
+| --- | --- | --- | --- | --- |
+| Orçamento No Término | BAC | 280,00 hh | R$ 14.000,00 | 100,00% |
+| Valor Planejado | PV | 214,63 hh | R$ 10.731,56 | 76,65% |
+| Valor Agregado | EV | 203,69 hh | R$ 10.184,49 | 72,75% |
+| Custo Real | AC | 108,93 hh | R$ 5.446,25 | 38,90% |
+| Índice de Desempenho de Custos | CPI | — | 1,87 | — |
+| Índice de Desempenho de Prazos | SPI | — | 0,95 | — |
+
+---
+
+### [RESUMO DAS MÉTRICAS DE VALOR AGREGADO (EM 13/11/26)]
+
+| Métrica | Sigla | Valor em Homem-Hora | Valor Financeiro (R$) | % do Orçamento Total (BAC) |
+| --- | --- | --- | --- | --- |
+| Orçamento No Término | BAC | 280,00 hh | R$ 14.000,00 | 100,00% |
+| Valor Planejado | PV | 252,74 hh | R$ 12.637,09 | 90,26% |
+| Valor Agregado | EV | 215,29 hh | R$ 10.764,54 | 76,89% |
+| Custo Real | AC | 112,72 hh | R$ 5.635,88 | 40,26% |
+| Índice de Desempenho de Custos | CPI | — | 1,91 | — |
+| Índice de Desempenho de Prazos | SPI | — | 0,85 | — |
+
+---
+
+### [RESUMO DAS MÉTRICAS DE VALOR AGREGADO (EM 21/11/26 — SEM APRESENTAÇÃO 3)]
+
+| Métrica | Sigla | Valor em Homem-Hora | Valor Financeiro (R$) | % do Orçamento Total (BAC) |
+| --- | --- | --- | --- | --- |
+| Orçamento No Término | BAC | 280,00 hh | R$ 14.000,00 | 100,00% |
+| Valor Planejado | PV | 272,59 hh | R$ 13.629,60 | 97,35% |
+| Valor Agregado | EV | 272,59 hh | R$ 13.629,60 | 97,35% |
+| Custo Real | AC | 146,56 hh | R$ 7.447,87 | 53,20% |
+| Índice de Desempenho de Custos | CPI | — | 1,86 | — |
+| Índice de Desempenho de Prazos | SPI | — | 1,00 | — |

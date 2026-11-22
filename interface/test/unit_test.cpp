@@ -5,11 +5,13 @@
 #include "ui_helpers.hpp"
 #include "../../tools/ctest/test_api.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #ifdef _WIN32
 static std::string g_self_exe_path;
@@ -732,6 +734,170 @@ TEST(letterbox_view_aspect_ratios) {
     const sf::FloatRect& vpZero = zero.getViewport();
     CHECK(!std::isnan(vpZero.width) && !std::isnan(vpZero.height),
           "Janela minimizada 0x0 nao produz NaN");
+}
+
+// 19. Teste de Unidade: Hover e Alternancia Completa de Opcoes no MenuScreen
+TEST(menu_hover_and_all_toggle_options) {
+    MenuScreen menu(1120.f, 800.f);
+    GameConfig cfg;
+
+    // Hover sobre botoes do menu principal e configuracao
+    const sf::FloatRect& playBtn = menu.getPlayButtonBounds();
+    menu.updateHover(playBtn.left + 5.f, playBtn.top + 5.f);
+
+    // Alterna para LOCAL_PVP e volta para VS_AI
+    const sf::FloatRect& localBtn = menu.getModeLocalBounds();
+    const sf::FloatRect& aiBtn = menu.getModeAiBounds();
+    menu.handleClick(AppScreen::GAME_SETUP, localBtn.left + 5.f, localBtn.top + 5.f, cfg);
+    CHECK(cfg.mode == GameMode::LOCAL_PVP, "Alterna modo para LOCAL_PVP");
+    menu.handleClick(AppScreen::GAME_SETUP, aiBtn.left + 5.f, aiBtn.top + 5.f, cfg);
+    CHECK(cfg.mode == GameMode::VS_AI, "Volta modo para VS_AI");
+
+    // Alterna dificuldades: EASY -> HARD -> MEDIUM
+    const sf::FloatRect& easyBtn = menu.getDiffEasyBounds();
+    const sf::FloatRect& medBtn = menu.getDiffMediumBounds();
+    const sf::FloatRect& hardBtn = menu.getDiffHardBounds();
+    menu.handleClick(AppScreen::GAME_SETUP, easyBtn.left + 5.f, easyBtn.top + 5.f, cfg);
+    CHECK(cfg.difficulty == AIDifficulty::EASY, "Seleciona EASY");
+    menu.handleClick(AppScreen::GAME_SETUP, hardBtn.left + 5.f, hardBtn.top + 5.f, cfg);
+    CHECK(cfg.difficulty == AIDifficulty::HARD, "Seleciona HARD");
+    menu.handleClick(AppScreen::GAME_SETUP, medBtn.left + 5.f, medBtn.top + 5.f, cfg);
+    CHECK(cfg.difficulty == AIDifficulty::MEDIUM, "Volta para MEDIUM");
+    CHECK(cfg.difficultyLabel() == "Médio", "Label de MEDIUM deve ser 'Médio'");
+
+    // Alterna cor: BLACK -> WHITE
+    const sf::FloatRect& blackBtn = menu.getColorBlackBounds();
+    const sf::FloatRect& whiteBtn = menu.getColorWhiteBounds();
+    menu.handleClick(AppScreen::GAME_SETUP, blackBtn.left + 5.f, blackBtn.top + 5.f, cfg);
+    CHECK(cfg.playerColor == PieceColor::BLACK, "Seleciona BLACK");
+    menu.handleClick(AppScreen::GAME_SETUP, whiteBtn.left + 5.f, whiteBtn.top + 5.f, cfg);
+    CHECK(cfg.playerColor == PieceColor::WHITE, "Volta para WHITE");
+}
+
+// 20. Teste de Unidade: Relogio em Tempo Real (tickClock), updateAlert e Motivos Genericos
+TEST(clock_tick_alert_update_and_postgame_none) {
+    ChessBoard board(800.f);
+    GameConfig cfg;
+    cfg.mode = GameMode::LOCAL_PVP;
+    cfg.timeLimitMinutes = 5;
+    board.configureMatch(cfg);
+
+    // tickClock desconta tempo real decorrido e detecta timeout
+    board.setRemainingTimeSec(PieceColor::WHITE, 0.02f);
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    board.tickClock();
+    CHECK(board.isGameOver(), "tickClock deve encerrar partida quando o relogio real zera");
+    CHECK(board.getGameReason() == "timeout", "Motivo do encerramento por tickClock deve ser timeout");
+
+    // checkPostGameButtonClick fora dos botoes retorna NONE
+    CHECK(board.checkPostGameButtonClick(10.f, 10.f) == PostGameAction::NONE,
+          "Clique fora dos botoes de pos-jogo retorna PostGameAction::NONE");
+
+    // Motivo generico de fim de jogo (ex.: repeticao) cai no ramo padrao "Fim de jogo: ..."
+    board.resetGame();
+    board.processUCICommand("state check - result 1/2-1/2 reason repetition fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    CHECK(board.isGameOver(), "Repeticao encerra a partida");
+    CHECK(board.getAlertMessage().find("Fim de jogo: 1/2-1/2") != std::string::npos,
+          "Motivo generico exibe 'Fim de jogo: <resultado>'");
+
+    // Alerta permanente (durationSec < 0) nao expira em updateAlert()
+    board.updateAlert();
+    CHECK(board.isAlertVisible(), "Alerta permanente continua visivel apos updateAlert");
+
+    // Alerta temporario (movimento invalido) continua visivel enquanto nao expirou
+    board.resetGame();
+    board.setLegalMoves("legalmoves e2e4");
+    board.handleMouseClick(450.f, 650.f); // e2
+    board.handleMouseClick(450.f, 550.f); // e3 (ilegal nesta lista)
+    CHECK(board.isAlertVisible(), "Alerta de lance invalido fica visivel");
+    board.updateAlert();
+    CHECK(board.isAlertVisible(), "Alerta temporario permanece visivel logo apos criado");
+}
+
+// 21. Teste de Unidade (Renderizacao SFML Headless — Linux Xvfb e Windows):
+// Exercita draw() de MenuScreen, ChessBoard, HudPanel, Piece, ui_helpers e ciclo completo de animacao.
+TEST(render_headless_board_hud_and_menu) {
+    sf::RenderWindow window(sf::VideoMode(1120, 800), "Xadrez - Teste Renderizacao");
+    window.setVisible(false);
+    CHECK(window.isOpen(), "Janela SFML oculta deve abrir em Linux (Xvfb) e Windows");
+
+    ChessBoard board(800.f, DEFAULT_HUD_WIDTH);
+    MenuScreen menu(1120.f, 800.f);
+    GameConfig cfg;
+
+    // 1. Renderiza Menu Principal (normal e com hover sobre Jogar e Sair)
+    menu.draw(window, AppScreen::MAIN_MENU, cfg, board.getFont(), board.isFontLoaded());
+    const sf::FloatRect& playBtn = menu.getPlayButtonBounds();
+    menu.updateHover(playBtn.left + 5.f, playBtn.top + 5.f);
+    menu.draw(window, AppScreen::MAIN_MENU, cfg, board.getFont(), board.isFontLoaded());
+    const sf::FloatRect& exitBtn = menu.getExitButtonBounds();
+    menu.updateHover(exitBtn.left + 5.f, exitBtn.top + 5.f);
+    menu.draw(window, AppScreen::MAIN_MENU, cfg, board.getFont(), board.isFontLoaded());
+
+    // 2. Renderiza Tela de Configuracao (VS_AI e LOCAL, com hover sobre Voltar e Iniciar)
+    cfg.mode = GameMode::VS_AI;
+    const sf::FloatRect& startBtn = menu.getStartGameButtonBounds();
+    menu.updateHover(startBtn.left + 5.f, startBtn.top + 5.f);
+    menu.draw(window, AppScreen::GAME_SETUP, cfg, board.getFont(), board.isFontLoaded());
+
+    cfg.mode = GameMode::LOCAL_PVP;
+    const sf::FloatRect& backBtn = menu.getBackButtonBounds();
+    menu.updateHover(backBtn.left + 5.f, backBtn.top + 5.f);
+    menu.draw(window, AppScreen::GAME_SETUP, cfg, board.getFont(), board.isFontLoaded());
+
+    // 3. Renderiza Tabuleiro + Animacao de Peca + Highlights + Alerta nao-critico + Scroll de Historico
+    GameConfig localTimed;
+    localTimed.mode = GameMode::LOCAL_PVP;
+    localTimed.timeLimitMinutes = 5;
+    board.configureMatch(localTimed);
+    board.processUCICommand(
+        "position startpos moves "
+        "e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5a4 g8f6 e1g1 f8e7 "
+        "f1e1 b7b5 a4b3 d7d6 c2c3 e8g8 h2h3 c6a5 b3c2 c7c5 "
+        "d2d4 d8c7 b1d2 c5d4 c3d4 a5c6"
+    );
+    board.setAnimationsEnabled(true);
+    CHECK(board.applyUCIMove("d4d5"), "Aplica lance com animacao ativa para renderizacao");
+    CHECK(board.hasActiveAnimations(), "Animacao deve estar ativa imediatamente apos lance");
+
+    // Seleciona peca, marca lance ilegal e posiciona hover sobre Desistir
+    board.setLegalMoves("legalmoves c6b4 c6d4 c6a5");
+    board.handleMouseClick(250.f, 250.f); // c6 (pretas)
+    board.handleMouseClick(250.f, 350.f); // c5 (ilegal -> ativa invalidMoveCol/Row e alerta)
+    const sf::FloatRect& resignBtn = board.getResignButtonBounds();
+    board.setMousePosition(resignBtn.left + 5.f, resignBtn.top + 5.f);
+
+    // Frame durante a animacao (exercita interpolacao em updateAnimations + isPieceAnimated)
+    window.clear();
+    board.draw(window);
+    window.display();
+
+    // Aguarda fim da animacao (220 ms) e desenha novamente para concluir e limpar activeAnimations
+    std::this_thread::sleep_for(std::chrono::milliseconds(260));
+    window.clear();
+    board.draw(window);
+    window.display();
+    CHECK(!board.hasActiveAnimations(), "Animacao deve encerrar e ser removida apos 260 ms");
+
+    // 4. Renderiza Tabuleiro Invertido (Pretas embaixo) + Sem Tempo + Xeque-Mate + Pos-Jogo
+    GameConfig aiUntimed;
+    aiUntimed.mode = GameMode::VS_AI;
+    aiUntimed.playerColor = PieceColor::BLACK;
+    aiUntimed.timeLimitMinutes = 0;
+    board.configureMatch(aiUntimed);
+    board.processUCICommand(
+        "state check e1 result 0-1 reason checkmate "
+        "fen rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3"
+    );
+    const sf::FloatRect& newGameBtn = board.getNewGameButtonBounds();
+    board.setMousePosition(newGameBtn.left + 5.f, newGameBtn.top + 5.f);
+
+    window.clear();
+    board.draw(window);
+    window.display();
+
+    window.close();
+    CHECK(!window.isOpen(), "Janela SFML oculta encerrou corretamente");
 }
 
 int main(int argc, char* argv[]) {

@@ -284,56 +284,11 @@ percentual de linhas ou branches.
 
 ## 6. Cobertura de código
 
-### Configuração existente
+A cobertura de código foi avaliada por meio de instrumentação com GCC e gcov, abrangendo módulos de produção do Backend (motor e IA) e da Interface.
 
-Há um alvo `coverage` em `interface/Makefile`. Ele compila testes com
-`--coverage`, executa as suítes C++ de unidade, integração e sistema e chama
-`gcov`. O alvo instrumenta explicitamente os arquivos:
+A medição foi realizada separadamente para cada componente, considerando cobertura de linhas, funções e branches. Os resultados, a metodologia utilizada, os arquivos incluídos e as limitações da análise estão documentados em `RELATORIO_COBERTURA.md`.
 
-- `interface/src/piece.cpp`
-- `interface/src/board.cpp`
-- `interface/src/hud_panel.cpp`
-- `interface/src/menu_screen.cpp`
-- `interface/src/engine_bridge.cpp`
-
-Portanto, o alvo cobre apenas esses fontes da interface; não mede o backend,
-os arquivos do motor/IA, a entrada `main.cpp`, os testes Python nem outras
-dependências compiladas fora da lista explícita. O comando `gcov` configurado
-não solicita relatório de branches com opções como `-b`; o alvo foi estruturado
-para gerar arquivos de cobertura por fonte, sem evidência de uma medição atual
-de branches.
-
-Não há configuração equivalente de cobertura no Makefile do backend. A
-documentação `docs/estrategia_testes.md` também registra que a medição formal
-para engine e IA está pendente.
-
-### Medição nesta análise
-
-**Não foi possível obter percentuais atuais nesta execução.** O ambiente
-disponibilizou Windows e CMake, mas não `make`/`mingw32-make`, GCC/G++ ou
-`gcov`; não foram encontrados arquivos `.gcda`, `.gcno` ou `.gcov` existentes
-para reutilizar. Sem o compilador GCC compatível com `--coverage` e o utilitário
-`gcov`, o alvo não pode ser executado aqui. Não foram gerados percentuais
-estimados.
-
-O arquivo `interface/docs/relatorio_testes.md` registra uma medição anterior
-de **88,16% (335/380 linhas executáveis)**, datada de 16/11 e explicitamente
-anterior à extração de `hud_panel.cpp`. O relatório antigo lista valores por
-arquivo e declara limitações de escopo. Esse número é histórico, não foi
-reproduzido nesta análise e não deve ser interpretado como cobertura atual: o
-alvo `coverage` atual inclui `hud_panel.cpp`, alterando o conjunto medido.
-
-Para medir a revisão atual em um ambiente compatível, use GCC/G++, GNU Make e
-`gcov` disponíveis no PATH e execute:
-
-```sh
-make -C interface coverage
-```
-
-O alvo recria os dados de cobertura em `interface/build/cov/`. Para medir
-branches, é necessário que a configuração de compilação/execução e a chamada
-de `gcov` solicitem explicitamente essa informação; o alvo atual não apresenta
-esses percentuais.
+Os percentuais apresentados representam a execução dos testes automatizados sobre os arquivos de produção instrumentados. Portanto, não devem ser interpretados como cobertura integral de todo o projeto.
 
 ## 7. Síntese
 

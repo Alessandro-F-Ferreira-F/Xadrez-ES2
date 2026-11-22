@@ -68,7 +68,7 @@ coverage: $(CTEST_OBJS)
 	./$(COV_DIR)/unit_test
 	./$(COV_DIR)/integration_test
 	./$(COV_DIR)/system_test
-	gcov -o $(COV_DIR) src/piece.cpp src/board.cpp src/hud_panel.cpp src/menu_screen.cpp src/engine_bridge.cpp
+	gcov -r -o $(COV_DIR) src/piece.cpp src/board.cpp src/hud_panel.cpp src/menu_screen.cpp src/engine_bridge.cpp
 	@mv -f *.gcov $(COV_DIR)/ 2>/dev/null || true
 
 profile: test-system

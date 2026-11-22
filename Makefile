@@ -11,12 +11,15 @@
 #   make test-ia       roda apenas as suites de unidade, integracao e sistema da IA
 #   make test-protocol roda a suite Python de protocolo UCI
 #   make test-interface roda as suites de smoke, unidade, integracao e sistema da interface
+#   make coverage      gera cobertura (gcov) de todos os modulos e exibe resumo consolidado
+#   make coverage-backend   gera cobertura (gcov) de Backend/engine e Backend/IA
+#   make coverage-interface gera cobertura (gcov) da interface
 #   make clean         remove binarios de Backend/build e interface/build
 # ---------------------------------------------------------------------------
 
 PERFT_MAX_DEPTH ?= 3
 
-.PHONY: all backend interface run test test-full test-backend test-engine test-ia test-protocol test-interface clean
+.PHONY: all backend interface run test test-full test-backend test-engine test-ia test-protocol test-interface coverage coverage-backend coverage-interface clean
 
 all: backend interface
 
@@ -48,6 +51,15 @@ test: test-backend test-protocol test-interface
 
 test-full:
 	$(MAKE) test PERFT_MAX_DEPTH=5
+
+coverage-backend:
+	PERFT_MAX_DEPTH=$(PERFT_MAX_DEPTH) $(MAKE) -C Backend coverage
+
+coverage-interface: backend
+	$(MAKE) -C interface coverage
+
+coverage: coverage-backend coverage-interface
+	@./tools/coverage_report.sh
 
 clean:
 	$(MAKE) -C Backend clean
